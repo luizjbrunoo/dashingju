@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="mx-auto max-w-7xl px-4 py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'financeiro/_subnav.html' %}
+
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <h1 class="text-xl font-semibold text-zinc-100">Bancos</h1>
+        <a
+            href="{% url 'financeiro_banco_novo' %}"
+            class="rounded-md bg-bally px-4 py-2 text-sm font-semibold text-white hover:bg-bally-bright"
+            >Cadastrar banco</a
+        >
+    </div>
+
+    {% if bancos %}
+        <div class="mt-6 overflow-x-auto rounded-lg border border-zinc-800">
+            <table class="min-w-full text-left text-sm">
+                <thead class="bg-zinc-900 text-xs uppercase text-zinc-500">
+                    <tr>
+                        <th class="px-4 py-3">Nome</th>
+                        <th class="px-4 py-3">Agência</th>
+                        <th class="px-4 py-3">Conta</th>
+                        <th class="px-4 py-3">Saldo inicial</th>
+                        <th class="px-4 py-3">Saldo atual</th>
+                        <th class="px-4 py-3"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-zinc-800">
+                    {% for b in bancos %}
+                        <tr class="bg-zinc-950/50 hover:bg-zinc-900/80">
+                            <td class="px-4 py-3 text-zinc-200">{{ b.nome }}</td>
+                            <td class="px-4 py-3 text-zinc-400">{{ b.agencia|default:"—" }}</td>
+                            <td class="px-4 py-3 text-zinc-400">{{ b.conta|default:"—" }}</td>
+                            <td class="px-4 py-3 font-mono text-zinc-300">R$ {{ b.saldo_inicial|floatformat:2 }}</td>
+                            <td class="px-4 py-3 font-mono text-bally-bright">R$ {{ b.saldo_atual|floatformat:2 }}</td>
+                            <td class="px-4 py-3 text-right">
+                                <a href="{% url 'financeiro_banco_editar' b.pk %}" class="text-bally-bright hover:underline">Editar</a>
+                                <span class="text-zinc-600">·</span>
+                                <a href="{% url 'financeiro_banco_excluir' b.pk %}" class="text-red-400 hover:underline">Excluir</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="mt-6 text-sm text-zinc-500">Nenhum banco cadastrado.</p>
+    {% endif %}
+</div>
+{% endblock 'body' %}

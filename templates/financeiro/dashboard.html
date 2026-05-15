@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="mx-auto max-w-7xl px-4 py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'financeiro/_subnav.html' %}
+
+    <h1 class="text-xl font-semibold text-zinc-100">Painel financeiro</h1>
+    <p class="mt-1 text-sm text-zinc-500">Resumo do mês {{ mes_ref }}</p>
+
+    <div class="mt-8 grid gap-4 sm:grid-cols-3">
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Receitas no mês</p>
+            <p class="mt-2 text-2xl font-semibold text-emerald-400">R$ {{ total_receitas_mes|floatformat:2 }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Despesas no mês</p>
+            <p class="mt-2 text-2xl font-semibold text-red-400">R$ {{ total_despesas_mes|floatformat:2 }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Saldo no mês</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-100">R$ {{ saldo_mes|floatformat:2 }}</p>
+        </div>
+    </div>
+
+    <section class="mt-12">
+        <h2 class="text-lg font-semibold text-zinc-200">Histórico de receitas e despesas</h2>
+        <p class="mt-1 text-sm text-zinc-500">
+            Evolução mensal nos últimos 12 meses (de {{ periodo_graficos_inicio|date:"d/m/Y" }} a {{ periodo_graficos_fim|date:"d/m/Y" }}).
+        </p>
+        <div class="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 md:p-6">
+            <div class="relative h-72 w-full md:h-80">
+                <canvas id="chartHistoricoLinha" aria-label="Gráfico de linha receitas e despesas"></canvas>
+            </div>
+        </div>
+    </section>
+
+    <section class="mt-12 grid gap-8 lg:grid-cols-2">
+        <div>
+            <h2 class="text-lg font-semibold text-zinc-200">Maiores receitas por categoria</h2>
+            <p class="mt-1 text-sm text-zinc-500">Distribuição no mesmo período de 12 meses.</p>
+            <div class="mt-6 flex min-h-[280px] items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                <div id="emptyPizzaRec" class="hidden text-sm text-zinc-500">Sem lançamentos de receita no período.</div>
+                <div class="relative mx-auto h-64 w-full max-w-sm">
+                    <canvas id="chartPizzaReceitas" aria-label="Gráfico de pizza receitas"></canvas>
+                </div>
+            </div>
+        </div>
+        <div>
+            <h2 class="text-lg font-semibold text-zinc-200">Maiores despesas por categoria</h2>
+            <p class="mt-1 text-sm text-zinc-500">Distribuição no mesmo período de 12 meses.</p>
+            <div class="mt-6 flex min-h-[280px] items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                <div id="emptyPizzaDesp" class="hidden text-sm text-zinc-500">Sem lançamentos de despesa no período.</div>
+                <div class="relative mx-auto h-64 w-full max-w-sm">
+                    <canvas id="chartPizzaDespesas" aria-label="Gráfico de pizza despesas"></canvas>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <h2 class="mt-12 text-lg font-semibold text-zinc-200">Saldos por banco</h2>
+    {% if saldos %}
+        <ul class="mt-4 divide-y divide-zinc-800 rounded-lg border border-zinc-800 bg-zinc-900/30">
+            {% for s in saldos %}
+                <li class="flex items-center justify-between px-4 py-3 text-sm">
+                    <span class="text-zinc-300">{{ s.banco }}</span>
+                    <span class="font-mono font-medium text-bally-bright">R$ {{ s.saldo|floatformat:2 }}</span>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p class="mt-4 text-sm text-zinc-500">Cadastre um banco para acompanhar saldos.</p>
+    {% endif %}
+</div>
+
+{{ charts_payload|json_script:"financeiro-dashboard-charts" }}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    function fmtMoney(v) {
+        return (
+            "R$ " +
+            Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        );
+    }
+
+    function readPayload() {
+        var el = document.getElementById("financeiro-dashboard-charts");
+        if (!el) return null;
+        try {
+            return JSON.parse(el.textContent);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function initCharts() {
+        var data = readPayload();
+        if (!data || !data.historico) return;
+
+        var hist = data.historico;
+        var corReceita = "#34d399";
+        var corDespesa = "#f87171";
+        var gridCor = "rgba(113, 113, 122, 0.35)";
+        var textoCor = "#a1a1aa";
+
+        var ctxLinha = document.getElementById("chartHistoricoLinha");
+        if (ctxLinha) {
+            new Chart(ctxLinha.getContext("2d"), {
+                type: "line",
+                data: {
+                    labels: hist.labels,
+                    datasets: [
+                        {
+                            label: "Receitas",
+                            data: hist.receitas,
+                            borderColor: corReceita,
+                            backgroundColor: "rgba(52, 211, 153, 0.12)",
+                            fill: true,
+                            tension: 0.25,
+                            pointRadius: 3,
+                            pointHoverRadius: 5,
+                        },
+                        {
+                            label: "Despesas",
+                            data: hist.despesas,
+                            borderColor: corDespesa,
+                            backgroundColor: "rgba(248, 113, 113, 0.12)",
+                            fill: true,
+                            tension: 0.25,
+                            pointRadius: 3,
+                            pointHoverRadius: 5,
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { intersect: false, mode: "index" },
+                    plugins: {
+                        legend: {
+                            labels: { color: textoCor },
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function (ctx) {
+                                    return ctx.dataset.label + ": " + fmtMoney(ctx.raw);
+                                },
+                            },
+                        },
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: textoCor, maxRotation: 45, minRotation: 0 },
+                            grid: { color: gridCor },
+                        },
+                        y: {
+                            ticks: {
+                                color: textoCor,
+                                callback: function (v) {
+                                    return Number(v).toLocaleString("pt-BR");
+                                },
+                            },
+                            grid: { color: gridCor },
+                            beginAtZero: true,
+                        },
+                    },
+                },
+            });
+        }
+
+        var coresRec = ["#34d399", "#2dd4bf", "#4ade80", "#10b981", "#059669", "#047857", "#065f46", "#064e3b"];
+        var coresDesp = ["#f87171", "#fb923c", "#fbbf24", "#ef4444", "#dc2626", "#b91c1c", "#991b1b", "#7f1d1d"];
+
+        function pizza(canvasId, payload, cores, emptyId) {
+            var canvas = document.getElementById(canvasId);
+            var emptyEl = document.getElementById(emptyId);
+            if (!canvas) return;
+            var labels = (payload && payload.labels) || [];
+            var valores = (payload && payload.valores) || [];
+            var tem = valores.some(function (x) {
+                return x > 0;
+            });
+            if (!tem || !labels.length) {
+                canvas.parentElement.classList.add("hidden");
+                if (emptyEl) {
+                    emptyEl.classList.remove("hidden");
+                }
+                return;
+            }
+            var bg = labels.map(function (_, i) {
+                return cores[i % cores.length];
+            });
+            new Chart(canvas.getContext("2d"), {
+                type: "pie",
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            data: valores,
+                            backgroundColor: bg,
+                            borderColor: "#18181b",
+                            borderWidth: 2,
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: "bottom",
+                            labels: {
+                                color: textoCor,
+                                boxWidth: 12,
+                                padding: 10,
+                                font: { size: 11 },
+                            },
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function (ctx) {
+                                    var t = ctx.dataset.data.reduce(function (a, b) {
+                                        return a + b;
+                                    }, 0);
+                                    var v = ctx.raw;
+                                    var pct = t ? ((v / t) * 100).toFixed(1) : "0";
+                                    return ctx.label + ": " + fmtMoney(v) + " (" + pct + "%)";
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+        }
+
+        pizza("chartPizzaReceitas", data.pizzaReceitas, coresRec, "emptyPizzaRec");
+        pizza("chartPizzaDespesas", data.pizzaDespesas, coresDesp, "emptyPizzaDesp");
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initCharts);
+    } else {
+        initCharts();
+    }
+})();
+</script>
+{% endblock 'body' %}

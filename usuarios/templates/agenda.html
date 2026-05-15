@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+
+{% block 'body' %}
+<main class="mx-auto max-w-7xl p-6 md:p-10 space-y-8">
+    <section class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-semibold tracking-tight text-zinc-100">Agenda</h1>
+            <p class="mt-1 text-zinc-500">Compromissos e tarefas do seu dia a dia</p>
+        </div>
+        <div class="flex flex-wrap gap-3">
+            {% include '_modulos_nav.html' with current='agenda' %}
+        </div>
+    </section>
+
+    {% if messages %}
+        <section class="space-y-2">
+            {% for message in messages %}
+                <div class="rounded-xl p-4 {% if message.level_tag == 'success' %}border border-bally/30 bg-bally-muted/30 text-bally-bright{% elif message.level_tag == 'error' %}border border-red-800/60 bg-red-950/40 text-red-300{% else %}border border-zinc-700 bg-zinc-900/80 text-zinc-300{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </section>
+    {% endif %}
+
+    <section class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <article class="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 shadow-sm shadow-black/20">
+            <h2 class="text-lg font-semibold text-zinc-100">Novo compromisso</h2>
+            <form method="post" class="mt-4 space-y-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="criar_compromisso" />
+                <div>
+                    <label class="mb-1 block text-sm text-zinc-500" for="titulo">Titulo</label>
+                    <input id="titulo" name="titulo" required class="w-full rounded-xl border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 focus:border-bally/50 focus:ring-2 focus:ring-bally/30 outline-none" />
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm text-zinc-500" for="data">Data</label>
+                    <input id="data" name="data" type="date" required class="w-full rounded-xl border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 [color-scheme:dark] focus:border-bally/50 focus:ring-2 focus:ring-bally/30 outline-none" />
+                </div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                        <label class="mb-1 block text-sm text-zinc-500" for="hora_inicio">Horario inicial</label>
+                        <input id="hora_inicio" name="hora_inicio" type="time" required class="w-full rounded-xl border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 [color-scheme:dark] focus:border-bally/50 focus:ring-2 focus:ring-bally/30 outline-none" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-sm text-zinc-500" for="hora_fim">Horario final</label>
+                        <input id="hora_fim" name="hora_fim" type="time" required class="w-full rounded-xl border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 [color-scheme:dark] focus:border-bally/50 focus:ring-2 focus:ring-bally/30 outline-none" />
+                    </div>
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm text-zinc-500" for="descricao">Descricao</label>
+                    <textarea id="descricao" name="descricao" rows="3" class="w-full rounded-xl border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 focus:border-bally/50 focus:ring-2 focus:ring-bally/30 outline-none"></textarea>
+                </div>
+                <button type="submit" class="rounded-xl bg-bally px-4 py-2 text-sm font-medium text-white hover:bg-bally-bright">
+                    Salvar compromisso
+                </button>
+            </form>
+        </article>
+
+        <article class="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 shadow-sm shadow-black/20">
+            <h2 class="text-lg font-semibold text-zinc-100">Nova tarefa</h2>
+            <form method="post" class="mt-4 space-y-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="criar_tarefa" />
+                <div>
+                    <label class="mb-1 block text-sm text-zinc-500" for="titulo_tarefa">Titulo da tarefa</label>
+                    <input id="titulo_tarefa" name="titulo_tarefa" required class="w-full rounded-xl border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 focus:border-bally/50 focus:ring-2 focus:ring-bally/30 outline-none" />
+                </div>
+                <div>
+                    <label class="mb-1 block text-sm text-zinc-500" for="prazo">Prazo (opcional)</label>
+                    <input id="prazo" name="prazo" type="date" class="w-full rounded-xl border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 [color-scheme:dark] focus:border-bally/50 focus:ring-2 focus:ring-bally/30 outline-none" />
+                </div>
+                <button type="submit" class="rounded-xl bg-bally px-4 py-2 text-sm font-medium text-white hover:bg-bally-bright">
+                    Salvar tarefa
+                </button>
+            </form>
+        </article>
+    </section>
+
+    <section class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 shadow-sm shadow-black/20">
+        <form method="get" class="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div>
+                <label class="mb-1 block text-sm text-zinc-500" for="filtro_data">Filtrar compromissos por data</label>
+                <input id="filtro_data" type="date" name="data" value="{{ filtro_data }}" class="w-full rounded-xl border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 [color-scheme:dark] focus:border-bally/50 focus:ring-2 focus:ring-bally/30 outline-none" />
+            </div>
+            <div>
+                <label class="mb-1 block text-sm text-zinc-500" for="status">Status das tarefas</label>
+                <select id="status" name="status" class="w-full rounded-xl border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 focus:border-bally/50 focus:ring-2 focus:ring-bally/30 outline-none">
+                    <option value="" {% if not status_tarefa %}selected{% endif %}>Todas</option>
+                    <option value="pendente" {% if status_tarefa == 'pendente' %}selected{% endif %}>Pendentes</option>
+                    <option value="concluida" {% if status_tarefa == 'concluida' %}selected{% endif %}>Concluidas</option>
+                </select>
+            </div>
+            <div class="flex items-end gap-2">
+                <button type="submit" class="rounded-xl border border-zinc-700 bg-zinc-800/80 px-4 py-2 text-sm text-zinc-200 hover:border-bally/40 hover:text-bally-bright">Aplicar filtros</button>
+                <a href="{% url 'agenda' %}" class="rounded-xl border border-zinc-700 bg-zinc-900/50 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200">Limpar</a>
+            </div>
+        </form>
+    </section>
+
+    <section class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <article class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 shadow-sm shadow-black/20">
+            <h2 class="mb-4 text-lg font-semibold text-zinc-100">Compromissos</h2>
+            <div class="space-y-3">
+                {% for compromisso in compromissos %}
+                    <div class="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 shadow-sm shadow-black/20">
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="min-w-0 flex-1">
+                                <h3 class="font-medium text-zinc-100">{{ compromisso.titulo }}</h3>
+                                <div class="mt-2 rounded-lg border border-zinc-800/80 bg-zinc-950/40 px-3 py-2">
+                                    <div class="flex flex-wrap items-center gap-2 text-xs">
+                                        <svg class="h-3.5 w-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M8 7V3m8 4V3m-9 8h10m-13 9h16a1 1 0 001-1V7a1 1 0 00-1-1H4a1 1 0 00-1 1v12a1 1 0 001 1z" />
+                                        </svg>
+                                        <span class="font-mono text-bally-bright">
+                                            {{ compromisso.data_hora|date:"d/m/Y H:i" }} - {{ compromisso.data_hora_fim|date:"H:i" }}
+                                        </span>
+                                        {% if compromisso.data_hora_fim|date:"d/m/Y" != compromisso.data_hora|date:"d/m/Y" %}
+                                            <span class="rounded bg-bally-muted/40 px-1.5 py-0.5 text-[10px] text-bally-bright">
+                                                termina em {{ compromisso.data_hora_fim|date:"d/m/Y H:i" }}
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% if compromisso.descricao %}
+                                    <p class="mt-2 text-sm text-zinc-400">{{ compromisso.descricao }}</p>
+                                {% endif %}
+                            </div>
+                            <form method="post" class="self-center">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="excluir_compromisso" />
+                                <input type="hidden" name="compromisso_id" value="{{ compromisso.id }}" />
+                                <button type="submit" class="rounded-lg border border-red-900/50 bg-red-950/40 px-3 py-1 text-xs text-red-300 hover:bg-red-900/40">
+                                    Excluir
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                {% empty %}
+                    <p class="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4 text-sm text-zinc-500">Nenhum compromisso encontrado.</p>
+                {% endfor %}
+            </div>
+        </article>
+
+        <article class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 shadow-sm shadow-black/20">
+            <h2 class="mb-4 text-lg font-semibold text-zinc-100">Tarefas</h2>
+            <div class="space-y-3">
+                {% for tarefa in tarefas %}
+                    <div class="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 shadow-sm shadow-black/20">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <h3 class="font-medium {% if tarefa.concluida %}text-zinc-500 line-through{% else %}text-zinc-100{% endif %}">{{ tarefa.titulo }}</h3>
+                                <p class="mt-1 text-xs text-zinc-500">
+                                    {% if tarefa.prazo %}Prazo: {{ tarefa.prazo|date:"d/m/Y" }}{% else %}Sem prazo{% endif %}
+                                </p>
+                            </div>
+                            <div class="flex gap-2">
+                                <form method="post">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="toggle_tarefa" />
+                                    <input type="hidden" name="tarefa_id" value="{{ tarefa.id }}" />
+                                    <button type="submit" class="rounded-lg border border-bally/30 bg-bally-muted/30 px-3 py-1 text-xs text-bally-bright hover:bg-bally-muted/50">
+                                        {% if tarefa.concluida %}Reabrir{% else %}Concluir{% endif %}
+                                    </button>
+                                </form>
+                                <form method="post">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="excluir_tarefa" />
+                                    <input type="hidden" name="tarefa_id" value="{{ tarefa.id }}" />
+                                    <button type="submit" class="rounded-lg border border-red-900/50 bg-red-950/40 px-3 py-1 text-xs text-red-300 hover:bg-red-900/40">
+                                        Excluir
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                {% empty %}
+                    <p class="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4 text-sm text-zinc-500">Nenhuma tarefa encontrada.</p>
+                {% endfor %}
+            </div>
+        </article>
+    </section>
+</main>
+
+<script>
+    const inputFiltroData = document.getElementById("filtro_data");
+    if (inputFiltroData) {
+        inputFiltroData.addEventListener("change", function () {
+            this.form.submit();
+        });
+    }
+</script>
+{% endblock 'body' %}

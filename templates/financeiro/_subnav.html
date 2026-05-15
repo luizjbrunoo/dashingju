@@ -1,0 +1,32 @@
+<nav class="mb-8 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-4 text-sm">
+    <div class="flex flex-wrap gap-2">
+        <a
+            href="{% url 'financeiro_dashboard' %}"
+            class="rounded-md px-3 py-1.5 font-medium text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright"
+            >Painel</a
+        >
+        <a
+            href="{% url 'financeiro_banco_listar' %}"
+            class="rounded-md px-3 py-1.5 font-medium text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright"
+            >Bancos</a
+        >
+        <a
+            href="{% url 'financeiro_categoria_listar' %}"
+            class="rounded-md px-3 py-1.5 font-medium text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright"
+            >Categorias</a
+        >
+        <a
+            href="{% url 'financeiro_extrato' %}"
+            class="rounded-md px-3 py-1.5 font-medium text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright"
+            >Extrato</a
+        >
+        <a
+            href="{% url 'financeiro_movimento_novo' %}"
+            class="rounded-md border border-bally/40 bg-bally-muted/40 px-3 py-1.5 font-semibold text-bally-bright hover:bg-bally-muted/60"
+            >Novo lançamento</a
+        >
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+        {% include '_modulos_nav.html' with current='financeiro' %}
+    </div>
+</nav>

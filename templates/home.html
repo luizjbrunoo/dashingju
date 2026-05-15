@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+
+{% block 'body' %}
+<div class="min-h-screen flex items-center justify-center">
+    <div class="text-center">
+        <h1 class="text-2xl font-semibold text-zinc-100">Bem-vindo ao DashingJu</h1>
+        <p class="mt-2 text-zinc-400">
+            <a href="{% url 'cadastro' %}" class="font-medium text-bally-bright hover:text-bally hover:underline">Cadastre-se</a>
+        </p>
+    </div>
+</div>
+{% endblock 'body' %}

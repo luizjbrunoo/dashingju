@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="mx-auto max-w-lg px-4 py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'financeiro/_subnav.html' %}
+
+    <h1 class="text-xl font-semibold text-zinc-100">Excluir lançamento</h1>
+    <p class="mt-4 text-sm text-zinc-400">
+        Confirma excluir o lançamento de {{ movimento.data|date:"d/m/Y" }} — {{ movimento.categoria.nome }} — R$
+        {{ movimento.valor|floatformat:2 }}?
+    </p>
+
+    <form method="post" class="mt-8 flex gap-3">
+        {% csrf_token %}
+        <button type="submit" class="rounded-md bg-red-900/80 px-4 py-2 text-sm font-semibold text-red-100 hover:bg-red-800">Excluir</button>
+        <a href="{% url 'financeiro_extrato' %}" class="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800">Cancelar</a>
+    </form>
+</div>
+{% endblock 'body' %}

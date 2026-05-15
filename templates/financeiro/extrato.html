@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="mx-auto max-w-7xl px-4 py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'financeiro/_subnav.html' %}
+
+    <h1 class="text-xl font-semibold text-zinc-100">Extrato</h1>
+    <p class="mt-1 text-sm text-zinc-500">Filtre por período, banco e tipo. O PDF usa os mesmos filtros.</p>
+
+    <form method="get" class="mt-6 grid gap-4 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+            <label class="mb-1 block text-xs font-medium text-zinc-500">De</label>
+            <input
+                type="date"
+                name="data_inicio"
+                value="{{ data_inicio|date:'Y-m-d' }}"
+                class="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100"
+            />
+        </div>
+        <div>
+            <label class="mb-1 block text-xs font-medium text-zinc-500">Até</label>
+            <input
+                type="date"
+                name="data_fim"
+                value="{{ data_fim|date:'Y-m-d' }}"
+                class="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100"
+            />
+        </div>
+        <div>
+            <label class="mb-1 block text-xs font-medium text-zinc-500">Banco</label>
+            <select name="banco" class="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100">
+                <option value="">Todos</option>
+                {% for b in bancos_opts %}
+                    <option value="{{ b.pk }}" {% if banco_id == b.pk|stringformat:"s" %}selected{% endif %}>{{ b.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="mb-1 block text-xs font-medium text-zinc-500">Tipo</label>
+            <select name="tipo" class="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100">
+                <option value="todos" {% if tipo == 'todos' %}selected{% endif %}>Todos</option>
+                <option value="receita" {% if tipo == 'receita' %}selected{% endif %}>Receitas</option>
+                <option value="despesa" {% if tipo == 'despesa' %}selected{% endif %}>Despesas</option>
+            </select>
+        </div>
+        <div class="flex flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-4">
+            <button type="submit" class="rounded-md bg-zinc-800 px-4 py-2 text-sm font-semibold text-zinc-100 hover:bg-zinc-700">Aplicar filtros</button>
+            <a
+                href="{% url 'financeiro_relatorio_pdf' %}?{{ request.GET.urlencode }}"
+                class="rounded-md border border-bally/50 bg-bally-muted/30 px-4 py-2 text-sm font-semibold text-bally-bright hover:bg-bally-muted/50"
+                >Baixar PDF</a
+            >
+        </div>
+    </form>
+
+    <div class="mt-8 grid gap-4 sm:grid-cols-3">
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs uppercase text-zinc-500">Receitas</p>
+            <p class="mt-1 font-mono text-lg text-emerald-400">R$ {{ total_receitas|floatformat:2 }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs uppercase text-zinc-500">Despesas</p>
+            <p class="mt-1 font-mono text-lg text-red-400">R$ {{ total_despesas|floatformat:2 }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs uppercase text-zinc-500">Saldo no período</p>
+            <p class="mt-1 font-mono text-lg text-zinc-100">R$ {{ saldo_periodo|floatformat:2 }}</p>
+        </div>
+    </div>
+
+    {% if movimentos %}
+        <div class="mt-8 overflow-x-auto rounded-lg border border-zinc-800">
+            <table class="min-w-full text-left text-sm">
+                <thead class="bg-zinc-900 text-xs uppercase text-zinc-500">
+                    <tr>
+                        <th class="px-4 py-3">Data</th>
+                        <th class="px-4 py-3">Banco</th>
+                        <th class="px-4 py-3">Categoria</th>
+                        <th class="px-4 py-3">Valor</th>
+                        <th class="px-4 py-3">Descrição</th>
+                        <th class="px-4 py-3"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-zinc-800">
+                    {% for m in movimentos %}
+                        <tr class="bg-zinc-950/50 hover:bg-zinc-900/80">
+                            <td class="whitespace-nowrap px-4 py-3 text-zinc-300">{{ m.data|date:"d/m/Y" }}</td>
+                            <td class="px-4 py-3 text-zinc-300">{{ m.banco.nome }}</td>
+                            <td class="px-4 py-3">
+                                <span class="text-zinc-200">{{ m.categoria.nome }}</span>
+                                {% if m.categoria.tipo == 'receita' %}
+                                    <span class="ml-2 text-xs text-emerald-500">(+)</span>
+                                {% else %}
+                                    <span class="ml-2 text-xs text-red-500">(−)</span>
+                                {% endif %}
+                            </td>
+                            <td class="whitespace-nowrap px-4 py-3 font-mono {% if m.categoria.tipo == 'receita' %}text-emerald-400{% else %}text-red-400{% endif %}">
+                                {% if m.categoria.tipo == 'despesa' %}−{% endif %}R$ {{ m.valor|floatformat:2 }}
+                            </td>
+                            <td class="max-w-xs truncate px-4 py-3 text-zinc-500">{{ m.descricao|default:"—" }}</td>
+                            <td class="whitespace-nowrap px-4 py-3 text-right">
+                                <a href="{% url 'financeiro_movimento_editar' m.pk %}" class="text-bally-bright hover:underline">Editar</a>
+                                <span class="text-zinc-600">·</span>
+                                <a href="{% url 'financeiro_movimento_excluir' m.pk %}" class="text-red-400 hover:underline">Excluir</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="mt-8 text-sm text-zinc-500">Nenhum lançamento no período.</p>
+    {% endif %}
+</div>
+{% endblock 'body' %}

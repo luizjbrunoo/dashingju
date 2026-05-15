@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="mx-auto max-w-7xl px-4 py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'financeiro/_subnav.html' %}
+
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <h1 class="text-xl font-semibold text-zinc-100">Categorias</h1>
+        <a
+            href="{% url 'financeiro_categoria_nova' %}"
+            class="rounded-md bg-bally px-4 py-2 text-sm font-semibold text-white hover:bg-bally-bright"
+            >Nova categoria</a
+        >
+    </div>
+
+    {% if categorias %}
+        <div class="mt-6 overflow-x-auto rounded-lg border border-zinc-800">
+            <table class="min-w-full text-left text-sm">
+                <thead class="bg-zinc-900 text-xs uppercase text-zinc-500">
+                    <tr>
+                        <th class="px-4 py-3">Nome</th>
+                        <th class="px-4 py-3">Tipo</th>
+                        <th class="px-4 py-3"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-zinc-800">
+                    {% for c in categorias %}
+                        <tr class="bg-zinc-950/50 hover:bg-zinc-900/80">
+                            <td class="px-4 py-3 text-zinc-200">{{ c.nome }}</td>
+                            <td class="px-4 py-3">
+                                {% if c.tipo == 'receita' %}
+                                    <span class="rounded-full bg-emerald-950/80 px-2 py-0.5 text-xs font-medium text-emerald-300">Receita</span>
+                                {% else %}
+                                    <span class="rounded-full bg-red-950/80 px-2 py-0.5 text-xs font-medium text-red-300">Despesa</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-right">
+                                <a href="{% url 'financeiro_categoria_editar' c.pk %}" class="text-bally-bright hover:underline">Editar</a>
+                                <span class="text-zinc-600">·</span>
+                                <a href="{% url 'financeiro_categoria_excluir' c.pk %}" class="text-red-400 hover:underline">Excluir</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="mt-6 text-sm text-zinc-500">Nenhuma categoria. Crie categorias de receita e despesa.</p>
+    {% endif %}
+</div>
+{% endblock 'body' %}

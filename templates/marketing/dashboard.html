@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="mx-auto max-w-7xl px-4 py-8">
+    {% include 'financeiro/_mensagens.html' %}
+
+    <section class="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-zinc-800 pb-6">
+        <div>
+            <h1 class="text-xl font-semibold text-zinc-100">Marketing — Google Ads</h1>
+            <p class="mt-1 text-sm text-zinc-500">
+                Painel de demonstração (dados fictícios, sem ligação à API).
+            </p>
+            <p class="mt-2 inline-flex rounded-full border border-amber-800/40 bg-amber-950/35 px-3 py-1 text-xs font-medium text-amber-100/90">
+                Demonstração
+            </p>
+        </div>
+        {% include '_modulos_nav.html' with current='marketing' %}
+    </section>
+
+    <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Cliques</p>
+            <p class="mt-2 text-2xl font-semibold text-bally-bright">{{ totals.clicks|floatformat:0 }}</p>
+            {% with t=kpi_trends.clicks %}
+                <p class="mt-2 flex flex-wrap items-center gap-1 text-sm font-medium {% if t.trend == 'up' %}text-emerald-400{% elif t.trend == 'down' %}text-red-400{% else %}text-zinc-500{% endif %}">
+                    {% if t.trend == 'up' %}<span aria-hidden="true">▲</span>{% elif t.trend == 'down' %}<span aria-hidden="true">▼</span>{% else %}<span aria-hidden="true">▬</span>{% endif %}
+                    {% if t.pct is not None %}<span>{{ t.pct|floatformat:1 }}%</span>{% elif t.trend == 'up' %}<span>—</span>{% endif %}
+                    <span class="text-xs font-normal text-zinc-500">{{ compare_note }}</span>
+                </p>
+            {% endwith %}
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Impressões</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-100">{{ totals.impressions|floatformat:0 }}</p>
+            {% with t=kpi_trends.impressions %}
+                <p class="mt-2 flex flex-wrap items-center gap-1 text-sm font-medium {% if t.trend == 'up' %}text-emerald-400{% elif t.trend == 'down' %}text-red-400{% else %}text-zinc-500{% endif %}">
+                    {% if t.trend == 'up' %}<span aria-hidden="true">▲</span>{% elif t.trend == 'down' %}<span aria-hidden="true">▼</span>{% else %}<span aria-hidden="true">▬</span>{% endif %}
+                    {% if t.pct is not None %}<span>{{ t.pct|floatformat:1 }}%</span>{% elif t.trend == 'up' %}<span>—</span>{% endif %}
+                    <span class="text-xs font-normal text-zinc-500">{{ compare_note }}</span>
+                </p>
+            {% endwith %}
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">CTR</p>
+            {% if totals.impressions %}
+                <p class="mt-2 text-2xl font-semibold text-violet-400">{{ ctr_value|floatformat:2 }}%</p>
+                <p class="mt-1 text-xs text-zinc-500">Cliques ÷ impressões (exemplo)</p>
+                {% with t=kpi_trends.ctr %}
+                    <p class="mt-2 flex flex-wrap items-center gap-1 text-sm font-medium {% if t.trend == 'up' %}text-emerald-400{% elif t.trend == 'down' %}text-red-400{% else %}text-zinc-500{% endif %}">
+                        {% if t.trend == 'up' %}<span aria-hidden="true">▲</span>{% elif t.trend == 'down' %}<span aria-hidden="true">▼</span>{% else %}<span aria-hidden="true">▬</span>{% endif %}
+                        {% if t.pct is not None %}<span>{{ t.pct|floatformat:1 }}%</span>{% elif t.trend == 'up' %}<span>—</span>{% endif %}
+                        <span class="text-xs font-normal text-zinc-500">{{ compare_note }}</span>
+                    </p>
+                {% endwith %}
+            {% else %}
+                <p class="mt-2 text-lg font-medium text-zinc-500">—</p>
+                <p class="mt-1 text-xs text-zinc-500">Sem impressões no período</p>
+            {% endif %}
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Custo (exemplo)</p>
+            <p class="mt-2 text-2xl font-semibold text-emerald-400">{{ totals_cost_value|floatformat:2 }}</p>
+            {% with t=kpi_trends.cost %}
+                <p class="mt-2 flex flex-wrap items-center gap-1 text-sm font-medium {% if t.trend == 'up' %}text-emerald-400{% elif t.trend == 'down' %}text-red-400{% else %}text-zinc-500{% endif %}">
+                    {% if t.trend == 'up' %}<span aria-hidden="true">▲</span>{% elif t.trend == 'down' %}<span aria-hidden="true">▼</span>{% else %}<span aria-hidden="true">▬</span>{% endif %}
+                    {% if t.pct is not None %}<span>{{ t.pct|floatformat:1 }}%</span>{% elif t.trend == 'up' %}<span>—</span>{% endif %}
+                    <span class="text-xs font-normal text-zinc-500">{{ compare_note }}</span>
+                </p>
+            {% endwith %}
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Custo por clique</p>
+            {% if totals.clicks %}
+                <p class="mt-2 text-2xl font-semibold text-sky-400">{{ cost_per_click|floatformat:2 }}</p>
+                <p class="mt-1 text-xs text-zinc-500">Custo total ÷ cliques (exemplo)</p>
+                {% with t=kpi_trends.cpc %}
+                    <p class="mt-2 flex flex-wrap items-center gap-1 text-sm font-medium {% if t.trend == 'up' %}text-emerald-400{% elif t.trend == 'down' %}text-red-400{% else %}text-zinc-500{% endif %}">
+                        {% if t.trend == 'up' %}<span aria-hidden="true">▲</span>{% elif t.trend == 'down' %}<span aria-hidden="true">▼</span>{% else %}<span aria-hidden="true">▬</span>{% endif %}
+                        {% if t.pct is not None %}<span>{{ t.pct|floatformat:1 }}%</span>{% elif t.trend == 'up' %}<span>—</span>{% endif %}
+                        <span class="text-xs font-normal text-zinc-500">{{ compare_note }}</span>
+                    </p>
+                {% endwith %}
+            {% else %}
+                <p class="mt-2 text-lg font-medium text-zinc-500">—</p>
+                <p class="mt-1 text-xs text-zinc-500">Sem cliques no período</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <section class="mt-12">
+        <h2 class="text-lg font-semibold text-zinc-200">Histórico diário (exemplo)</h2>
+        <p class="mt-1 text-sm text-zinc-500">Cliques, impressões e custo simulados por dia.</p>
+        <div class="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 md:p-6">
+            <div class="relative h-72 w-full md:h-80">
+                <canvas id="chartAdsHistorico" aria-label="Histórico de demonstração"></canvas>
+            </div>
+        </div>
+    </section>
+</div>
+
+{{ chart_payload|json_script:"marketing-dashboard-charts" }}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    function readPayload() {
+        var el = document.getElementById("marketing-dashboard-charts");
+        if (!el) return null;
+        try {
+            return JSON.parse(el.textContent);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function initChart() {
+        var data = readPayload();
+        if (!data || !data.historico) return;
+        var hist = data.historico;
+        if (!hist.labels || hist.labels.length === 0) return;
+
+        var ctx = document.getElementById("chartAdsHistorico");
+        if (!ctx) return;
+
+        var gridCor = "rgba(113, 113, 122, 0.35)";
+        var textoCor = "#a1a1aa";
+
+        new Chart(ctx.getContext("2d"), {
+            type: "line",
+            data: {
+                labels: hist.labels,
+                datasets: [
+                    {
+                        label: "Cliques",
+                        data: hist.clicks,
+                        borderColor: "#2d8f6e",
+                        backgroundColor: "rgba(45, 143, 110, 0.12)",
+                        yAxisID: "y",
+                        tension: 0.25,
+                        fill: false,
+                    },
+                    {
+                        label: "Impressões",
+                        data: hist.impressions,
+                        borderColor: "#a1a1aa",
+                        backgroundColor: "rgba(161, 161, 170, 0.08)",
+                        yAxisID: "y",
+                        tension: 0.25,
+                        fill: false,
+                    },
+                    {
+                        label: "Custo",
+                        data: hist.cost,
+                        borderColor: "#34d399",
+                        backgroundColor: "rgba(52, 211, 153, 0.08)",
+                        yAxisID: "y1",
+                        tension: 0.25,
+                        fill: false,
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: "index", intersect: false },
+                plugins: {
+                    legend: {
+                        labels: { color: textoCor },
+                    },
+                },
+                scales: {
+                    x: {
+                        ticks: { color: textoCor, maxRotation: 45, minRotation: 45 },
+                        grid: { color: gridCor },
+                    },
+                    y: {
+                        type: "linear",
+                        position: "left",
+                        title: { display: true, text: "Cliques / Impressões", color: textoCor },
+                        ticks: { color: textoCor },
+                        grid: { color: gridCor },
+                    },
+                    y1: {
+                        type: "linear",
+                        position: "right",
+                        title: { display: true, text: "Custo (exemplo)", color: textoCor },
+                        ticks: { color: textoCor },
+                        grid: { drawOnChartArea: false },
+                    },
+                },
+            },
+        });
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initChart);
+    } else {
+        initChart();
+    }
+})();
+</script>
+{% endblock 'body' %}

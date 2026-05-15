@@ -1,0 +1,23 @@
+{# Navegação comum entre módulos. Use: {% include '_modulos_nav.html' with current='marketing' %} #}
+<div class="flex flex-wrap gap-3" role="navigation" aria-label="Navegação entre módulos">
+    <a
+        href="{% url 'clientes' %}"
+        class="rounded-xl border px-4 py-2 text-sm font-medium transition-colors {% if current == 'clientes' %}border-bally/50 bg-bally-muted/25 text-bally-bright ring-1 ring-bally/20{% else %}border-zinc-700 bg-zinc-900/60 text-zinc-200 hover:border-bally/40 hover:text-bally-bright{% endif %}"
+        >Clientes</a
+    >
+    <a
+        href="{% url 'financeiro_dashboard' %}"
+        class="rounded-xl border px-4 py-2 text-sm font-medium transition-colors {% if current == 'financeiro' %}border-bally/50 bg-bally-muted/25 text-bally-bright ring-1 ring-bally/20{% else %}border-zinc-700 bg-zinc-900/60 text-zinc-200 hover:border-bally/40 hover:text-bally-bright{% endif %}"
+        >Financeiro</a
+    >
+    <a
+        href="{% url 'agenda' %}"
+        class="rounded-xl border px-4 py-2 text-sm font-medium transition-colors {% if current == 'agenda' %}border-bally/50 bg-bally-muted/25 text-bally-bright ring-1 ring-bally/20{% else %}border-zinc-700 bg-zinc-900/60 text-zinc-200 hover:border-bally/40 hover:text-bally-bright{% endif %}"
+        >Agenda</a
+    >
+    <a
+        href="{% url 'marketing_dashboard' %}"
+        class="rounded-xl border px-4 py-2 text-sm font-medium transition-colors {% if current == 'marketing' %}border-bally/50 bg-bally-muted/25 text-bally-bright ring-1 ring-bally/20{% else %}border-zinc-700 bg-zinc-900/60 text-zinc-200 hover:border-bally/40 hover:text-bally-bright{% endif %}"
+        >Marketing</a
+    >
+</div>
