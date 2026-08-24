@@ -1,0 +1,9 @@
+{% if prioridade == 'urgente' %}
+    <span class="rounded-md border border-red-900/50 bg-red-950/40 px-2 py-0.5 text-[10px] font-medium text-red-300">Urgente</span>
+{% elif prioridade == 'alta' %}
+    <span class="rounded-md border border-amber-900/50 bg-amber-950/40 px-2 py-0.5 text-[10px] font-medium text-amber-300">Alta</span>
+{% elif prioridade == 'baixa' %}
+    <span class="rounded-md border border-zinc-800 bg-zinc-950/40 px-2 py-0.5 text-[10px] font-medium text-zinc-500">Baixa</span>
+{% elif prioridade == 'normal' %}
+    <span class="rounded-md border border-zinc-800 bg-zinc-950/40 px-2 py-0.5 text-[10px] font-medium text-zinc-400">Normal</span>
+{% endif %}

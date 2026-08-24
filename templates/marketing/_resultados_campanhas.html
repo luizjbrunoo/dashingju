@@ -1,0 +1,66 @@
+{% with rank=ctx_resultados.ranking_campanhas %}
+{% if rank.exibir %}
+<div class="mt-8 border-t border-zinc-800 pt-6">
+    <div class="flex flex-col gap-2 border-b border-zinc-800 pb-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+            <h3 class="text-sm font-semibold text-zinc-200">Campanhas (utm_campaign)</h3>
+            <p class="mt-1 text-xs text-zinc-500">Somente leads Google Ads com atribuição confiável e campanha identificada</p>
+            {% if rank.aviso %}
+            <p class="mt-1 text-[10px] text-amber-200/80">{{ rank.aviso }}</p>
+            {% endif %}
+        </div>
+        <div class="flex flex-wrap gap-1 text-[10px]">
+            <span class="self-center text-zinc-600 pr-1">Ordenar:</span>
+            {% for key, label in orden_campanhas_opcoes %}
+            <a href="?{% if request.GET.nicho %}nicho={{ request.GET.nicho }}&{% endif %}dias={{ periodo_dias }}&granularidade={{ granularidade }}&orden_campanhas={{ key }}"
+               class="rounded-md border px-2 py-1 font-medium {% if rank.ordenacao == key %}border-bally/40 bg-bally-muted/30 text-bally-bright{% else %}border-zinc-700 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200{% endif %}">{{ label }}</a>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="mt-4 overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/40">
+        <table class="w-full min-w-[48rem] text-left text-xs">
+            <thead>
+                <tr class="border-b border-zinc-800 text-zinc-600">
+                    <th class="px-4 py-2.5 font-medium">Campanha</th>
+                    <th class="px-4 py-2.5 font-medium text-right">Investimento</th>
+                    <th class="px-4 py-2.5 font-medium text-right">Leads</th>
+                    <th class="px-4 py-2.5 font-medium text-right">Consultas</th>
+                    <th class="px-4 py-2.5 font-medium text-right">Contratos</th>
+                    {% if not ctx_resultados.ocultar_financeiro %}
+                    <th class="px-4 py-2.5 font-medium text-right">Receita</th>
+                    {% endif %}
+                    <th class="px-4 py-2.5 font-medium text-right">CPL</th>
+                    <th class="px-4 py-2.5 font-medium text-right">CAC mídia</th>
+                    <th class="px-4 py-2.5 font-medium text-right">Lead→contrato</th>
+                    {% if not ctx_resultados.ocultar_financeiro %}
+                    <th class="px-4 py-2.5 font-medium text-right">Receita / mídia</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-800/70">
+                {% for c in rank.campanhas %}
+                <tr class="hover:bg-zinc-950/30">
+                    <td class="px-4 py-2.5 font-medium text-zinc-200">{{ c.label }}</td>
+                    <td class="px-4 py-2.5 text-right tabular-nums text-zinc-300">
+                        {% if c.investimento is not None %}R$ {{ c.investimento|floatformat:2 }}{% if c.investimento_demo %}<span class="text-amber-300/90"> demo</span>{% endif %}{% else %}—{% endif %}
+                    </td>
+                    <td class="px-4 py-2.5 text-right tabular-nums text-bally-bright">{{ c.leads }}</td>
+                    <td class="px-4 py-2.5 text-right tabular-nums text-zinc-300">{{ c.consultas_realizadas }}</td>
+                    <td class="px-4 py-2.5 text-right tabular-nums text-zinc-300">{{ c.contratos }}</td>
+                    {% if not ctx_resultados.ocultar_financeiro %}
+                    <td class="px-4 py-2.5 text-right tabular-nums text-zinc-300">R$ {{ c.receita_contratada|floatformat:2 }}</td>
+                    {% endif %}
+                    <td class="px-4 py-2.5 text-right tabular-nums text-zinc-400">{% if c.cpl is not None %}R$ {{ c.cpl|floatformat:2 }}{% else %}—{% endif %}</td>
+                    <td class="px-4 py-2.5 text-right tabular-nums text-zinc-400">{% if c.cac_midia is not None %}R$ {{ c.cac_midia|floatformat:2 }}{% else %}—{% endif %}</td>
+                    <td class="px-4 py-2.5 text-right tabular-nums text-zinc-400">{% if c.conv_lead_contrato_pct is not None %}{{ c.conv_lead_contrato_pct|floatformat:1 }}%{% else %}—{% endif %}</td>
+                    {% if not ctx_resultados.ocultar_financeiro %}
+                    <td class="px-4 py-2.5 text-right tabular-nums text-emerald-400">{% if c.receita_midia_ratio is not None %}{{ c.receita_midia_ratio|floatformat:2 }}x{% else %}—{% endif %}</td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endwith %}

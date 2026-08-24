@@ -1,0 +1,12 @@
+<span class="rounded-md border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide
+    {% if compromisso.tipo == 'consulta' %}border-bally/30 bg-bally-muted/20 text-bally-bright
+    {% elif compromisso.tipo == 'audiencia' %}border-violet-900/40 bg-violet-950/30 text-violet-300
+    {% elif compromisso.tipo == 'prazo' %}border-red-900/40 bg-red-950/25 text-red-300
+    {% elif compromisso.tipo == 'reuniao' %}border-sky-900/40 bg-sky-950/25 text-sky-300
+    {% elif compromisso.tipo == 'followup_comercial' %}border-amber-900/40 bg-amber-950/25 text-amber-300
+    {% elif compromisso.tipo == 'cobranca' %}border-emerald-900/40 bg-emerald-950/30 text-emerald-300
+    {% elif compromisso.tipo == 'retorno_cliente' %}border-teal-900/40 bg-teal-950/25 text-teal-300
+    {% elif compromisso.tipo == 'diligencia' %}border-orange-900/40 bg-orange-950/25 text-orange-300
+    {% else %}border-zinc-700 bg-zinc-950/60 text-zinc-400{% endif %}">
+    {{ compromisso.get_tipo_display }}
+</span>

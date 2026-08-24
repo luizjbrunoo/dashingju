@@ -15,9 +15,11 @@
         class="rounded-xl border px-4 py-2 text-sm font-medium transition-colors {% if current == 'agenda' %}border-bally/50 bg-bally-muted/25 text-bally-bright ring-1 ring-bally/20{% else %}border-zinc-700 bg-zinc-900/60 text-zinc-200 hover:border-bally/40 hover:text-bally-bright{% endif %}"
         >Agenda</a
     >
+    {% if mkt_perms.ver_marketing or mkt_perms.ver_conteudo %}
     <a
-        href="{% url 'marketing_dashboard' %}"
+        href="{% if mkt_perms.ver_marketing %}{% url 'marketing_dashboard' %}{% else %}{% url 'marketing_conteudo_dashboard' %}{% endif %}"
         class="rounded-xl border px-4 py-2 text-sm font-medium transition-colors {% if current == 'marketing' %}border-bally/50 bg-bally-muted/25 text-bally-bright ring-1 ring-bally/20{% else %}border-zinc-700 bg-zinc-900/60 text-zinc-200 hover:border-bally/40 hover:text-bally-bright{% endif %}"
         >Marketing</a
     >
+    {% endif %}
 </div>

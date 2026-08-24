@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="app-shell py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'marketing/_subnav.html' %}
+
+    <section class="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-zinc-800 pb-6">
+        <div>
+            <h1 class="text-xl font-semibold text-zinc-100">Marketing de Conteúdo</h1>
+            <p class="mt-1 text-sm text-zinc-500">
+                Planeje, produza e organize conteúdos com auxílio de inteligência artificial.
+            </p>
+        </div>
+        <a
+            href="{% url 'marketing_conteudo_criar' %}"
+            class="rounded-md border border-bally/40 bg-bally-muted/40 px-4 py-2 text-sm font-semibold text-bally-bright hover:bg-bally-muted/60"
+        >+ Criar conteúdo</a>
+        <a
+            href="{% url 'marketing_conteudo_calendario_plano' %}"
+            class="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
+        >Criar plano de conteúdo</a>
+    </section>
+
+    {% if ideias_pendentes %}
+    <p class="mb-6 text-sm text-zinc-500">
+        {{ ideias_pendentes }} ideia(s) pendente(s) no
+        <a href="{% url 'marketing_conteudo_ideias' %}" class="text-bally-bright hover:underline">banco de ideias</a>.
+    </p>
+    {% endif %}
+
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Criados no mês</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-100">{{ kpis.criados_mes }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Em planejamento</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-100">{{ kpis.em_planejamento }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Aguardando revisão</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-100">{{ kpis.aguardando_revisao }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Aprovados</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-100">{{ kpis.aprovados }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Publicados</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-100">{{ kpis.publicados }}</p>
+        </div>
+    </div>
+
+    <section class="mt-10">
+        <div class="border-b border-zinc-800 pb-3">
+            <h2 class="text-lg font-semibold text-zinc-200">Calendário editorial</h2>
+            <p class="mt-1 text-sm text-zinc-500">Conteúdos com data planejada nos próximos 42 dias</p>
+        </div>
+        {% if calendario_itens %}
+        <div class="mt-5 overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/50">
+            <table class="w-full min-w-[48rem] text-left text-xs">
+                <thead>
+                    <tr class="border-b border-zinc-800 text-zinc-600">
+                        <th class="px-4 py-3 font-medium">Data</th>
+                        <th class="px-4 py-3 font-medium">Título</th>
+                        <th class="px-4 py-3 font-medium">Canal</th>
+                        <th class="px-4 py-3 font-medium">Formato</th>
+                        <th class="px-4 py-3 font-medium">Área</th>
+                        <th class="px-4 py-3 font-medium">Status</th>
+                        <th class="px-4 py-3 font-medium text-right">Ações</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-zinc-800/70">
+                    {% for item in calendario_itens %}
+                    <tr class="hover:bg-zinc-950/30">
+                        <td class="px-4 py-3 tabular-nums text-zinc-400">{{ item.data_planejada|date:"d/m/Y" }}</td>
+                        <td class="px-4 py-3 text-zinc-200">{{ item.titulo }}</td>
+                        <td class="px-4 py-3 text-zinc-400">{{ item.get_canal_display }}</td>
+                        <td class="px-4 py-3 text-zinc-500">{{ item.formato|default:"—" }}</td>
+                        <td class="px-4 py-3 text-zinc-500">{{ item.area_juridica|default:"—" }}</td>
+                        <td class="px-4 py-3 text-zinc-400">{{ item.get_status_display }}</td>
+                        <td class="px-4 py-3 text-right">
+                            <a href="{% url 'marketing_conteudo_editar' item.pk %}" class="text-bally-bright hover:underline">Editar</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="mt-5 rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-8 text-center text-sm text-zinc-500">
+            Nenhum conteúdo agendado. Crie um conteúdo e defina a data planejada para exibi-lo aqui.
+        </p>
+        {% endif %}
+    </section>
+</div>
+{% endblock 'body' %}

@@ -1,0 +1,85 @@
+<div class="group flex gap-3 rounded-xl border border-zinc-800/80 bg-zinc-900/40 px-3 py-2.5 transition-colors hover:border-zinc-700 hover:bg-zinc-900/60">
+    <div class="w-14 shrink-0 pt-0.5 text-right">
+        <span class="font-mono text-sm {% if item.atrasada %}text-red-400{% else %}text-bally-bright{% endif %}">{{ item.hora_label }}</span>
+    </div>
+    <div class="min-w-0 flex-1 border-l border-zinc-800 pl-3">
+        <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+                {% if item.item_tipo == 'compromisso' %}
+                    {% with compromisso=item.compromisso %}
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            {% include 'agenda/_badge_tipo_compromisso.html' %}
+                            {% include 'agenda/_badge_status_compromisso.html' %}
+                            {% include 'agenda/_badge_confirmacao_consulta.html' %}
+                            {% include 'agenda/_badge_prazo_compromisso.html' %}
+                        </div>
+                        <p class="mt-1 text-sm font-medium text-zinc-100">{{ compromisso.titulo }}</p>
+                        {% include 'agenda/_bloco_prazo_compacto.html' %}
+                        {% include 'agenda/_bloco_audiencia_compacto.html' %}
+                        {% if compromisso.tipo != 'audiencia' and compromisso.tipo != 'prazo' %}
+                        {% if compromisso.cliente or compromisso.area_juridica or compromisso.processo_referencia %}
+                            <p class="mt-0.5 truncate text-xs text-zinc-400">
+                                {% if compromisso.cliente %}{{ compromisso.cliente.nome }}{% endif %}
+                                {% if compromisso.tipo == 'consulta' and compromisso.area_juridica %}
+                                    {% if compromisso.cliente %} · {% endif %}{{ compromisso.area_juridica }}
+                                {% endif %}
+                                {% if compromisso.processo_referencia %}
+                                    {% if compromisso.cliente or compromisso.area_juridica %} · {% endif %}
+                                    <span class="font-mono">{{ compromisso.processo_referencia }}</span>
+                                {% endif %}
+                            </p>
+                        {% endif %}
+                        {% elif compromisso.tipo == 'audiencia' or compromisso.tipo == 'prazo' %}
+                        {% if compromisso.cliente or compromisso.processo_referencia %}
+                            <p class="mt-0.5 truncate text-xs text-zinc-400">
+                                {% if compromisso.cliente %}{{ compromisso.cliente.nome }}{% endif %}
+                                {% if compromisso.processo_referencia %}
+                                    {% if compromisso.cliente %} · {% endif %}
+                                    <span class="font-mono">{{ compromisso.processo_referencia }}</span>
+                                {% endif %}
+                            </p>
+                        {% endif %}
+                        {% endif %}
+                        {% if compromisso.responsavel %}
+                            <p class="mt-0.5 text-[11px] text-zinc-500">Responsável: {{ compromisso.responsavel.get_full_name|default:compromisso.responsavel.username }}</p>
+                        {% endif %}
+                    {% endwith %}
+                {% else %}
+                    {% with tarefa=item.tarefa %}
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <span class="rounded-md border border-zinc-700 bg-zinc-950/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400">Tarefa</span>
+                            {% include 'agenda/_badge_status_tarefa.html' %}
+                            {% include 'agenda/_badge_prioridade.html' with prioridade=tarefa.prioridade %}
+                        </div>
+                        <p class="mt-1 text-sm font-medium {% if tarefa.status == 'concluida' %}text-zinc-500 line-through{% else %}text-zinc-100{% endif %}">{{ tarefa.titulo }}</p>
+                        {% if tarefa.cliente or tarefa.processo_referencia %}
+                            <p class="mt-0.5 truncate text-xs text-zinc-400">
+                                {% if tarefa.cliente %}{{ tarefa.cliente.nome }}{% endif %}
+                                {% if tarefa.processo_referencia %}
+                                    {% if tarefa.cliente %} · {% endif %}
+                                    <span class="font-mono">{{ tarefa.processo_referencia }}</span>
+                                {% endif %}
+                            </p>
+                        {% endif %}
+                        {% if item.atrasada %}
+                            <p class="mt-0.5 text-[11px] text-red-400">{{ tarefa.dias_atraso }} dia{{ tarefa.dias_atraso|pluralize }} de atraso</p>
+                        {% elif tarefa.responsavel %}
+                            <p class="mt-0.5 text-[11px] text-zinc-500">Responsável: {{ tarefa.responsavel.get_full_name|default:tarefa.responsavel.username }}</p>
+                        {% endif %}
+                    {% endwith %}
+                {% endif %}
+            </div>
+            <div class="shrink-0 opacity-90 group-hover:opacity-100">
+                {% if item.item_tipo == 'compromisso' %}
+                    {% with compromisso=item.compromisso %}
+                        {% include 'agenda/_acoes_compromisso.html' %}
+                    {% endwith %}
+                {% else %}
+                    {% with tarefa=item.tarefa %}
+                        {% include 'agenda/_acoes_tarefa.html' %}
+                    {% endwith %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>

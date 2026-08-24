@@ -73,6 +73,8 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "financeiro.context_processors.financeiro_permissoes",
+                "marketing.context_processors.marketing_permissoes",
             ],
         },
     },
@@ -143,8 +145,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 from django.contrib.messages import constants
 
 MESSAGE_TAGS = {
-    constants.SUCCESS: 'bg-green-50 text-green-700',
-    constants.ERROR: 'bg-red-50 text-red-700'
+    constants.SUCCESS: "border border-emerald-800/80 bg-emerald-950/90 text-emerald-300",
+    constants.ERROR: "border border-red-800/80 bg-red-950/90 text-red-300",
+    constants.WARNING: "border border-amber-800/80 bg-amber-950/90 text-amber-300",
+    constants.INFO: "border border-zinc-700 bg-zinc-900 text-zinc-300",
 }
 
 Q_CLUSTER = {

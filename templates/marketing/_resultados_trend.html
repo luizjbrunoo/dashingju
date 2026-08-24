@@ -1,0 +1,7 @@
+{% if t %}
+<p class="mt-1 flex flex-wrap items-center gap-1 text-xs font-medium {% if t.trend == 'up' %}text-emerald-400{% elif t.trend == 'down' %}text-red-400{% else %}text-zinc-500{% endif %}">
+    {% if t.trend == 'up' %}<span aria-hidden="true">▲</span>{% elif t.trend == 'down' %}<span aria-hidden="true">▼</span>{% else %}<span aria-hidden="true">▬</span>{% endif %}
+    {% if t.pct is not None %}<span>{{ t.pct|floatformat:1 }}%</span>{% elif t.trend == 'up' %}<span>—</span>{% endif %}
+    {% if compare_note %}<span class="text-[10px] font-normal text-zinc-500">{{ compare_note }}</span>{% endif %}
+</p>
+{% endif %}

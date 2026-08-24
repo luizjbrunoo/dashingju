@@ -1,0 +1,43 @@
+<div class="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+    {% if permissoes_agenda.editar_agenda %}
+    <a href="{% url 'agenda' %}?{% if agenda_query %}{{ agenda_query }}&{% endif %}modal=tarefa&amp;tarefa_id={{ tarefa.id }}"
+        class="rounded-lg border border-zinc-700 bg-zinc-800/80 px-2.5 py-1 text-xs text-zinc-300 hover:border-bally/40 hover:text-bally-bright">
+        Editar
+    </a>
+    {% if tarefa.status == 'pendente' %}
+        <form method="post" class="inline">
+            {% csrf_token %}
+            {% include 'agenda/_preservar_filtros.html' %}
+            <input type="hidden" name="action" value="iniciar_tarefa" />
+            <input type="hidden" name="tarefa_id" value="{{ tarefa.id }}" />
+            <button type="submit" class="rounded-lg border border-zinc-700 bg-zinc-900/60 px-2.5 py-1 text-xs text-zinc-300 hover:text-zinc-100">Iniciar</button>
+        </form>
+    {% endif %}
+    {% if tarefa.status == 'pendente' or tarefa.status == 'em_andamento' %}
+        <form method="post" class="inline">
+            {% csrf_token %}
+            {% include 'agenda/_preservar_filtros.html' %}
+            <input type="hidden" name="action" value="concluir_tarefa" />
+            <input type="hidden" name="tarefa_id" value="{{ tarefa.id }}" />
+            <button type="submit" class="rounded-lg border border-bally/30 bg-bally-muted/30 px-2.5 py-1 text-xs text-bally-bright hover:bg-bally-muted/50">Concluir</button>
+        </form>
+    {% elif tarefa.status == 'concluida' %}
+        <form method="post" class="inline">
+            {% csrf_token %}
+            {% include 'agenda/_preservar_filtros.html' %}
+            <input type="hidden" name="action" value="toggle_tarefa" />
+            <input type="hidden" name="tarefa_id" value="{{ tarefa.id }}" />
+            <button type="submit" class="rounded-lg border border-zinc-700 bg-zinc-900/60 px-2.5 py-1 text-xs text-zinc-300 hover:text-zinc-100">Reabrir</button>
+        </form>
+    {% endif %}
+    {% endif %}
+    {% if permissoes_agenda.cancelar_agenda and tarefa.status != 'cancelada' and tarefa.status != 'concluida' %}
+        <form method="post" class="inline">
+            {% csrf_token %}
+            {% include 'agenda/_preservar_filtros.html' %}
+            <input type="hidden" name="action" value="excluir_tarefa" />
+            <input type="hidden" name="tarefa_id" value="{{ tarefa.id }}" />
+            <button type="submit" class="rounded-lg border border-red-900/50 bg-red-950/40 px-2.5 py-1 text-xs text-red-300 hover:bg-red-900/40">Cancelar</button>
+        </form>
+    {% endif %}
+</div>

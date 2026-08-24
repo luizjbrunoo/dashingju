@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="app-shell py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'financeiro/_subnav.html' %}
+
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h1 class="text-xl font-semibold text-zinc-100">Auditoria de cobranças</h1>
+            <p class="mt-1 text-sm text-zinc-500">Histórico de ações registradas automaticamente no módulo de cobranças.</p>
+        </div>
+        <a href="{% url 'financeiro_cobranca_listar' %}" class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800">Voltar às cobranças</a>
+    </div>
+
+    <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Eventos hoje</p>
+            <p class="mt-1 text-lg font-semibold text-zinc-100">{{ resumo_auditoria.eventos_hoje }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Total registrado</p>
+            <p class="mt-1 text-lg font-semibold text-zinc-100">{{ resumo_auditoria.total_registrado }}</p>
+        </div>
+    </div>
+
+    <div class="mt-8 overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/30">
+        <table class="min-w-full text-left text-sm">
+            <thead class="border-b border-zinc-800 bg-zinc-950/50 text-xs uppercase tracking-wide text-zinc-500">
+                <tr>
+                    <th class="px-4 py-3">Quando</th>
+                    <th class="px-4 py-3">Cobrança</th>
+                    <th class="px-4 py-3">Cliente</th>
+                    <th class="px-4 py-3">Ação</th>
+                    <th class="px-4 py-3">Descrição</th>
+                    <th class="px-4 py-3">Autor</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-800/80">
+                {% for evento in eventos %}
+                    <tr class="hover:bg-zinc-900/50">
+                        <td class="px-4 py-3 text-xs text-zinc-500">{{ evento.criado_em|date:"d/m/Y H:i" }}</td>
+                        <td class="px-4 py-3">
+                            <a href="{% url 'financeiro_cobranca_detalhe' evento.cobranca_id %}" class="text-bally-bright hover:underline">{{ evento.cobranca.descricao|truncatechars:32 }}</a>
+                        </td>
+                        <td class="px-4 py-3 text-zinc-300">{{ evento.cobranca.cliente.nome }}</td>
+                        <td class="px-4 py-3 text-zinc-300">{{ evento.get_acao_display }}</td>
+                        <td class="px-4 py-3 text-zinc-400">{{ evento.descricao|default:"—" }}</td>
+                        <td class="px-4 py-3 text-xs text-zinc-500">{% if evento.autor %}{{ evento.autor.get_full_name|default:evento.autor.username }}{% else %}Sistema{% endif %}</td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6" class="px-4 py-10 text-center text-zinc-500">Nenhum evento registrado ainda.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock 'body' %}

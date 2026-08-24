@@ -1,0 +1,187 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="app-shell py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'financeiro/_subnav.html' %}
+
+    <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+            <h1 class="text-xl font-semibold text-zinc-100">{{ cobranca.descricao }}</h1>
+            <p class="mt-1 text-sm text-zinc-500">{{ cobranca.cliente.nome }}</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            {% if pode_receber and fin_perms.registrar_recebimentos %}
+                <a href="{% url 'financeiro_cobranca_recebimento' cobranca.pk %}" class="rounded-md bg-emerald-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700">Registrar recebimento</a>
+            {% endif %}
+            {% if pode_cobrar and fin_perms.editar_cobrancas %}
+                <a href="{% url 'financeiro_cobranca_cobrar' cobranca.pk %}" class="rounded-md border border-bally/40 bg-bally-muted/30 px-3 py-1.5 text-sm font-medium text-bally-bright hover:bg-bally-muted/50">Cobrar cliente</a>
+            {% endif %}
+            {% if pode_agendar and fin_perms.editar_cobrancas %}
+                <form method="post" action="{% url 'financeiro_cobranca_agendar' cobranca.pk %}" class="inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="tipo" value="tarefa" />
+                    <button type="submit" class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:border-bally/40 hover:text-bally-bright">+ Tarefa na agenda</button>
+                </form>
+                <form method="post" action="{% url 'financeiro_cobranca_agendar' cobranca.pk %}" class="inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="tipo" value="compromisso" />
+                    <button type="submit" class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:border-bally/40 hover:text-bally-bright">+ Compromisso</button>
+                </form>
+            {% endif %}
+            {% if cobranca.status != 'canceled' and fin_perms.editar_cobrancas %}
+                <a href="{% url 'financeiro_cobranca_editar' cobranca.pk %}" class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:border-bally/40 hover:text-bally-bright">Editar</a>
+            {% endif %}
+            {% if cobranca.status != 'canceled' and fin_perms.cancelar_cobrancas %}
+                <a href="{% url 'financeiro_cobranca_cancelar' cobranca.pk %}" class="rounded-md border border-red-900/50 px-3 py-1.5 text-sm text-red-300 hover:bg-red-950/40">Cancelar cobrança</a>
+            {% endif %}
+            <a href="{% url 'financeiro_cobranca_listar' %}" class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800">Voltar</a>
+        </div>
+    </div>
+
+    <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs uppercase tracking-wide text-zinc-500">Valor original</p>
+            <p class="mt-1 text-lg font-semibold text-zinc-100">R$ {{ cobranca.valor_original|floatformat:2 }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs uppercase tracking-wide text-zinc-500">Total recebido</p>
+            <p class="mt-1 text-lg font-semibold text-emerald-400">R$ {{ cobranca.total_recebido|floatformat:2 }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs uppercase tracking-wide text-zinc-500">Saldo</p>
+            <p class="mt-1 text-lg font-semibold text-bally-bright">R$ {{ cobranca.saldo|floatformat:2 }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs uppercase tracking-wide text-zinc-500">Status</p>
+            <p class="mt-1 text-sm font-medium text-zinc-200">{{ cobranca.get_status_display }}</p>
+        </div>
+    </div>
+
+    <div class="mt-8 grid gap-8 lg:grid-cols-2">
+        <section class="rounded-lg border border-zinc-800 bg-zinc-900/30 p-6">
+            <h2 class="text-sm font-semibold text-zinc-200">Dados da cobrança</h2>
+            <dl class="mt-4 space-y-3 text-sm">
+                <div class="flex justify-between gap-4"><dt class="text-zinc-500">Cliente</dt><dd class="text-zinc-200">{{ cobranca.cliente.nome }}</dd></div>
+                <div class="flex justify-between gap-4"><dt class="text-zinc-500">Contrato</dt><dd class="font-mono text-zinc-300">{% if cobranca.contrato %}<a href="{% url 'financeiro_contrato_detalhe' cobranca.contrato.pk %}" class="text-bally-bright hover:underline">{{ cobranca.contrato.referencia }}</a>{% else %}{{ cobranca.contrato_referencia|default:"—" }}{% endif %}</dd></div>
+                <div class="flex justify-between gap-4"><dt class="text-zinc-500">Vencimento</dt><dd class="font-mono text-zinc-300">{{ cobranca.data_vencimento|date:"d/m/Y" }}{% if cobranca.parcela_rotulo %} <span class="text-zinc-500">({{ cobranca.parcela_rotulo }})</span>{% endif %}</dd></div>
+                <div class="flex justify-between gap-4"><dt class="text-zinc-500">Categoria</dt><dd class="text-zinc-300">{{ cobranca.get_categoria_display }}</dd></div>
+                <div class="flex justify-between gap-4"><dt class="text-zinc-500">Responsável</dt><dd class="text-zinc-300">{% if cobranca.responsavel %}{{ cobranca.responsavel.get_full_name|default:cobranca.responsavel.username }}{% else %}—{% endif %}</dd></div>
+                <div class="flex justify-between gap-4"><dt class="text-zinc-500">Forma prevista</dt><dd class="text-zinc-300">{{ cobranca.get_forma_prevista_pagamento_display|default:"—" }}</dd></div>
+                <div class="flex justify-between gap-4"><dt class="text-zinc-500">Criado em</dt><dd class="text-zinc-300">{{ cobranca.criado_em|date:"d/m/Y H:i" }}</dd></div>
+                {% if cobranca.observacoes_internas %}
+                    <div><dt class="text-zinc-500">Observações</dt><dd class="mt-1 text-zinc-400">{{ cobranca.observacoes_internas }}</dd></div>
+                {% endif %}
+            </dl>
+        </section>
+
+        <section class="rounded-lg border border-zinc-800 bg-zinc-900/30 p-6">
+            <h2 class="text-sm font-semibold text-zinc-200">Histórico de recebimentos</h2>
+            {% if fin_perms.ver_recebimentos %}
+            {% if recebimentos %}
+                <ul class="mt-4 divide-y divide-zinc-800/80">
+                    {% for r in recebimentos %}
+                        <li class="flex items-start justify-between gap-3 py-3 text-sm">
+                            <div>
+                                <p class="font-mono text-emerald-400">R$ {{ r.valor|floatformat:2 }} — {{ r.data_recebimento|date:"d/m/Y" }}</p>
+                                <p class="text-xs text-zinc-500">
+                                    {{ r.get_forma_pagamento_display }}
+                                    {% if r.referencia %} · {{ r.referencia }}{% endif %}
+                                    {% if r.observacao %} · {{ r.observacao }}{% endif %}
+                                </p>
+                            </div>
+                            {% if fin_perms.registrar_recebimentos %}
+                            <a href="{% url 'financeiro_cobranca_estornar_recebimento' cobranca.pk r.pk %}" class="shrink-0 text-xs text-red-400 hover:text-red-300">Estornar</a>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="mt-4 text-sm text-zinc-500">Nenhum recebimento registrado.</p>
+            {% endif %}
+            {% else %}
+                <p class="mt-4 text-sm text-zinc-500">Sem permissão para visualizar recebimentos.</p>
+            {% endif %}
+        </section>
+    </div>
+
+    {% if parcelas_grupo %}
+        <section class="mt-8 rounded-lg border border-zinc-800 bg-zinc-900/30 p-6">
+            <h2 class="text-sm font-semibold text-zinc-200">Parcelas do plano ({{ cobranca.parcela_total }})</h2>
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="border-b border-zinc-800 text-xs uppercase tracking-wide text-zinc-500">
+                        <tr>
+                            <th class="px-3 py-2">Parcela</th>
+                            <th class="px-3 py-2">Valor</th>
+                            <th class="px-3 py-2">Vencimento</th>
+                            <th class="px-3 py-2">Status</th>
+                            <th class="px-3 py-2">Saldo</th>
+                            <th class="px-3 py-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-zinc-800/80">
+                        {% for p in parcelas_grupo %}
+                            <tr class="{% if p.pk == cobranca.pk %}bg-bally/5{% endif %}">
+                                <td class="px-3 py-2 font-mono text-zinc-300">{{ p.parcela_numero }}/{{ p.parcela_total }}</td>
+                                <td class="px-3 py-2 font-mono text-zinc-100">R$ {{ p.valor_original|floatformat:2 }}</td>
+                                <td class="px-3 py-2 font-mono text-zinc-400">{{ p.data_vencimento|date:"d/m/Y" }}</td>
+                                <td class="px-3 py-2 text-zinc-400">{{ p.get_status_display }}</td>
+                                <td class="px-3 py-2 font-mono text-bally-bright">R$ {{ p.saldo|floatformat:2 }}</td>
+                                <td class="px-3 py-2">
+                                    {% if p.pk != cobranca.pk %}
+                                        <a href="{% url 'financeiro_cobranca_detalhe' p.pk %}" class="text-bally-bright hover:underline">Ver</a>
+                                    {% else %}
+                                        <span class="text-xs text-zinc-500">Atual</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    {% endif %}
+
+    <section class="mt-8 rounded-lg border border-zinc-800 bg-zinc-900/30 p-6">
+        <h2 class="text-sm font-semibold text-zinc-200">Agenda</h2>
+        {% if compromisso_lembrete_auto %}
+            <p class="mt-2 text-xs text-amber-300">Lembrete automático agendado para {{ compromisso_lembrete_auto.data_hora|date:"d/m/Y H:i" }} (1 dia antes).</p>
+        {% endif %}
+        {% if agenda_tarefas or agenda_compromissos %}
+            <ul class="mt-4 space-y-2 text-sm">
+                {% for t in agenda_tarefas %}
+                    <li class="flex justify-between gap-3 rounded-md border border-zinc-800 bg-zinc-950/40 px-3 py-2">
+                        <span class="text-zinc-300">Tarefa: {{ t.titulo }}</span>
+                        <span class="text-xs text-zinc-500">{{ t.get_status_display }}{% if t.prazo %} · {{ t.prazo|date:"d/m/Y" }}{% endif %}</span>
+                    </li>
+                {% endfor %}
+                {% for c in agenda_compromissos %}
+                    <li class="flex justify-between gap-3 rounded-md border border-zinc-800 bg-zinc-950/40 px-3 py-2">
+                        <span class="text-zinc-300">Compromisso: {{ c.titulo }}</span>
+                        <span class="text-xs text-zinc-500">{{ c.data_hora|date:"d/m/Y H:i" }}</span>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="mt-2 text-sm text-zinc-500">Nenhum follow-up manual vinculado.</p>
+        {% endif %}
+        <a href="{% url 'agenda' %}?cliente={{ cobranca.cliente_id }}&view=lista" class="mt-3 inline-block text-xs text-bally-bright hover:underline">Ver na agenda</a>
+    </section>
+
+    <section class="mt-8 rounded-lg border border-zinc-800 bg-zinc-900/30 p-6">
+        <h2 class="text-sm font-semibold text-zinc-200">Histórico da cobrança</h2>
+        {% if historico %}
+            <ul class="mt-4 space-y-3">
+                {% for evento in historico %}
+                    <li class="border-l-2 border-zinc-700 pl-4 text-sm">
+                        <p class="text-xs text-zinc-500">{{ evento.criado_em|date:"d/m/Y H:i" }}</p>
+                        <p class="text-zinc-300">{{ evento.descricao|default:evento.get_acao_display }}</p>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="mt-4 text-sm text-zinc-500">Sem eventos registrados.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock 'body' %}

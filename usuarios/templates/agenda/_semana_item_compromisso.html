@@ -1,0 +1,20 @@
+<a href="{% url 'agenda' %}?{% if agenda_query %}{{ agenda_query }}&{% endif %}modal=compromisso&amp;compromisso_id={{ compromisso.id }}"
+    class="block rounded-lg border border-zinc-800 bg-zinc-950/50 p-2 hover:border-bally/30">
+    <div class="flex items-center justify-between gap-1">
+        <span class="font-mono text-[10px] text-bally-bright">{{ compromisso.data_hora|date:"H:i" }}</span>
+        <div class="flex flex-wrap justify-end gap-1">
+            {% include 'agenda/_badge_tipo_compromisso.html' %}
+            {% include 'agenda/_badge_prazo_compromisso.html' %}
+        </div>
+    </div>
+    <p class="mt-1 truncate text-xs font-medium text-zinc-100">{{ compromisso.titulo }}</p>
+    {% include 'agenda/_bloco_prazo_compacto.html' %}
+    {% include 'agenda/_bloco_audiencia_compacto.html' %}
+    {% if compromisso.cliente or compromisso.responsavel %}
+        <p class="mt-0.5 truncate text-[10px] text-zinc-500">
+            {% if compromisso.cliente %}{{ compromisso.cliente.nome }}{% endif %}
+            {% if compromisso.cliente and compromisso.responsavel %} · {% endif %}
+            {% if compromisso.responsavel %}{{ compromisso.responsavel.get_full_name|default:compromisso.responsavel.username }}{% endif %}
+        </p>
+    {% endif %}
+</a>

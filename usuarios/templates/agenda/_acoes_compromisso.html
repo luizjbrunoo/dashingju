@@ -1,0 +1,46 @@
+<div class="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+    {% if permissoes_agenda.editar_agenda %}
+    <a href="{% url 'agenda' %}?{% if agenda_query %}{{ agenda_query }}&{% endif %}modal=compromisso&amp;compromisso_id={{ compromisso.id }}"
+        class="rounded-lg border border-zinc-700 bg-zinc-800/80 px-2.5 py-1 text-xs text-zinc-300 hover:border-bally/40 hover:text-bally-bright">
+        Editar
+    </a>
+    {% if compromisso.status == 'agendado' %}
+        <form method="post" class="inline">
+            {% csrf_token %}
+            {% include 'agenda/_preservar_filtros.html' %}
+            <input type="hidden" name="action" value="confirmar_compromisso" />
+            <input type="hidden" name="compromisso_id" value="{{ compromisso.id }}" />
+            <button type="submit" class="rounded-lg border border-bally/30 bg-bally-muted/30 px-2.5 py-1 text-xs text-bally-bright hover:bg-bally-muted/50">
+                {% if compromisso.tipo == 'consulta' %}Confirmar consulta{% else %}Confirmar{% endif %}
+            </button>
+        </form>
+    {% endif %}
+    {% if compromisso.status == 'agendado' or compromisso.status == 'confirmado' %}
+        <form method="post" class="inline">
+            {% csrf_token %}
+            {% include 'agenda/_preservar_filtros.html' %}
+            <input type="hidden" name="action" value="realizar_compromisso" />
+            <input type="hidden" name="compromisso_id" value="{{ compromisso.id }}" />
+            <button type="submit" class="rounded-lg border border-emerald-900/40 bg-emerald-950/30 px-2.5 py-1 text-xs text-emerald-300 hover:bg-emerald-950/50">Realizado</button>
+        </form>
+        {% if compromisso.tipo == 'consulta' or compromisso.tipo == 'reuniao' or compromisso.tipo == 'audiencia' %}
+            <form method="post" class="inline">
+                {% csrf_token %}
+                {% include 'agenda/_preservar_filtros.html' %}
+                <input type="hidden" name="action" value="nao_compareceu_compromisso" />
+                <input type="hidden" name="compromisso_id" value="{{ compromisso.id }}" />
+                <button type="submit" class="rounded-lg border border-orange-900/40 bg-orange-950/30 px-2.5 py-1 text-xs text-orange-300 hover:bg-orange-950/50">Não compareceu</button>
+            </form>
+        {% endif %}
+    {% endif %}
+    {% endif %}
+    {% if permissoes_agenda.cancelar_agenda and compromisso.status != 'realizado' and compromisso.status != 'cancelado' and compromisso.status != 'nao_compareceu' %}
+        <form method="post" class="inline">
+            {% csrf_token %}
+            {% include 'agenda/_preservar_filtros.html' %}
+            <input type="hidden" name="action" value="excluir_compromisso" />
+            <input type="hidden" name="compromisso_id" value="{{ compromisso.id }}" />
+            <button type="submit" class="rounded-lg border border-red-900/50 bg-red-950/40 px-2.5 py-1 text-xs text-red-300 hover:bg-red-900/40">Cancelar</button>
+        </form>
+    {% endif %}
+</div>

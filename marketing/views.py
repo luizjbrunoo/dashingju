@@ -1,9 +1,24 @@
 from __future__ import annotations
 
-from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 
-from .services import demo
+from marketing.decorators import login_e_perm_google_ads
+from django.utils.dateparse import parse_date
+
+from marketing.services.atribuicao import capturar_atribuicao_sessao
+from marketing.services.resultados_campanhas import (
+    ORDEN_CAC,
+    ORDEN_CONTRATOS,
+    ORDEN_CONVERSAO,
+    ORDEN_LEADS,
+    ORDEN_RECEITA,
+    ORDEN_RECEITA_MIDIA,
+)
+from marketing.services.google_ads_resultados import contexto_dashboard_resultados
+from marketing.services.periodo import PeriodoMarketing
+
+from . import nichos
+from .services import campanha_demo, demo
 
 
 def _sum_daily_slice(daily_slice: list[demo.DailyTotals]) -> tuple[int, int, int]:
@@ -39,9 +54,29 @@ def _pct_trend(current: float, previous: float) -> tuple[float | None, str]:
     return pct, "flat"
 
 
-@login_required
+def _periodo_request(request) -> PeriodoMarketing:
+    dias_raw = (request.GET.get("dias") or "30").strip()
+    try:
+        dias = int(dias_raw)
+    except ValueError:
+        dias = 30
+    dias = max(7, min(dias, 90))
+    data_inicio = parse_date((request.GET.get("data_inicio") or "").strip())
+    data_fim = parse_date((request.GET.get("data_fim") or "").strip())
+    return PeriodoMarketing.from_parametros(
+        data_inicio, data_fim, padrao_dias=dias
+    )
+
+
+@login_e_perm_google_ads
 def dashboard(request):
-    daily_raw = demo.demo_daily_series(30)
+    capturar_atribuicao_sessao(request)
+    nicho_chave, nicho_label = nichos.resolver_nicho(request.GET.get("nicho"))
+    periodo = _periodo_request(request)
+    dias = periodo.dias
+
+    campaign_plan = campanha_demo.demo_campaign_plan(nicho_chave)
+    daily_raw = demo.demo_daily_series(max(dias, 14), nicho=nicho_chave)
 
     half = len(daily_raw) // 2
     prev_days = daily_raw[:half]
@@ -80,14 +115,32 @@ def dashboard(request):
     elif (ctr_prev is None or ctr_prev == 0) and ctr_recent is not None and ctr_recent > 0:
         ctr_pct, ctr_trend = None, "up"
 
+    conversion_funnel = demo.demo_conversion_funnel(totals_impr, totals_clicks, nicho=nicho_chave)
+    funnel_shape = [(100, 84), (84, 68), (68, 52), (52, 36), (36, 22)]
+    funnel_tiers = [
+        {"stage": stage, "top_w": top_w, "bottom_w": bottom_w}
+        for stage, (top_w, bottom_w) in zip(conversion_funnel, funnel_shape)
+    ]
+
+    ctx_resultados = contexto_dashboard_resultados(
+        request.user,
+        periodo,
+        modo_demo=True,
+        nicho=nicho_chave,
+        granularidade=(request.GET.get("granularidade") or "auto").strip(),
+        orden_campanhas=(request.GET.get("orden_campanhas") or "contratos").strip(),
+    )
+
     chart_payload = {
         "historico": {
             "labels": [d.date_label for d in daily_raw],
             "clicks": [d.clicks for d in daily_raw],
             "impressions": [d.impressions for d in daily_raw],
             "cost": [round(d.cost_micros / 1_000_000, 4) for d in daily_raw],
-        }
+        },
     }
+    if not ctx_resultados.ocultar_resultados_negocio:
+        chart_payload["evolucao"] = ctx_resultados.evolucao.as_chart_dict()
 
     kpi_trends = {
         "clicks": {"pct": clicks_pct, "trend": clicks_trend},
@@ -106,7 +159,26 @@ def dashboard(request):
             "cost_per_click": cost_per_click,
             "ctr_value": ctr_value,
             "chart_payload": chart_payload,
+            "funnel_tiers": funnel_tiers,
+            "nichos": nichos.NICHOS_ATUACAO,
+            "nicho_selecionado": nicho_chave,
+            "nicho_label": nicho_label,
+            "campaign_plan": campaign_plan,
             "kpi_trends": kpi_trends,
-            "compare_note": "15 dias vs. 15 anteriores",
+            "compare_note": ctx_resultados.compare_note,
+            "subnav_section": "google_ads",
+            "periodo_dias": dias,
+            "periodo_label": periodo.label(),
+            "granularidade": ctx_resultados.granularidade,
+            "orden_campanhas": ctx_resultados.ranking_campanhas.ordenacao,
+            "orden_campanhas_opcoes": (
+                (ORDEN_CONTRATOS, "Contratos"),
+                (ORDEN_RECEITA, "Receita"),
+                (ORDEN_LEADS, "Leads"),
+                (ORDEN_CONVERSAO, "Conversão"),
+                (ORDEN_CAC, "CAC mídia"),
+                (ORDEN_RECEITA_MIDIA, "Receita / mídia"),
+            ),
+            "ctx_resultados": ctx_resultados,
         },
     )

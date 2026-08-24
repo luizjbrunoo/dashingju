@@ -1,0 +1,36 @@
+<div id="campos-consulta" class="hidden space-y-3 rounded-xl border border-zinc-800 bg-zinc-950/30 p-3">
+    <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Dados da consulta</p>
+    {% include 'agenda/_form_field.html' with field=compromisso_form.area_juridica %}
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {% include 'agenda/_form_field.html' with field=compromisso_form.origem_lead %}
+        {% include 'agenda/_form_field.html' with field=compromisso_form.confirmacao_consulta %}
+    </div>
+</div>
+
+<div id="campos-prazo" class="hidden space-y-3 rounded-xl border border-zinc-800 bg-zinc-950/30 p-3">
+    <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Prazos processuais</p>
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {% include 'agenda/_form_field.html' with field=compromisso_form.prazo_oficial %}
+        {% include 'agenda/_form_field.html' with field=compromisso_form.prazo_interno %}
+    </div>
+</div>
+
+<div id="campos-audiencia" class="hidden space-y-3 rounded-xl border border-zinc-800 bg-zinc-950/30 p-3">
+    <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Dados da audiência</p>
+    {% include 'agenda/_form_field.html' with field=compromisso_form.modalidade_audiencia %}
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {% include 'agenda/_form_field.html' with field=compromisso_form.tribunal_audiencia %}
+        {% include 'agenda/_form_field.html' with field=compromisso_form.vara_audiencia %}
+    </div>
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {% include 'agenda/_form_field.html' with field=compromisso_form.local_audiencia %}
+        {% include 'agenda/_form_field.html' with field=compromisso_form.link_audiencia %}
+    </div>
+    {% include 'agenda/_form_field.html' with field=compromisso_form.observacoes_audiencia %}
+</div>
+
+<div id="campos-followup" class="hidden space-y-3 rounded-xl border border-zinc-800 bg-zinc-950/30 p-3">
+    <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Follow-up comercial</p>
+    {% include 'agenda/_form_field.html' with field=compromisso_form.followup_oportunidade %}
+    {% include 'agenda/_form_field.html' with field=compromisso_form.followup_observacao %}
+</div>

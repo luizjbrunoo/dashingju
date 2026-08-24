@@ -1,0 +1,17 @@
+{% if compromisso.tipo == 'audiencia' and compromisso.metadados %}
+    <p class="mt-0.5 text-xs text-zinc-400">
+        {% if compromisso.metadados.tribunal %}{{ compromisso.metadados.tribunal }}{% endif %}
+        {% if compromisso.metadados.modalidade %}
+            {% if compromisso.metadados.tribunal %} · {% endif %}{{ compromisso.metadados.modalidade|capfirst }}
+        {% endif %}
+        {% if compromisso.metadados.local %}
+            {% if compromisso.metadados.tribunal or compromisso.metadados.modalidade %} · {% endif %}{{ compromisso.metadados.local }}
+        {% endif %}
+        {% if compromisso.metadados.vara %}
+            {% if compromisso.metadados.tribunal or compromisso.metadados.modalidade or compromisso.metadados.local %} · {% endif %}{{ compromisso.metadados.vara }}
+        {% endif %}
+    </p>
+    {% if compromisso.metadados.link %}
+        <p class="mt-0.5 truncate text-[11px] text-bally-bright">{{ compromisso.metadados.link }}</p>
+    {% endif %}
+{% endif %}

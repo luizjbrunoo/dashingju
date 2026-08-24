@@ -1,0 +1,24 @@
+<nav class="flex flex-wrap gap-2 border-b border-zinc-800 pb-4 text-sm">
+    <a
+        href="{% url 'agenda' %}?{% if filtros_query_base %}{{ filtros_query_base }}&{% endif %}view=hoje"
+        class="rounded-md px-3 py-1.5 font-medium {% if view_ativa == 'hoje' %}bg-zinc-800 text-bally-bright ring-1 ring-bally/30{% else %}text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright{% endif %}"
+    >Hoje</a>
+    <a
+        href="{% url 'agenda' %}?{% if filtros_query_base %}{{ filtros_query_base }}&{% endif %}view=semana"
+        class="rounded-md px-3 py-1.5 font-medium {% if view_ativa == 'semana' %}bg-zinc-800 text-bally-bright ring-1 ring-bally/30{% else %}text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright{% endif %}"
+    >Semana</a>
+    <a
+        href="{% url 'agenda' %}?{% if filtros_query_base %}{{ filtros_query_base }}&{% endif %}view=mes"
+        class="rounded-md px-3 py-1.5 font-medium {% if view_ativa == 'mes' %}bg-zinc-800 text-bally-bright ring-1 ring-bally/30{% else %}text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright{% endif %}"
+    >Mês</a>
+    <a
+        href="{% url 'agenda' %}?{% if filtros_query_base %}{{ filtros_query_base }}&{% endif %}view=lista"
+        class="rounded-md px-3 py-1.5 font-medium {% if view_ativa == 'lista' %}bg-zinc-800 text-bally-bright ring-1 ring-bally/30{% else %}text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright{% endif %}"
+    >Lista</a>
+    {% if permissoes_agenda.ver_auditoria %}
+    <a
+        href="{% url 'agenda_auditoria' %}"
+        class="rounded-md px-3 py-1.5 font-medium text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright"
+    >Auditoria</a>
+    {% endif %}
+</nav>

@@ -1,0 +1,93 @@
+<section class="mt-12">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h2 class="text-lg font-semibold text-zinc-200">Honorários e cobranças</h2>
+            <p class="mt-1 text-sm text-zinc-500">Contas a receber, inadimplência e previsão dos próximos 30 dias.</p>
+        </div>
+        <div class="flex flex-wrap gap-2 text-sm">
+            <a href="{% url 'financeiro_cobranca_listar' %}" class="rounded-md px-3 py-1.5 font-medium text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright">Cobranças</a>
+            <a href="{% url 'financeiro_cobranca_inadimplencia' %}" class="rounded-md px-3 py-1.5 font-medium text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright">Inadimplência</a>
+            <a href="{% url 'financeiro_cobranca_previsao' %}" class="rounded-md px-3 py-1.5 font-medium text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright">Previsão</a>
+        </div>
+    </div>
+
+    <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">A receber</p>
+            <p class="mt-1 font-mono text-lg font-semibold text-zinc-100">R$ {{ cobrancas.a_receber|floatformat:2 }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Recebido no mês</p>
+            <p class="mt-1 font-mono text-lg font-semibold text-emerald-400">R$ {{ cobrancas.recebido_mes|floatformat:2 }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Vencido</p>
+            <p class="mt-1 font-mono text-lg font-semibold {% if cobrancas.vencido %}text-red-300{% else %}text-zinc-100{% endif %}">R$ {{ cobrancas.vencido|floatformat:2 }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Taxa inadimplência</p>
+            <p class="mt-1 font-mono text-lg font-semibold {% if cobrancas.taxa_inadimplencia %}text-red-300{% else %}text-bally-bright{% endif %}">{{ cobrancas.taxa_inadimplencia|floatformat:1 }}%</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Previsto 30 dias</p>
+            <p class="mt-1 font-mono text-lg font-semibold text-bally-bright">R$ {{ cobrancas.previsao_30|floatformat:2 }}</p>
+        </div>
+    </div>
+
+    <div class="mt-4 flex flex-wrap gap-4 text-xs text-zinc-500">
+        <span>Ticket médio: <span class="font-mono text-zinc-300">R$ {{ cobrancas.ticket_medio|floatformat:2 }}</span></span>
+        <span>Prazo médio de recebimento:
+            {% if cobrancas.prazo_medio_recebimento is not None %}
+                <span class="font-mono text-zinc-300">{{ cobrancas.prazo_medio_recebimento|floatformat:1 }} dias</span>
+            {% else %}
+                <span class="text-zinc-500">—</span>
+            {% endif %}
+        </span>
+    </div>
+
+    <div class="mt-6 grid gap-6 lg:grid-cols-2">
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/30 p-5">
+            <h3 class="text-sm font-semibold text-zinc-200">Clientes inadimplentes</h3>
+            {% if cobrancas.clientes_inadimplentes %}
+                <ul class="mt-4 divide-y divide-zinc-800/80">
+                    {% for item in cobrancas.clientes_inadimplentes %}
+                        <li class="flex items-center justify-between gap-3 py-3">
+                            <div>
+                                <p class="text-sm font-medium text-zinc-200">{{ item.cliente_nome }}</p>
+                                <p class="text-xs text-zinc-500">{{ item.cobrancas }} cobrança{{ item.cobrancas|pluralize:"s" }} · {{ item.dias_atraso_max }} dias</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-mono text-sm text-red-300">R$ {{ item.saldo_vencido|floatformat:2 }}</p>
+                                <a href="{% url 'financeiro_cobranca_listar' %}?cliente={{ item.cliente_id }}&status=overdue" class="text-xs text-bally-bright hover:underline">Ver</a>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="mt-4 text-sm text-zinc-500">Nenhum cliente inadimplente.</p>
+            {% endif %}
+        </div>
+
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/30 p-5">
+            <h3 class="text-sm font-semibold text-zinc-200">Próximos vencimentos</h3>
+            {% if cobrancas.proximos_vencimentos %}
+                <ul class="mt-4 divide-y divide-zinc-800/80">
+                    {% for cobranca in cobrancas.proximos_vencimentos %}
+                        <li class="flex items-center justify-between gap-3 py-3">
+                            <div>
+                                <p class="text-sm font-medium text-zinc-200">{{ cobranca.cliente.nome }}</p>
+                                <p class="text-xs text-zinc-500">{{ cobranca.descricao|truncatechars:40 }}</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-mono text-sm text-bally-bright">R$ {{ cobranca.saldo_exibicao|floatformat:2 }}</p>
+                                <p class="text-xs text-zinc-500">{{ cobranca.data_vencimento|date:"d/m/Y" }}</p>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="mt-4 text-sm text-zinc-500">Nenhum vencimento nos próximos 90 dias.</p>
+            {% endif %}
+        </div>
+    </div>
+</section>

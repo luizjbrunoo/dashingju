@@ -1,0 +1,19 @@
+{% if resumo_semana %}
+<section class="flex flex-wrap gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3 text-xs text-zinc-400">
+    <span><span class="font-semibold text-zinc-200">{{ resumo_semana.compromissos }}</span> compromisso{{ resumo_semana.compromissos|pluralize }}</span>
+    <span class="text-zinc-700">·</span>
+    <span><span class="font-semibold text-zinc-200">{{ resumo_semana.tarefas }}</span> tarefa{{ resumo_semana.tarefas|pluralize }}</span>
+    {% if resumo_semana.audiencias %}
+        <span class="text-zinc-700">·</span>
+        <span><span class="font-semibold text-bally-bright">{{ resumo_semana.audiencias }}</span> audiência{{ resumo_semana.audiencias|pluralize }}</span>
+    {% endif %}
+    {% if resumo_semana.prazos %}
+        <span class="text-zinc-700">·</span>
+        <span><span class="font-semibold text-amber-300">{{ resumo_semana.prazos }}</span> prazo{{ resumo_semana.prazos|pluralize }}</span>
+    {% endif %}
+    {% if resumo_semana.atrasadas %}
+        <span class="text-zinc-700">·</span>
+        <span><span class="font-semibold text-red-400">{{ resumo_semana.atrasadas }}</span> em atraso</span>
+    {% endif %}
+</section>
+{% endif %}

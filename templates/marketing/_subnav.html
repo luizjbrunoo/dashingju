@@ -1,0 +1,38 @@
+<nav class="mb-8 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-4 text-sm">
+    <div class="flex flex-wrap gap-2">
+        {% if mkt_perms.ver_marketing %}
+        <a
+            href="{% url 'marketing_dashboard' %}"
+            class="rounded-md px-3 py-1.5 font-medium {% if subnav_section == 'google_ads' %}bg-zinc-800 text-bally-bright ring-1 ring-bally/30{% else %}text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright{% endif %}"
+        >Google Ads</a>
+        {% endif %}
+        {% if mkt_perms.ver_conteudo %}
+        <a
+            href="{% url 'marketing_conteudo_dashboard' %}"
+            class="rounded-md px-3 py-1.5 font-medium {% if subnav_section == 'conteudo' %}bg-zinc-800 text-bally-bright ring-1 ring-bally/30{% else %}text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright{% endif %}"
+        >Conteúdo com IA</a>
+        {% if subnav_section == 'conteudo' %}
+        <span class="mx-1 hidden text-zinc-700 sm:inline" aria-hidden="true">|</span>
+        <a href="{% url 'marketing_conteudo_biblioteca' %}" class="rounded-md px-3 py-1.5 font-medium text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200">Biblioteca</a>
+        {% if mkt_perms.editar_conteudo %}
+        <a href="{% url 'marketing_conteudo_calendario_plano' %}" class="rounded-md px-3 py-1.5 font-medium text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200">Plano editorial</a>
+        {% endif %}
+        <a href="{% url 'marketing_conteudo_ideias' %}" class="rounded-md px-3 py-1.5 font-medium text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200">Ideias</a>
+        {% if mkt_perms.editar_conteudo %}
+        <a href="{% url 'marketing_conteudo_perfil' %}" class="rounded-md px-3 py-1.5 font-medium text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200">Perfil</a>
+        {% endif %}
+        <a href="{% url 'marketing_conteudo_analytics' %}" class="rounded-md px-3 py-1.5 font-medium text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200">Analytics</a>
+        {% if mkt_perms.editar_conteudo %}
+        <a href="{% url 'marketing_conteudo_integracoes' %}" class="rounded-md px-3 py-1.5 font-medium text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200">Integrações</a>
+        <a
+            href="{% url 'marketing_conteudo_criar' %}"
+            class="rounded-md border border-bally/40 bg-bally-muted/40 px-3 py-1.5 font-semibold text-bally-bright hover:bg-bally-muted/60"
+        >+ Criar conteúdo</a>
+        {% endif %}
+        {% endif %}
+        {% endif %}
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+        {% include '_modulos_nav.html' with current='marketing' %}
+    </div>
+</nav>

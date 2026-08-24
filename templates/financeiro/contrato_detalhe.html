@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="app-shell py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'financeiro/_subnav.html' %}
+
+    <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+            <h1 class="text-xl font-semibold text-zinc-100">{{ contrato.referencia }} — {{ contrato.descricao }}</h1>
+            <p class="mt-1 text-sm text-zinc-500">{{ contrato.cliente.nome }}</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            {% if pode_gerar %}
+                <a href="{% url 'financeiro_contrato_gerar_cobrancas' contrato.pk %}" class="rounded-md bg-emerald-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700">Gerar cobranças</a>
+            {% endif %}
+            <a href="{% url 'financeiro_contrato_editar' contrato.pk %}" class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:border-bally/40 hover:text-bally-bright">Editar</a>
+            <a href="{% url 'financeiro_contrato_listar' %}" class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800">Voltar</a>
+        </div>
+    </div>
+
+    <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs uppercase tracking-wide text-zinc-500">Valor total</p>
+            <p class="mt-1 text-lg font-semibold text-zinc-100">R$ {{ contrato.valor_total|floatformat:2 }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs uppercase tracking-wide text-zinc-500">Status</p>
+            <p class="mt-1 text-sm font-medium text-zinc-200">{{ contrato.get_status_display }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs uppercase tracking-wide text-zinc-500">Cliente</p>
+            <p class="mt-1 text-sm text-zinc-200">{{ contrato.cliente.nome }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs uppercase tracking-wide text-zinc-500">Responsável</p>
+            <p class="mt-1 text-sm text-zinc-200">{{ contrato.responsavel.get_full_name|default:contrato.responsavel.username|default:"—" }}</p>
+        </div>
+    </div>
+
+    {% if contrato.observacoes %}
+        <section class="mt-8 rounded-lg border border-zinc-800 bg-zinc-900/30 p-6">
+            <h2 class="text-sm font-semibold text-zinc-200">Observações</h2>
+            <p class="mt-2 text-sm text-zinc-400">{{ contrato.observacoes }}</p>
+        </section>
+    {% endif %}
+
+    <section class="mt-8 rounded-lg border border-zinc-800 bg-zinc-900/30 p-6">
+        <h2 class="text-sm font-semibold text-zinc-200">Cobranças vinculadas</h2>
+        {% if cobrancas %}
+            <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="border-b border-zinc-800 text-xs uppercase tracking-wide text-zinc-500">
+                        <tr>
+                            <th class="px-3 py-2">Descrição</th>
+                            <th class="px-3 py-2">Valor</th>
+                            <th class="px-3 py-2">Vencimento</th>
+                            <th class="px-3 py-2">Status</th>
+                            <th class="px-3 py-2"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-zinc-800/80">
+                        {% for c in cobrancas %}
+                            <tr>
+                                <td class="px-3 py-2 text-zinc-300">
+                                    {{ c.descricao }}
+                                    {% if c.parcela_rotulo %}<span class="text-xs text-zinc-500">({{ c.parcela_rotulo }})</span>{% endif %}
+                                </td>
+                                <td class="px-3 py-2 font-mono text-zinc-100">R$ {{ c.valor_original|floatformat:2 }}</td>
+                                <td class="px-3 py-2 font-mono text-zinc-400">{{ c.data_vencimento|date:"d/m/Y" }}</td>
+                                <td class="px-3 py-2 text-zinc-400">{{ c.get_status_display }}</td>
+                                <td class="px-3 py-2"><a href="{% url 'financeiro_cobranca_detalhe' c.pk %}" class="text-bally-bright hover:underline">Ver</a></td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="mt-4 text-sm text-zinc-500">Nenhuma cobrança gerada ainda.</p>
+            {% if pode_gerar %}
+                <a href="{% url 'financeiro_contrato_gerar_cobrancas' contrato.pk %}" class="mt-3 inline-block text-sm text-bally-bright hover:underline">Gerar cobranças a partir deste contrato</a>
+            {% endif %}
+        {% endif %}
+    </section>
+</div>
+{% endblock 'body' %}

@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="app-shell py-8">
+    <div class="max-w-xl">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'financeiro/_subnav.html' %}
+
+    <h1 class="text-xl font-semibold text-zinc-100">Estornar recebimento</h1>
+    <p class="mt-2 text-sm text-zinc-400">
+        {{ cobranca.descricao }} — {{ cobranca.cliente.nome }}
+    </p>
+    <p class="mt-1 font-mono text-sm text-emerald-400">
+        R$ {{ recebimento.valor|floatformat:2 }} — {{ recebimento.data_recebimento|date:"d/m/Y" }}
+    </p>
+
+    <form method="post" class="mt-8 space-y-5">
+        {% csrf_token %}
+        <div>
+            <label for="motivo" class="mb-1 block text-sm font-medium text-zinc-400">Motivo do estorno (opcional)</label>
+            <textarea id="motivo" name="motivo" rows="4" class="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100">{{ recebimento.motivo_estorno }}</textarea>
+        </div>
+        <div class="flex gap-3 pt-4">
+            <button type="submit" class="rounded-md bg-red-800 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Confirmar estorno</button>
+            <a href="{% url 'financeiro_cobranca_detalhe' cobranca.pk %}" class="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800">Voltar</a>
+        </div>
+    </form>
+    </div>
+</div>
+{% endblock 'body' %}

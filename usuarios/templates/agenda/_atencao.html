@@ -1,0 +1,40 @@
+{% if itens_atencao %}
+<section class="rounded-2xl border border-amber-900/30 bg-amber-950/10 p-5 shadow-sm shadow-black/20">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div>
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-amber-300">Atenção</h2>
+            <p class="mt-0.5 text-xs text-zinc-500">Itens que merecem ação imediata</p>
+        </div>
+        <span class="rounded-md border border-amber-900/40 bg-amber-950/30 px-2 py-0.5 text-xs text-amber-200">
+            {{ itens_atencao|length }}
+        </span>
+    </div>
+    <ul class="space-y-2">
+        {% for item in itens_atencao %}
+            <li class="flex items-start justify-between gap-3 rounded-xl border border-zinc-800/80 bg-zinc-950/50 px-3 py-2.5">
+                <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-zinc-500">
+                            {% if item.item_tipo == 'cobranca' %}Cobrança{% elif item.item_tipo == 'compromisso' %}Compromisso{% else %}Tarefa{% endif %}
+                        </span>
+                        {% if item.prioridade == 'urgente' %}
+                            <span class="rounded border border-red-900/50 bg-red-950/40 px-1.5 py-0.5 text-[10px] text-red-300">Urgente</span>
+                        {% elif item.prioridade == 'alta' %}
+                            <span class="rounded border border-amber-900/50 bg-amber-950/40 px-1.5 py-0.5 text-[10px] text-amber-300">Alta</span>
+                        {% endif %}
+                    </div>
+                    <p class="mt-1 truncate text-sm font-medium text-zinc-100">{{ item.titulo }}</p>
+                    <p class="text-xs text-zinc-500">{{ item.motivo }}{% if item.quando %} · {{ item.quando }}{% endif %}</p>
+                </div>
+                <div class="flex shrink-0 flex-col items-end gap-1">
+                    {% if item.url %}
+                        <a href="{{ item.url }}" class="text-xs font-medium text-bally-bright hover:underline">
+                            {% if item.acao %}{{ item.acao }}{% else %}Ver{% endif %}
+                        </a>
+                    {% endif %}
+                </div>
+            </li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}

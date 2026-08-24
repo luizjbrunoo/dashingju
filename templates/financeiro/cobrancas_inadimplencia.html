@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="app-shell py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'financeiro/_subnav.html' %}
+
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h1 class="text-xl font-semibold text-zinc-100">Inadimplência</h1>
+            <p class="mt-1 text-sm text-zinc-500">Cobranças vencidas em aberto, por faixa de atraso e por cliente.</p>
+        </div>
+        <a href="{% url 'financeiro_cobranca_nova' %}" class="rounded-md bg-bally px-4 py-2 text-sm font-semibold text-white shadow-md shadow-bally/20 hover:bg-bally-bright">+ Nova cobrança</a>
+    </div>
+
+    {% include 'financeiro/_cobrancas_subnav.html' %}
+
+    <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="rounded-lg border border-red-900/40 bg-red-950/20 px-4 py-3">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-red-400">Total vencido</p>
+            <p class="mt-1 font-mono text-lg font-semibold text-red-300">R$ {{ resumo.total_vencido|floatformat:2 }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Cobranças vencidas</p>
+            <p class="mt-1 text-lg font-semibold text-zinc-100">{{ resumo.quantidade }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Clientes inadimplentes</p>
+            <p class="mt-1 text-lg font-semibold text-zinc-100">{{ resumo.clientes|length }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Maior faixa</p>
+            {% if maior_faixa %}
+                <p class="mt-1 text-sm font-medium text-zinc-200">{{ maior_faixa.rotulo }}</p>
+                <p class="font-mono text-xs text-red-300">R$ {{ maior_faixa.total|floatformat:2 }}</p>
+            {% else %}
+                <p class="mt-1 text-sm text-zinc-500">—</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-8 grid gap-6 lg:grid-cols-2">
+        <section class="rounded-lg border border-zinc-800 bg-zinc-900/30 p-6">
+            <h2 class="text-sm font-semibold text-zinc-200">Faixas de atraso</h2>
+            <div class="mt-4 space-y-3">
+                {% for faixa in resumo.faixas %}
+                    <div class="flex items-center justify-between gap-3 rounded-md border border-zinc-800 bg-zinc-950/40 px-4 py-3">
+                        <div>
+                            <p class="text-sm font-medium text-zinc-200">{{ faixa.rotulo }}</p>
+                            <p class="text-xs text-zinc-500">{{ faixa.quantidade }} cobrança{{ faixa.quantidade|pluralize:"s" }}</p>
+                        </div>
+                        <p class="font-mono text-sm {% if faixa.total %}text-red-300{% else %}text-zinc-500{% endif %}">R$ {{ faixa.total|floatformat:2 }}</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <section class="rounded-lg border border-zinc-800 bg-zinc-900/30 p-6">
+            <h2 class="text-sm font-semibold text-zinc-200">Por cliente</h2>
+            {% if resumo.clientes %}
+                <ul class="mt-4 divide-y divide-zinc-800/80">
+                    {% for item in resumo.clientes %}
+                        <li class="flex items-center justify-between gap-3 py-3">
+                            <div>
+                                <p class="text-sm font-medium text-zinc-200">{{ item.cliente_nome }}</p>
+                                <p class="text-xs text-zinc-500">{{ item.cobrancas }} cobrança{{ item.cobrancas|pluralize:"s" }} · até {{ item.dias_atraso_max }} dias de atraso</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-mono text-sm text-red-300">R$ {{ item.saldo_vencido|floatformat:2 }}</p>
+                                <a href="{% url 'financeiro_cobranca_listar' %}?cliente={{ item.cliente_id }}&status=overdue" class="text-xs text-bally-bright hover:underline">Ver</a>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="mt-4 text-sm text-zinc-500">Nenhum cliente inadimplente.</p>
+            {% endif %}
+        </section>
+    </div>
+
+    <div class="mt-8 overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/30">
+        <table class="min-w-full text-left text-sm">
+            <thead class="border-b border-zinc-800 bg-zinc-950/50 text-xs uppercase tracking-wide text-zinc-500">
+                <tr>
+                    <th class="px-4 py-3">Cliente</th>
+                    <th class="px-4 py-3">Descrição</th>
+                    <th class="px-4 py-3">Saldo</th>
+                    <th class="px-4 py-3">Vencimento</th>
+                    <th class="px-4 py-3">Atraso</th>
+                    <th class="px-4 py-3"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-800/80">
+                {% for cobranca in resumo.cobrancas %}
+                    <tr class="bg-red-950/10 hover:bg-red-950/20">
+                        <td class="px-4 py-3 text-zinc-200">{{ cobranca.cliente.nome }}</td>
+                        <td class="px-4 py-3 text-zinc-300">{{ cobranca.descricao }}</td>
+                        <td class="px-4 py-3 font-mono text-red-300">R$ {{ cobranca.saldo_exibicao|floatformat:2 }}</td>
+                        <td class="px-4 py-3 font-mono text-red-300">{{ cobranca.data_vencimento|date:"d/m/Y" }}</td>
+                        <td class="px-4 py-3 text-xs text-red-400">{{ cobranca.dias_atraso }} dia{{ cobranca.dias_atraso|pluralize:"s" }}</td>
+                        <td class="px-4 py-3"><a href="{% url 'financeiro_cobranca_detalhe' cobranca.pk %}" class="text-bally-bright hover:underline">Ver</a></td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="6" class="px-4 py-10 text-center text-zinc-500">Nenhuma cobrança vencida em aberto.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock 'body' %}

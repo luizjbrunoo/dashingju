@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="app-shell py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'marketing/_subnav.html' %}
+
+    <section class="mb-8 border-b border-zinc-800 pb-6">
+        <h1 class="text-xl font-semibold text-zinc-100">Biblioteca de conteúdo</h1>
+        <p class="mt-1 text-sm text-zinc-500">Pesquise e gerencie todos os conteúdos do escritório.</p>
+    </section>
+
+    <form method="get" class="mb-6 grid gap-4 rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 md:grid-cols-5">
+        <div>{{ form.q.label_tag }}{{ form.q }}</div>
+        <div>{{ form.canal.label_tag }}{{ form.canal }}</div>
+        <div>{{ form.area_juridica.label_tag }}{{ form.area_juridica }}</div>
+        <div>{{ form.formato.label_tag }}{{ form.formato }}</div>
+        <div class="flex flex-col justify-end gap-2">
+            <div>{{ form.status.label_tag }}{{ form.status }}</div>
+            <button type="submit" class="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800">Filtrar</button>
+        </div>
+    </form>
+
+    {% if itens %}
+    <div class="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/50">
+        <table class="w-full min-w-[56rem] text-left text-xs">
+            <thead>
+                <tr class="border-b border-zinc-800 text-zinc-600">
+                    <th class="px-4 py-3 font-medium">Conteúdo</th>
+                    <th class="px-4 py-3 font-medium">Canal</th>
+                    <th class="px-4 py-3 font-medium">Área</th>
+                    <th class="px-4 py-3 font-medium">Criado em</th>
+                    <th class="px-4 py-3 font-medium">Status</th>
+                    <th class="px-4 py-3 font-medium">Responsável</th>
+                    <th class="px-4 py-3 font-medium text-right">Ações</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-800/70">
+                {% for item in itens %}
+                <tr class="hover:bg-zinc-950/30">
+                    <td class="px-4 py-3">
+                        <p class="font-medium text-zinc-200">{{ item.titulo }}</p>
+                        {% if item.tema %}<p class="text-zinc-500">{{ item.tema }}</p>{% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-zinc-400">{{ item.get_canal_display }}</td>
+                    <td class="px-4 py-3 text-zinc-500">{{ item.area_juridica|default:"—" }}</td>
+                    <td class="px-4 py-3 tabular-nums text-zinc-500">{{ item.criado_em|date:"d/m/Y" }}</td>
+                    <td class="px-4 py-3 text-zinc-400">{{ item.get_status_display }}</td>
+                    <td class="px-4 py-3 text-zinc-500">{{ item.responsavel.username|default:"—" }}</td>
+                    <td class="px-4 py-3 text-right">
+                        <a href="{% url 'marketing_conteudo_editar' item.pk %}" class="text-bally-bright hover:underline">Editar</a>
+                        <span class="mx-1 text-zinc-700">·</span>
+                        <a href="{% url 'marketing_conteudo_reaproveitar' item.pk %}" class="text-zinc-400 hover:text-bally-bright">Reaproveitar</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-8 text-center text-sm text-zinc-500">
+        Nenhum conteúdo encontrado. <a href="{% url 'marketing_conteudo_criar' %}" class="text-bally-bright hover:underline">Criar o primeiro</a>.
+    </p>
+    {% endif %}
+</div>
+{% endblock 'body' %}

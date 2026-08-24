@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="app-shell py-8">
+    <div class="max-w-xl">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'financeiro/_subnav.html' %}
+
+    <h1 class="text-xl font-semibold text-zinc-100">{{ titulo }}</h1>
+
+    <form method="post" class="mt-8 space-y-5">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+            <div class="rounded-md border border-red-800/80 bg-red-950/90 px-3 py-2 text-sm text-red-300">
+                {{ form.non_field_errors }}
+            </div>
+        {% endif %}
+        {% for field in form %}
+            <div>
+                <label class="mb-1 block text-sm font-medium text-zinc-400" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}
+                    <p class="mt-1 text-xs text-zinc-500">{{ field.help_text }}</p>
+                {% endif %}
+                {% if field.errors %}
+                    <p class="mt-1 text-sm text-red-400">{{ field.errors.0 }}</p>
+                {% endif %}
+            </div>
+        {% endfor %}
+        <div class="flex gap-3 pt-4">
+            <button type="submit" class="rounded-md bg-bally px-4 py-2 text-sm font-semibold text-white hover:bg-bally-bright">Salvar contrato</button>
+            <a href="{% if contrato %}{% url 'financeiro_contrato_detalhe' contrato.pk %}{% else %}{% url 'financeiro_contrato_listar' %}{% endif %}" class="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800">Cancelar</a>
+        </div>
+    </form>
+    </div>
+</div>
+{% endblock 'body' %}

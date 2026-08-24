@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="app-shell py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'marketing/_subnav.html' %}
+
+    <section class="mb-8 border-b border-zinc-800 pb-6">
+        <h1 class="text-xl font-semibold text-zinc-100">Integrações</h1>
+        <p class="mt-1 text-sm text-zinc-500">
+            Conecte suas contas para sincronizar métricas de desempenho. A sincronização automática estará disponível em breve.
+        </p>
+    </section>
+
+    <div class="max-w-2xl space-y-3">
+        {% for p in plataformas %}
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+            <div>
+                <p class="font-medium text-zinc-200">{{ p.label }}</p>
+                <p class="text-xs text-zinc-500">
+                    {% if p.status == 'conectado' %}Conectado
+                    {% elif p.status == 'pendente' %}Solicitação registrada
+                    {% else %}Não conectado{% endif %}
+                </p>
+            </div>
+            {% if p.status == 'nao_conectado' %}
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="plataforma" value="{{ p.plataforma }}">
+                <button type="submit" class="rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800">Solicitar conexão</button>
+            </form>
+            {% elif p.status == 'pendente' %}
+            <span class="text-xs text-amber-400/90">Em breve</span>
+            {% else %}
+            <span class="text-xs text-emerald-400/90">Ativo</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <p class="mt-8 max-w-xl text-xs text-zinc-600">
+        As métricas exibidas em Analytics provêm apenas de dados sincronizados das plataformas conectadas. Nenhum dado é estimado ou inventado.
+    </p>
+</div>
+{% endblock 'body' %}

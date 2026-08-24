@@ -1,0 +1,139 @@
+<section class="mb-8 rounded-lg border border-zinc-800 bg-zinc-900/50 shadow-xs" aria-labelledby="agenda-cliente-titulo">
+  <div class="flex flex-wrap items-start justify-between gap-4 px-6 pt-6">
+    <div>
+      <h2 id="agenda-cliente-titulo" class="text-base font-semibold text-zinc-100">Agenda</h2>
+      <p class="mt-1 text-xs text-zinc-500">Compromissos e tarefas vinculados a {{ cliente.nome }}.</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <a href="{{ url_agenda_compromisso }}" class="rounded-md border border-zinc-700 bg-zinc-900/60 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:border-bally/40 hover:text-bally-bright">
+        + Compromisso
+      </a>
+      <a href="{{ url_agenda_tarefa }}" class="rounded-md border border-zinc-700 bg-zinc-900/60 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:border-bally/40 hover:text-bally-bright">
+        + Tarefa
+      </a>
+      <a href="{{ url_agenda_completa }}" class="rounded-md bg-bally px-3 py-1.5 text-xs font-semibold text-white shadow-md shadow-bally/20 hover:bg-bally-bright">
+        Ver na agenda
+      </a>
+    </div>
+  </div>
+
+  <div class="mt-4 grid grid-cols-1 gap-3 px-6 sm:grid-cols-3">
+    <div class="rounded-lg border border-zinc-800 bg-zinc-950/40 px-4 py-3">
+      <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Compromissos</p>
+      <p class="mt-1 text-xl font-semibold text-zinc-100">{{ agenda_resumo.compromissos_ativos }}</p>
+    </div>
+    <div class="rounded-lg border border-zinc-800 bg-zinc-950/40 px-4 py-3">
+      <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Tarefas pendentes</p>
+      <p class="mt-1 text-xl font-semibold text-zinc-100">{{ agenda_resumo.tarefas_pendentes }}</p>
+    </div>
+    <div class="rounded-lg border border-zinc-800 bg-zinc-950/40 px-4 py-3">
+      <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Tarefas atrasadas</p>
+      <p class="mt-1 text-xl font-semibold {% if agenda_resumo.tarefas_atrasadas %}text-red-300{% else %}text-zinc-100{% endif %}">{{ agenda_resumo.tarefas_atrasadas }}</p>
+    </div>
+  </div>
+
+  {% if hook_financeiro.disponivel and hook_financeiro.vencido %}
+    <div class="mt-4 px-6">
+      <div class="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-red-900/40 bg-red-950/20 px-4 py-3">
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-medium text-red-300">Cobranças vencidas</p>
+          <p class="mt-0.5 text-xs text-zinc-400">
+            {{ hook_financeiro.mensagem }}
+            Valor vencido: R$ {{ hook_financeiro.vencido|floatformat:2 }}.
+          </p>
+        </div>
+        <div class="flex shrink-0 flex-wrap gap-2">
+          <a href="{{ hook_financeiro.url }}" class="rounded-md border border-zinc-700 bg-zinc-900/60 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:border-bally/40 hover:text-bally-bright">
+            {{ hook_financeiro.rotulo }}
+          </a>
+          {% if hook_financeiro.url_agenda_tarefa %}
+            <a href="{{ hook_financeiro.url_agenda_tarefa }}" class="rounded-md border border-red-900/50 bg-red-950/40 px-3 py-1.5 text-xs font-semibold text-red-200 hover:bg-red-950/60">
+              + Tarefa de cobrança
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  {% elif hook_financeiro.disponivel %}
+    <div class="mt-4 px-6">
+      <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-800 bg-zinc-950/30 px-4 py-3">
+        <p class="text-xs text-zinc-400">{{ hook_financeiro.mensagem }}</p>
+        <a href="{{ hook_financeiro.url }}" class="shrink-0 text-xs font-semibold text-bally-bright hover:underline">{{ hook_financeiro.rotulo }}</a>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if sugestoes_crm %}
+    <div class="mt-4 space-y-2 px-6">
+      {% for sugestao in sugestoes_crm %}
+        <div class="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-bally/20 bg-bally-muted/10 px-4 py-3">
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-bally-bright">{{ sugestao.titulo }}</p>
+            <p class="mt-0.5 text-xs text-zinc-400">{{ sugestao.descricao }}</p>
+          </div>
+          <a href="{{ sugestao.url }}" class="shrink-0 rounded-md border border-bally/30 bg-bally-muted/30 px-3 py-1.5 text-xs font-semibold text-bally-bright hover:bg-bally-muted/50">
+            {{ sugestao.rotulo_acao }}
+          </a>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="mt-6 grid grid-cols-1 gap-6 px-6 pb-6 lg:grid-cols-2">
+    <div>
+      <h3 class="text-sm font-semibold text-zinc-200">Próximos compromissos</h3>
+      {% if agenda_compromissos %}
+        <ul class="mt-3 divide-y divide-zinc-800/80 rounded-lg border border-zinc-800 bg-zinc-950/30">
+          {% for compromisso in agenda_compromissos %}
+            <li class="flex items-start justify-between gap-3 px-4 py-3">
+              <div class="min-w-0 flex-1">
+                <p class="text-sm font-medium text-zinc-100">{{ compromisso.titulo }}</p>
+                <div class="mt-1 flex flex-wrap gap-1.5">
+                  <span class="rounded-md border border-zinc-700 bg-zinc-950/60 px-2 py-0.5 text-[10px] text-zinc-400">{{ compromisso.get_tipo_display }}</span>
+                  <span class="rounded-md border border-zinc-700 bg-zinc-950/60 px-2 py-0.5 text-[10px] text-zinc-300">{{ compromisso.get_status_display }}</span>
+                </div>
+                <p class="mt-1 font-mono text-xs text-bally-bright">{{ compromisso.data_hora|date:"d/m/Y H:i" }}</p>
+                {% if compromisso.processo_referencia %}
+                  <p class="mt-1 font-mono text-[11px] text-zinc-500">{{ compromisso.processo_referencia }}</p>
+                {% endif %}
+              </div>
+              <a href="{% url 'agenda' %}?cliente={{ cliente.pk }}&modal=compromisso&compromisso_id={{ compromisso.pk }}&view=lista" class="shrink-0 text-xs text-bally-bright hover:underline">Abrir</a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="mt-2 text-sm text-zinc-500">Nenhum compromisso vinculado.</p>
+      {% endif %}
+    </div>
+
+    <div>
+      <h3 class="text-sm font-semibold text-zinc-200">Tarefas</h3>
+      {% if agenda_tarefas %}
+        <ul class="mt-3 divide-y divide-zinc-800/80 rounded-lg border border-zinc-800 bg-zinc-950/30">
+          {% for tarefa in agenda_tarefas %}
+            <li class="flex items-start justify-between gap-3 px-4 py-3">
+              <div class="min-w-0 flex-1">
+                <p class="text-sm font-medium text-zinc-100">{{ tarefa.titulo }}</p>
+                <div class="mt-1 flex flex-wrap gap-1.5">
+                  <span class="rounded-md border border-zinc-700 bg-zinc-950/60 px-2 py-0.5 text-[10px] text-zinc-300">{{ tarefa.get_status_display }}</span>
+                  {% if tarefa.prioridade == 'urgente' or tarefa.prioridade == 'alta' %}
+                    <span class="rounded-md border border-amber-900/50 bg-amber-950/40 px-2 py-0.5 text-[10px] text-amber-300">{{ tarefa.get_prioridade_display }}</span>
+                  {% endif %}
+                </div>
+                {% if tarefa.prazo %}
+                  <p class="mt-1 text-xs text-zinc-400">Prazo: {{ tarefa.prazo|date:"d/m/Y" }}</p>
+                {% endif %}
+                {% if tarefa.processo_referencia %}
+                  <p class="mt-1 font-mono text-[11px] text-zinc-500">{{ tarefa.processo_referencia }}</p>
+                {% endif %}
+              </div>
+              <a href="{% url 'agenda' %}?cliente={{ cliente.pk }}&modal=tarefa&tarefa_id={{ tarefa.pk }}&view=lista" class="shrink-0 text-xs text-bally-bright hover:underline">Abrir</a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="mt-2 text-sm text-zinc-500">Nenhuma tarefa vinculada.</p>
+      {% endif %}
+    </div>
+  </div>
+</section>

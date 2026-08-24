@@ -5,6 +5,23 @@
             class="rounded-md px-3 py-1.5 font-medium text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright"
             >Painel</a
         >
+        {% if fin_perms.ver_cobrancas %}
+        <a
+            href="{% url 'financeiro_contrato_listar' %}"
+            class="rounded-md px-3 py-1.5 font-medium text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright"
+            >Contratos</a
+        >
+        <a
+            href="{% url 'financeiro_cobranca_listar' %}"
+            class="rounded-md px-3 py-1.5 font-medium text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright"
+            >Cobranças</a
+        >
+        <a
+            href="{% url 'financeiro_cobranca_auditoria' %}"
+            class="rounded-md px-3 py-1.5 font-medium text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright"
+            >Auditoria</a
+        >
+        {% endif %}
         <a
             href="{% url 'financeiro_banco_listar' %}"
             class="rounded-md px-3 py-1.5 font-medium text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright"

@@ -1,0 +1,34 @@
+{% if view_ativa == 'hoje' %}
+<p class="text-sm text-zinc-500">
+    Exibindo agenda de <span class="font-medium text-zinc-300">{{ data_referencia|date:"d/m/Y" }}</span>
+    — compromissos e tarefas em ordem cronológica.
+</p>
+{% endif %}
+
+<section class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 shadow-sm shadow-black/20">
+    <h2 class="mb-4 text-lg font-semibold text-zinc-100">Timeline do dia</h2>
+
+    {% if timeline_hoje.atrasadas %}
+        <div class="mb-5">
+            <p class="mb-2 text-xs font-medium uppercase tracking-wide text-red-400">Em atraso</p>
+            <div class="space-y-2">
+                {% for item in timeline_hoje.atrasadas %}
+                    {% include 'agenda/_timeline_item.html' %}
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+
+    {% if timeline_hoje.eventos %}
+        {% if timeline_hoje.atrasadas %}
+            <p class="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">Hoje</p>
+        {% endif %}
+        <div class="space-y-2">
+            {% for item in timeline_hoje.eventos %}
+                {% include 'agenda/_timeline_item.html' %}
+            {% endfor %}
+        </div>
+    {% elif not timeline_hoje.atrasadas %}
+        <p class="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4 text-sm text-zinc-500">Nenhum compromisso ou tarefa para este dia.</p>
+    {% endif %}
+</section>

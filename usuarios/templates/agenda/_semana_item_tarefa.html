@@ -1,0 +1,15 @@
+<a href="{% url 'agenda' %}?{% if agenda_query %}{{ agenda_query }}&{% endif %}modal=tarefa&amp;tarefa_id={{ tarefa.id }}"
+    class="block rounded-lg border border-zinc-800/80 bg-zinc-950/40 p-2 hover:border-bally/30">
+    <div class="flex items-center justify-between gap-1">
+        <span class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Tarefa</span>
+        {% include 'agenda/_badge_status_tarefa.html' %}
+    </div>
+    <p class="mt-1 truncate text-xs {% if tarefa.status == 'concluida' %}text-zinc-500 line-through{% else %}text-zinc-200{% endif %}">{{ tarefa.titulo }}</p>
+    {% if tarefa.cliente or tarefa.responsavel %}
+        <p class="mt-0.5 truncate text-[10px] text-zinc-500">
+            {% if tarefa.cliente %}{{ tarefa.cliente.nome }}{% endif %}
+            {% if tarefa.cliente and tarefa.responsavel %} · {% endif %}
+            {% if tarefa.responsavel %}{{ tarefa.responsavel.get_full_name|default:tarefa.responsavel.username }}{% endif %}
+        </p>
+    {% endif %}
+</a>

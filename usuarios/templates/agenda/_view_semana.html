@@ -1,0 +1,38 @@
+{% include 'agenda/_nav_periodo.html' %}
+{% include 'agenda/_resumo_semana.html' %}
+
+{% if tarefas_atrasadas %}
+<article class="rounded-2xl border border-red-900/40 bg-red-950/20 p-4">
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-red-300">Tarefas em atraso</h2>
+    <div class="space-y-2">
+        {% for tarefa in tarefas_atrasadas %}
+            {% include 'agenda/_semana_item_tarefa.html' %}
+        {% endfor %}
+    </div>
+</article>
+{% endif %}
+
+<section class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+    {% for dia in semana_dias %}
+        <article class="rounded-2xl border {% if dia.eh_hoje %}border-bally/40 bg-bally-muted/10{% else %}border-zinc-800 bg-zinc-900/40{% endif %} p-3 shadow-sm shadow-black/20 md:p-4">
+            <header class="mb-3 border-b border-zinc-800/80 pb-2">
+                <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ dia.label_dia }}</p>
+                <a href="{% url 'agenda' %}?view=hoje&amp;data={{ dia.data.isoformat }}{% if filtros_query_base %}&amp;{{ filtros_query_base }}{% endif %}"
+                    class="text-lg font-semibold {% if dia.eh_hoje %}text-bally-bright{% else %}text-zinc-100 hover:text-bally-bright{% endif %}">
+                    {{ dia.data|date:"d/m" }}
+                </a>
+            </header>
+            <div class="space-y-2">
+                {% for compromisso in dia.compromissos %}
+                    {% include 'agenda/_semana_item_compromisso.html' %}
+                {% endfor %}
+                {% for tarefa in dia.tarefas %}
+                    {% include 'agenda/_semana_item_tarefa.html' %}
+                {% endfor %}
+                {% if not dia.compromissos and not dia.tarefas %}
+                    <p class="text-xs text-zinc-600">—</p>
+                {% endif %}
+            </div>
+        </article>
+    {% endfor %}
+</section>

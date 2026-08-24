@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block 'body' %}
-<div class="mx-auto max-w-xl px-4 py-8">
+<div class="app-shell py-8">
+    <div class="max-w-xl">
     {% include 'financeiro/_mensagens.html' %}
     {% include 'financeiro/_subnav.html' %}
 
@@ -22,5 +23,6 @@
             <a href="{% url 'financeiro_categoria_listar' %}" class="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800">Cancelar</a>
         </div>
     </form>
+    </div>
 </div>
 {% endblock 'body' %}

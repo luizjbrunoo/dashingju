@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block 'body' %}
-<div class="mx-auto max-w-7xl px-4 py-8">
+<div class="app-shell py-8">
     {% include 'financeiro/_mensagens.html' %}
     {% include 'financeiro/_subnav.html' %}
 
@@ -22,6 +22,10 @@
         </div>
     </div>
 
+    {% if cobrancas %}
+    {% include 'financeiro/_dashboard_cobrancas.html' %}
+    {% endif %}
+
     <section class="mt-12">
         <h2 class="text-lg font-semibold text-zinc-200">Histórico de receitas e despesas</h2>
         <p class="mt-1 text-sm text-zinc-500">
@@ -38,9 +42,9 @@
         <div>
             <h2 class="text-lg font-semibold text-zinc-200">Maiores receitas por categoria</h2>
             <p class="mt-1 text-sm text-zinc-500">Distribuição no mesmo período de 12 meses.</p>
-            <div class="mt-6 flex min-h-[280px] items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-                <div id="emptyPizzaRec" class="hidden text-sm text-zinc-500">Sem lançamentos de receita no período.</div>
-                <div class="relative mx-auto h-64 w-full max-w-sm">
+            <div class="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                <div id="emptyPizzaRec" class="hidden py-8 text-center text-sm text-zinc-500">Sem lançamentos de receita no período.</div>
+                <div class="relative h-72 w-full">
                     <canvas id="chartPizzaReceitas" aria-label="Gráfico de pizza receitas"></canvas>
                 </div>
             </div>
@@ -48,9 +52,9 @@
         <div>
             <h2 class="text-lg font-semibold text-zinc-200">Maiores despesas por categoria</h2>
             <p class="mt-1 text-sm text-zinc-500">Distribuição no mesmo período de 12 meses.</p>
-            <div class="mt-6 flex min-h-[280px] items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-                <div id="emptyPizzaDesp" class="hidden text-sm text-zinc-500">Sem lançamentos de despesa no período.</div>
-                <div class="relative mx-auto h-64 w-full max-w-sm">
+            <div class="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+                <div id="emptyPizzaDesp" class="hidden py-8 text-center text-sm text-zinc-500">Sem lançamentos de despesa no período.</div>
+                <div class="relative h-72 w-full">
                     <canvas id="chartPizzaDespesas" aria-label="Gráfico de pizza despesas"></canvas>
                 </div>
             </div>

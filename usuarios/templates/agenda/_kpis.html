@@ -1,0 +1,22 @@
+<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+        <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Hoje</p>
+        <p class="mt-2 text-2xl font-semibold text-zinc-100">{{ kpis.compromissos_hoje }}</p>
+        <p class="mt-1 text-[11px] text-zinc-600">Compromissos do dia</p>
+    </div>
+    <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 {% if kpis.prazos_proximos %}border-amber-900/40 bg-amber-950/15{% endif %}">
+        <p class="text-xs font-medium uppercase tracking-wide {% if kpis.prazos_proximos %}text-amber-400{% else %}text-zinc-500{% endif %}">Prazos próximos</p>
+        <p class="mt-2 text-2xl font-semibold {% if kpis.prazos_proximos %}text-amber-300{% else %}text-zinc-100{% endif %}">{{ kpis.prazos_proximos }}</p>
+        <p class="mt-1 text-[11px] text-zinc-600">Próximos {{ kpis_dias_proximos }} dias</p>
+    </div>
+    <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 {% if kpis.tarefas_atrasadas %}border-red-900/40 bg-red-950/20{% endif %}">
+        <p class="text-xs font-medium uppercase tracking-wide {% if kpis.tarefas_atrasadas %}text-red-400{% else %}text-zinc-500{% endif %}">Tarefas atrasadas</p>
+        <p class="mt-2 text-2xl font-semibold {% if kpis.tarefas_atrasadas %}text-red-300{% else %}text-zinc-100{% endif %}">{{ kpis.tarefas_atrasadas }}</p>
+        <p class="mt-1 text-[11px] text-zinc-600">Pendentes ou em andamento</p>
+    </div>
+    <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+        <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Audiências na semana</p>
+        <p class="mt-2 text-2xl font-semibold text-bally-bright">{{ kpis.audiencias_semana }}</p>
+        <p class="mt-1 text-[11px] text-zinc-600">Agendadas ou confirmadas</p>
+    </div>
+</div>

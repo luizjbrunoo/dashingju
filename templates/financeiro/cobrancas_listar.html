@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="app-shell py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'financeiro/_subnav.html' %}
+
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h1 class="text-xl font-semibold text-zinc-100">Cobranças</h1>
+            <p class="mt-1 text-sm text-zinc-500">Gerencie honorários, vencimentos e recebimentos dos clientes.</p>
+        </div>
+        {% if fin_perms.criar_cobrancas %}
+        <a href="{% url 'financeiro_cobranca_nova' %}{% if filtros.cliente_id %}?cliente={{ filtros.cliente_id }}{% endif %}" class="rounded-md bg-bally px-4 py-2 text-sm font-semibold text-white shadow-md shadow-bally/20 hover:bg-bally-bright">
+            + Nova cobrança
+        </a>
+        {% endif %}
+    </div>
+
+    {% include 'financeiro/_cobrancas_kpis.html' %}
+    {% include 'financeiro/_cobrancas_subnav.html' %}
+    {% include 'financeiro/_cobrancas_filtros.html' %}
+
+    <div class="mt-8 overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/30">
+        <table class="min-w-full text-left text-sm">
+            <thead class="border-b border-zinc-800 bg-zinc-950/50 text-xs uppercase tracking-wide text-zinc-500">
+                <tr>
+                    <th class="px-4 py-3">Cliente</th>
+                    <th class="px-4 py-3">Descrição</th>
+                    <th class="px-4 py-3">Contrato</th>
+                    <th class="px-4 py-3">Valor</th>
+                    <th class="px-4 py-3">Saldo</th>
+                    <th class="px-4 py-3">Vencimento</th>
+                    <th class="px-4 py-3">Status</th>
+                    <th class="px-4 py-3">Responsável</th>
+                    <th class="px-4 py-3">Ações</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-800/80">
+                {% for cobranca in cobrancas %}
+                    <tr class="hover:bg-zinc-900/50 {% if cobranca.status == 'overdue' %}bg-red-950/10{% elif cobranca.status == 'due_soon' %}bg-amber-950/10{% endif %}">
+                        <td class="px-4 py-3 text-zinc-200">{{ cobranca.cliente.nome }}</td>
+                        <td class="px-4 py-3 text-zinc-300">
+                            {{ cobranca.descricao }}
+                            {% if cobranca.parcela_rotulo %}
+                                <span class="ml-1 text-xs text-zinc-500">({{ cobranca.parcela_rotulo }})</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 font-mono text-xs text-zinc-400">{{ cobranca.contrato.referencia|default:cobranca.contrato_referencia|default:"—" }}</td>
+                        <td class="px-4 py-3 font-mono text-zinc-100">R$ {{ cobranca.valor_original|floatformat:2 }}</td>
+                        <td class="px-4 py-3 font-mono text-bally-bright">R$ {{ cobranca.saldo_exibicao|floatformat:2 }}</td>
+                        <td class="px-4 py-3 font-mono {% if cobranca.status == 'overdue' %}text-red-300{% else %}text-zinc-300{% endif %}">{{ cobranca.data_vencimento|date:"d/m/Y" }}</td>
+                        <td class="px-4 py-3">
+                            {% if cobranca.status == 'overdue' %}
+                                <span class="rounded-md border border-red-900/50 bg-red-950/40 px-2 py-0.5 text-xs text-red-300">{{ cobranca.get_status_display }}</span>
+                            {% elif cobranca.status == 'due_soon' %}
+                                <span class="rounded-md border border-amber-900/50 bg-amber-950/40 px-2 py-0.5 text-xs text-amber-300">{{ cobranca.get_status_display }}</span>
+                            {% elif cobranca.status == 'paid' %}
+                                <span class="rounded-md border border-emerald-900/50 bg-emerald-950/40 px-2 py-0.5 text-xs text-emerald-300">{{ cobranca.get_status_display }}</span>
+                            {% else %}
+                                <span class="rounded-md border border-zinc-700 bg-zinc-950/60 px-2 py-0.5 text-xs text-zinc-300">{{ cobranca.get_status_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 text-zinc-400">
+                            {% if cobranca.responsavel %}
+                                {{ cobranca.responsavel.get_full_name|default:cobranca.responsavel.username }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3">
+                            <a href="{% url 'financeiro_cobranca_detalhe' cobranca.pk %}" class="text-bally-bright hover:underline">Ver</a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="9" class="px-4 py-10 text-center text-zinc-500">Nenhuma cobrança encontrada.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock 'body' %}

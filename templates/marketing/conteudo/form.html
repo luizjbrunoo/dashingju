@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="app-shell py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'marketing/_subnav.html' %}
+
+    <section class="mb-8 border-b border-zinc-800 pb-6">
+        <h1 class="text-xl font-semibold text-zinc-100">{{ titulo_pagina }}</h1>
+        <p class="mt-1 text-sm text-zinc-500">
+            Preencha o briefing e use a IA para gerar rascunhos. Todo conteúdo gerado exige revisão humana antes da publicação.
+        </p>
+    </section>
+
+    {% if item %}
+    {% if item.status == 'gerado_ia' and not ultima_verificacao %}
+    <div class="mb-6 rounded-lg border border-amber-800/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-200">
+        Gerado por IA — revisão necessária.
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {% if ultima_verificacao %}
+    <section class="mb-6 max-w-3xl rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+        <h2 class="text-sm font-semibold text-zinc-200">Checklist de revisão</h2>
+        <p class="mt-1 text-xs text-zinc-500">{{ ultima_verificacao.revisado_em|date:"d/m/Y H:i" }}</p>
+        <ul class="mt-3 space-y-2 text-sm">
+            {% for c in ultima_verificacao.checklist %}
+            <li class="flex items-start gap-2">
+                {% if c.status == 'ok' %}
+                <span class="text-emerald-400" aria-hidden="true">✓</span>
+                {% else %}
+                <span class="text-amber-400" aria-hidden="true">!</span>
+                {% endif %}
+                <span class="text-zinc-300">
+                    {{ c.rotulo }}
+                    {% if c.detalhe %}<span class="block text-xs text-zinc-500">{{ c.detalhe }}</span>{% endif %}
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+        <p class="mt-4 text-xs text-zinc-500">{{ ultima_verificacao.observacoes }}</p>
+    </section>
+    {% endif %}
+
+    <form method="post" class="max-w-3xl space-y-6">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+        <div class="rounded-md border border-red-800/80 bg-red-950/90 px-3 py-2 text-sm text-red-300">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <fieldset class="space-y-4">
+            <legend class="mb-2 text-sm font-semibold text-zinc-300">Briefing</legend>
+            {% for field in form %}
+            {% if field.name not in 'duracao_estimada tamanho_aproximado num_slides conteudo_origem corpo status data_planejada' %}
+            <div>
+                <label class="mb-1 block text-sm font-medium text-zinc-400" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<p class="mt-1 text-sm text-red-400">{{ field.errors.0 }}</p>{% endif %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </fieldset>
+
+        <fieldset class="space-y-4 rounded-lg border border-zinc-800 bg-zinc-900/30 p-4">
+            <legend class="mb-1 text-sm font-semibold text-zinc-300">Opções por canal</legend>
+            <p class="text-xs text-zinc-500">YouTube: duração · Blog: tamanho · Carrossel: nº de slides · E-mail: transformar conteúdo existente</p>
+            <div>{{ form.duracao_estimada.label_tag }}{{ form.duracao_estimada }}</div>
+            <div>{{ form.tamanho_aproximado.label_tag }}{{ form.tamanho_aproximado }}</div>
+            <div>{{ form.num_slides.label_tag }}{{ form.num_slides }}</div>
+            <div>{{ form.conteudo_origem.label_tag }}{{ form.conteudo_origem }}</div>
+        </fieldset>
+
+        <fieldset class="space-y-4">
+            <legend class="mb-2 text-sm font-semibold text-zinc-300">Planejamento e corpo</legend>
+            <div>{{ form.data_planejada.label_tag }}{{ form.data_planejada }}</div>
+            <div>{{ form.status.label_tag }}{{ form.status }}</div>
+            <div>{{ form.corpo.label_tag }}{{ form.corpo }}</div>
+        </fieldset>
+
+        <div class="flex flex-wrap gap-2 border-t border-zinc-800 pt-4">
+            <button type="submit" name="acao" value="salvar" class="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-200 hover:bg-zinc-800">Salvar rascunho</button>
+            <button type="submit" name="acao" value="gerar_ia" class="rounded-md bg-bally px-3 py-2 text-sm font-semibold text-white hover:bg-bally-bright">Gerar com IA</button>
+            {% if item %}
+            <button type="submit" name="acao" value="regenerar" class="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800">Regenerar</button>
+            <button type="submit" name="acao" value="melhorar" class="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800">Melhorar</button>
+            <button type="submit" name="acao" value="encurtar" class="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800">Encurtar</button>
+            <button type="submit" name="acao" value="expandir" class="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800">Expandir</button>
+            <button type="submit" name="acao" value="alterar_tom" class="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800">Alterar tom</button>
+            <button type="submit" name="acao" value="verificar_conteudo" class="rounded-md border border-zinc-600 bg-zinc-800/80 px-3 py-2 text-sm text-zinc-100 hover:bg-zinc-800">Verificar conteúdo</button>
+            <button type="submit" name="acao" value="enviar_revisao" class="rounded-md border border-amber-800/60 px-3 py-2 text-sm text-amber-200 hover:bg-amber-950/40">Enviar para revisão</button>
+            <button type="submit" name="acao" value="aprovar" class="rounded-md border border-emerald-800/60 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-950/40">Aprovar</button>
+            <a href="{% url 'marketing_conteudo_reaproveitar' item.pk %}" class="rounded-md border border-bally/40 bg-bally-muted/30 px-3 py-2 text-sm font-semibold text-bally-bright hover:bg-bally-muted/50">Reaproveitar com IA</a>
+            {% endif %}
+            <a href="{% url 'marketing_conteudo_biblioteca' %}" class="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-400 hover:bg-zinc-800">Cancelar</a>
+        </div>
+    </form>
+
+    {% if ultima_versao %}
+    <section class="mt-10 max-w-3xl">
+        <div class="border-b border-zinc-800 pb-3">
+            <h2 class="text-lg font-semibold text-zinc-200">Última versão gerada</h2>
+            <p class="mt-1 text-xs text-zinc-500">
+                v{{ ultima_versao.numero }}
+                {% if ultima_versao.gerado_por_ia %}· IA{% endif %}
+                · {{ ultima_versao.criado_em|date:"d/m/Y H:i" }}
+            </p>
+        </div>
+        {% if ultima_versao.corpo_estruturado.observacoes_revisao %}
+        <div class="mt-4 rounded-lg border border-amber-800/40 bg-amber-950/20 p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-amber-300/80">Pontos para revisão</p>
+            <ul class="mt-2 list-inside list-disc text-sm text-amber-100/90">
+                {% for obs in ultima_versao.corpo_estruturado.observacoes_revisao %}
+                <li>{{ obs }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        {% if ultima_versao.corpo_estruturado.secoes %}
+        <div class="mt-4 space-y-3">
+            {% for secao in ultima_versao.corpo_estruturado.secoes %}
+            <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+                <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{{ secao.titulo }}</p>
+                <div class="mt-2 whitespace-pre-wrap text-sm text-zinc-300">{{ secao.conteudo }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% elif ultima_versao.corpo_texto %}
+        <div class="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <div class="whitespace-pre-wrap text-sm text-zinc-300">{{ ultima_versao.corpo_texto }}</div>
+        </div>
+        {% endif %}
+        {% if ultima_versao.corpo_estruturado.hashtags %}
+        <p class="mt-3 text-xs text-zinc-500">Hashtags: {{ ultima_versao.corpo_estruturado.hashtags|join:", " }}</p>
+        {% endif %}
+    </section>
+    {% endif %}
+</div>
+{% endblock 'body' %}

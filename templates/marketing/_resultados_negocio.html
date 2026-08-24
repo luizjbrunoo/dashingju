@@ -1,0 +1,369 @@
+<section class="mt-10 border-t border-zinc-800 pt-10" aria-labelledby="resultados-negocio-titulo">
+
+    <div class="border-b border-zinc-800 pb-3">
+
+        <h2 id="resultados-negocio-titulo" class="text-lg font-semibold text-zinc-200">Resultados do negócio</h2>
+
+        <p class="mt-1 text-sm text-zinc-500">
+
+            Do investimento em mídia aos contratos e à receita · {{ ctx_resultados.resultados.periodo.label }}
+
+        </p>
+
+        {% if ctx_resultados.resultados.tem_dados_suficientes %}
+
+        <p class="mt-1 text-xs text-zinc-600">Comparação: {{ ctx_resultados.compare_note }}</p>
+
+        {% endif %}
+
+        {% if ctx_resultados.resultados.funil.investimento_demo %}
+
+        <p class="mt-2 text-xs text-amber-200/80">
+
+            Investimento em <span class="font-medium">demonstração</span>; leads, consultas e contratos são dados reais do seu escritório.
+
+        </p>
+
+        {% elif ctx_resultados.resultados.funil.investimento is None %}
+
+        <p class="mt-2 text-xs text-zinc-500">Investimento em mídia indisponível (integração Google Ads pendente).</p>
+
+        {% endif %}
+
+        {% if ctx_resultados.ocultar_financeiro %}
+
+        <p class="mt-2 text-xs text-zinc-500">Receita e ticket médio ocultos conforme suas permissões financeiras.</p>
+
+        {% endif %}
+
+    </div>
+
+
+
+    {% if not ctx_resultados.resultados.tem_dados_suficientes %}
+
+    <div class="mt-6 rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-8 text-center text-sm text-zinc-500">
+
+        Sem dados suficientes no período. Cadastre leads com origem Google Ads (gclid/UTM) para alimentar este funil.
+
+    </div>
+
+    {% else %}
+
+
+
+    <div class="mt-6 overflow-x-auto pb-2">
+
+        <div class="flex min-w-max items-stretch gap-1" role="list" aria-label="Funil de resultados do negócio">
+
+            {% for etapa in ctx_resultados.funil_etapas %}
+
+                <div class="flex items-center gap-1" role="listitem">
+
+                    <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3 min-w-[7.5rem]">
+
+                        <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">{{ etapa.label }}</p>
+
+                        {% if etapa.tipo == 'money' %}
+
+                            {% if etapa.valor is not None %}
+
+                                <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-100">
+
+                                    R$ {{ etapa.valor|floatformat:2 }}
+
+                                    {% if etapa.demo %}<span class="text-[10px] font-normal text-amber-300/90"> demo</span>{% endif %}
+
+                                </p>
+
+                            {% else %}
+
+                                <p class="mt-1 text-lg font-medium text-zinc-500">—</p>
+
+                            {% endif %}
+
+                        {% else %}
+
+                            <p class="mt-1 text-lg font-semibold tabular-nums text-bally-bright">{{ etapa.valor|floatformat:0 }}</p>
+
+                        {% endif %}
+
+                        {% if etapa.sub %}
+
+                            <p class="mt-0.5 text-[10px] text-zinc-600">{{ etapa.sub }}</p>
+
+                        {% endif %}
+
+                        {% if etapa.key == 'investimento' %}
+
+                            {% with t=ctx_resultados.tendencias.investimento compare_note=ctx_resultados.compare_note %}
+
+                            {% include 'marketing/_resultados_trend.html' %}
+
+                            {% endwith %}
+
+                        {% elif etapa.key == 'leads' %}
+
+                            {% with t=ctx_resultados.tendencias.leads compare_note=ctx_resultados.compare_note %}
+
+                            {% include 'marketing/_resultados_trend.html' %}
+
+                            {% endwith %}
+
+                        {% elif etapa.key == 'consultas' %}
+
+                            {% with t=ctx_resultados.tendencias.consultas_realizadas compare_note=ctx_resultados.compare_note %}
+
+                            {% include 'marketing/_resultados_trend.html' %}
+
+                            {% endwith %}
+
+                        {% elif etapa.key == 'contratos' %}
+
+                            {% with t=ctx_resultados.tendencias.contratos compare_note=ctx_resultados.compare_note %}
+
+                            {% include 'marketing/_resultados_trend.html' %}
+
+                            {% endwith %}
+
+                        {% elif etapa.key == 'receita' %}
+
+                            {% with t=ctx_resultados.tendencias.receita_contratada compare_note=ctx_resultados.compare_note %}
+
+                            {% include 'marketing/_resultados_trend.html' %}
+
+                            {% endwith %}
+
+                        {% endif %}
+
+                    </div>
+
+                    {% if not forloop.last %}
+
+                    <span class="text-zinc-600 px-0.5" aria-hidden="true">→</span>
+
+                    {% endif %}
+
+                </div>
+
+            {% endfor %}
+
+        </div>
+
+    </div>
+
+
+
+    <p class="mt-4 text-xs font-medium uppercase tracking-wide text-zinc-500">Eficiência</p>
+
+    <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
+
+        {% with e=ctx_resultados.resultados.eficiencia %}
+
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">CPL</p>
+
+            <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-100">{% if e.cpl is not None %}R$ {{ e.cpl|floatformat:2 }}{% else %}—{% endif %}</p>
+
+        </div>
+
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Custo / consulta</p>
+
+            <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-100">{% if e.custo_por_consulta is not None %}R$ {{ e.custo_por_consulta|floatformat:2 }}{% else %}—{% endif %}</p>
+
+            <p class="mt-0.5 text-[10px] text-zinc-600">Consultas realizadas</p>
+
+        </div>
+
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">CAC de mídia</p>
+
+            <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-100">{% if e.cac_midia is not None %}R$ {{ e.cac_midia|floatformat:2 }}{% else %}—{% endif %}</p>
+
+        </div>
+
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Lead → consulta</p>
+
+            <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-100">{% if e.conv_lead_consulta_pct is not None %}{{ e.conv_lead_consulta_pct|floatformat:1 }}%{% else %}—{% endif %}</p>
+
+        </div>
+
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Lead → contrato</p>
+
+            <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-100">{% if e.conv_lead_contrato_pct is not None %}{{ e.conv_lead_contrato_pct|floatformat:1 }}%{% else %}—{% endif %}</p>
+
+        </div>
+
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Consulta → contrato</p>
+
+            <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-100">{% if e.conv_consulta_contrato_pct is not None %}{{ e.conv_consulta_contrato_pct|floatformat:1 }}%{% else %}—{% endif %}</p>
+
+        </div>
+
+        {% if not ctx_resultados.ocultar_financeiro %}
+
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Ticket médio</p>
+
+            <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-100">{% if e.ticket_medio is not None %}R$ {{ e.ticket_medio|floatformat:2 }}{% else %}—{% endif %}</p>
+
+        </div>
+
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Receita / mídia</p>
+
+            <p class="mt-1 text-lg font-semibold tabular-nums text-emerald-400">{% if e.receita_midia_ratio is not None %}{{ e.receita_midia_ratio|floatformat:2 }}x{% else %}—{% endif %}</p>
+
+            <p class="mt-0.5 text-[10px] text-zinc-600">Não é ROI</p>
+
+        </div>
+
+        {% endif %}
+
+        {% endwith %}
+
+    </div>
+
+
+
+    {% if not ctx_resultados.ocultar_financeiro %}
+
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 max-w-xl">
+
+        <div class="rounded-lg border border-zinc-800/80 bg-zinc-950/40 px-4 py-3">
+
+            <p class="text-[10px] uppercase tracking-wide text-zinc-500">Receita contratada</p>
+
+            <p class="mt-1 text-base font-semibold tabular-nums text-zinc-100">R$ {{ ctx_resultados.resultados.funil.receita_contratada|floatformat:2 }}</p>
+
+            {% with t=ctx_resultados.tendencias.receita_contratada compare_note=ctx_resultados.compare_note %}
+
+            {% include 'marketing/_resultados_trend.html' %}
+
+            {% endwith %}
+
+        </div>
+
+        <div class="rounded-lg border border-zinc-800/80 bg-zinc-950/40 px-4 py-3">
+
+            <p class="text-[10px] uppercase tracking-wide text-zinc-500">Receita recebida</p>
+
+            <p class="mt-1 text-base font-semibold tabular-nums text-emerald-400">R$ {{ ctx_resultados.resultados.funil.receita_recebida|floatformat:2 }}</p>
+
+            {% with t=ctx_resultados.tendencias.receita_recebida compare_note=ctx_resultados.compare_note %}
+
+            {% include 'marketing/_resultados_trend.html' %}
+
+            {% endwith %}
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+
+
+    <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+
+        {% if ctx_resultados.links.leads_sem_acao %}
+        <a href="{{ ctx_resultados.links.leads_sem_acao }}" class="group rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3 transition-colors hover:border-amber-700/50 hover:bg-zinc-900/70">
+            <p class="text-[10px] uppercase tracking-wide text-zinc-500 group-hover:text-amber-200/80">Leads sem próxima ação</p>
+            <p class="mt-1 text-xl font-semibold text-amber-300">{{ ctx_resultados.links.leads_sem_acao_qtd }}</p>
+            <p class="mt-1 text-[10px] text-zinc-600 group-hover:text-zinc-500">Ver na lista de clientes →</p>
+        </a>
+        {% else %}
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3">
+            <p class="text-[10px] uppercase tracking-wide text-zinc-500">Leads sem próxima ação</p>
+            <p class="mt-1 text-xl font-semibold text-amber-300">{{ ctx_resultados.resultados.operacional.leads_sem_proxima_acao }}</p>
+        </div>
+        {% endif %}
+
+        {% if ctx_resultados.links.followups_atrasados %}
+        <a href="{{ ctx_resultados.links.followups_atrasados }}" class="group rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3 transition-colors hover:border-orange-700/50 hover:bg-zinc-900/70">
+            <p class="text-[10px] uppercase tracking-wide text-zinc-500 group-hover:text-orange-200/80">Follow-ups atrasados</p>
+            <p class="mt-1 text-xl font-semibold text-orange-300">{{ ctx_resultados.links.followups_atrasados_qtd }}</p>
+            <p class="mt-1 text-[10px] text-zinc-600 group-hover:text-zinc-500">Ver na lista de clientes →</p>
+        </a>
+        {% else %}
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3">
+            <p class="text-[10px] uppercase tracking-wide text-zinc-500">Follow-ups atrasados</p>
+            <p class="mt-1 text-xl font-semibold text-orange-300">{{ ctx_resultados.resultados.operacional.followups_atrasados }}</p>
+        </div>
+        {% endif %}
+
+        {% with q=ctx_resultados.resultados.qualidade %}
+
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3 sm:col-span-2">
+
+            <p class="text-[10px] uppercase tracking-wide text-zinc-500">Atribuição de origem</p>
+
+            {% if q.total_clientes_periodo %}
+
+            <p class="mt-1 text-sm text-zinc-300">
+
+                Identificados: <span class="font-medium text-zinc-100">{{ q.pct_identificados|floatformat:1 }}%</span>
+
+                · Não identificados: <span class="font-medium text-zinc-400">{{ q.pct_nao_identificados|floatformat:1 }}%</span>
+
+            </p>
+
+            {% else %}
+
+            <p class="mt-1 text-sm text-zinc-500">—</p>
+
+            {% endif %}
+
+        </div>
+
+        {% endwith %}
+
+    </div>
+
+
+
+    {% if ctx_resultados.leads_por_fase %}
+
+    <div class="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3">
+
+        <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Leads Google Ads por fase do funil</p>
+
+        <div class="mt-2 flex flex-wrap gap-2">
+
+            {% for item in ctx_resultados.leads_por_fase %}
+
+            <span class="inline-flex items-center gap-1.5 rounded-md border border-zinc-700/80 bg-zinc-950/50 px-2.5 py-1 text-xs text-zinc-300">
+
+                <span>{{ item.label }}</span>
+
+                <span class="font-semibold tabular-nums text-bally-bright">{{ item.qtd }}</span>
+
+            </span>
+
+            {% endfor %}
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+    {% include 'marketing/_resultados_campanhas.html' %}
+    {% include 'marketing/_resultados_comparacao.html' %}
+    {% include 'marketing/_resultados_evolucao.html' %}
+
+    {% endif %}
+
+</section>

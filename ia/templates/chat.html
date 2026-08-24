@@ -3,8 +3,8 @@
 {% block 'body' %}
     <main>
         <header class="relative isolate border-b border-zinc-800/80 bg-linear-to-r from-bally-muted/50 via-zinc-900/80 to-zinc-950">
-            <div class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-                <div class="mx-auto flex max-w-2xl items-center justify-between gap-x-8 lg:mx-0 lg:max-w-none">
+            <div class="app-shell py-8">
+                <div class="flex w-full items-center justify-between gap-x-8">
                     <div class="flex min-w-0 flex-1 items-center gap-x-4">
                         <a
                             href="{% url 'cliente' cliente.id %}"
@@ -19,42 +19,39 @@
                 </div>
             </div>
         </header>
-        <div class="px-4 md:px-0">
-            <div class="mx-auto mt-8 max-w-4xl rounded-md border border-zinc-800/80 bg-zinc-900/40 px-4 py-16 sm:px-6 lg:px-8">
-                <!-- Container principal empilhando tudo -->
-                <div class="flex flex-col gap-6" id="chat">
-                    <!-- Mensagem do assistente -->
+        <div class="app-shell pb-10">
+            <div class="mx-auto w-full max-w-5xl xl:max-w-6xl">
+                <div class="rounded-lg border border-zinc-800/80 bg-zinc-900/40 px-4 py-8 sm:px-6 lg:min-h-[28rem] lg:px-8">
+                    <div class="flex flex-col gap-6" id="chat">
                     <div class="flex items-start gap-2.5">
-                        <img class="w-12 h-12 rounded-full"
-                             src="{% static 'Imagem_EcildaII.jpg' %}">
-                        <div class="flex flex-col gap-1 w-full max-w-[320px]">
+                        <img class="h-12 w-12 rounded-full" src="{% static 'Imagem_EcildaII.jpg' %}" alt="">
+                        <div class="flex w-full max-w-xl flex-col gap-1 lg:max-w-2xl">
                             <div class="flex items-center space-x-2 rtl:space-x-reverse">
                                 <span class="text-sm font-semibold text-bally-bright">PsiQuete</span>
                                 <span class="text-sm font-normal text-zinc-500">11:46</span>
                             </div>
-                            <div class="flex flex-col leading-1.5 p-4 rounded-e-xl rounded-es-xl border border-zinc-700/80 bg-zinc-800/80">
-                                <p class="text-sm font-normal py-2.5 text-zinc-200">Olá, eu sou sua assistente virtual. Como posso ajudar?</p>
+                            <div class="flex flex-col rounded-e-xl rounded-es-xl border border-zinc-700/80 bg-zinc-800/80 p-4 leading-1.5">
+                                <p class="py-2.5 text-sm font-normal text-zinc-200">Olá, eu sou sua assistente virtual. Como posso ajudar?</p>
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-        <div class="px-4 md:px-0">
-            <div class="mx-auto mt-6 max-w-4xl rounded-md border border-zinc-800/80 bg-zinc-900/40 px-4 py-4 sm:px-6 lg:px-8">
-                <form id="form-pergunta">
-                    <div class="flex items-center gap-4">
-                        <input type="text"
-                               name="pergunta"
-                               id="pergunta"
-                               placeholder="Digite sua pergunta..."
-                               class="flex-1 rounded-md border border-zinc-700 bg-zinc-950/50 px-4 py-2 text-sm text-zinc-100 placeholder:text-zinc-500">
-                        <button type="submit"
-                                class="cursor-pointer rounded-md bg-bally px-3 py-2 text-sm font-semibold text-white shadow-md shadow-bally/20 hover:bg-bally-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bally">
-                            Enviar
-                        </button>
                     </div>
-                </form>
+                </div>
+                <div class="mt-4 rounded-lg border border-zinc-800/80 bg-zinc-900/40 px-4 py-4 sm:px-6 lg:px-8">
+                    <form id="form-pergunta">
+                        <div class="flex items-center gap-4">
+                            <input type="text"
+                                   name="pergunta"
+                                   id="pergunta"
+                                   placeholder="Digite sua pergunta..."
+                                   class="flex-1 rounded-md border border-zinc-700 bg-zinc-950/50 px-4 py-2 text-sm text-zinc-100 placeholder:text-zinc-500">
+                            <button type="submit"
+                                    class="cursor-pointer rounded-md bg-bally px-3 py-2 text-sm font-semibold text-white shadow-md shadow-bally/20 hover:bg-bally-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bally">
+                                Enviar
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </main>
@@ -74,7 +71,7 @@
             const novaMensagem1 = document.createElement("div");
             novaMensagem1.className = "flex items-start gap-2.5 justify-end";
             novaMensagem1.innerHTML = `
-                <div class="flex flex-col gap-1 w-full max-w-[320px] text-right">
+                <div class="flex flex-col gap-1 w-full max-w-xl lg:max-w-2xl text-right">
                     <div class="flex items-center justify-end space-x-2 rtl:space-x-reverse">
                     <span class="text-sm font-normal text-zinc-500">11:46</span>
                     <span class="text-sm font-semibold text-bally-bright">Você</span>
@@ -93,7 +90,7 @@
 
             novaMensagem.innerHTML = `
                 <img class="w-12 h-12 rounded-full" src="{% static 'logo_dashing_juridico.jpg' %}" alt="Pythonete">
-                <div class="flex flex-col gap-1 w-full max-w-[320px]">
+                <div class="flex flex-col gap-1 w-full max-w-xl lg:max-w-2xl">
                     <div class="flex items-center space-x-2 rtl:space-x-reverse">
                         <span class="text-sm font-semibold text-bally-bright">PsiQuete</span>
                         <span class="text-sm font-normal text-zinc-500">10:00</span>

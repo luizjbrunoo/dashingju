@@ -1,0 +1,8 @@
+<span class="rounded-md border px-2 py-0.5 text-[10px] font-medium
+    {% if compromisso.status == 'agendado' %}border-zinc-700 bg-zinc-950/60 text-zinc-300
+    {% elif compromisso.status == 'confirmado' %}border-bally/30 bg-bally-muted/20 text-bally-bright
+    {% elif compromisso.status == 'realizado' %}border-emerald-900/40 bg-emerald-950/30 text-emerald-300
+    {% elif compromisso.status == 'nao_compareceu' %}border-orange-900/40 bg-orange-950/30 text-orange-300
+    {% else %}border-zinc-700 bg-zinc-950/60 text-zinc-400{% endif %}">
+    {{ compromisso.get_status_display }}
+</span>

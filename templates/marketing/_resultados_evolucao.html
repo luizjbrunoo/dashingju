@@ -1,0 +1,19 @@
+<div class="mt-8 border-t border-zinc-800 pt-6">
+    <div class="border-b border-zinc-800 pb-3">
+        <h3 class="text-sm font-semibold text-zinc-200">Evolução de resultados</h3>
+        <p class="mt-1 text-xs text-zinc-500">
+            Leads, consultas realizadas e contratos Google Ads
+            {% if not ctx_resultados.ocultar_financeiro %}· receita contratada{% endif %}
+            · agrupamento: {{ ctx_resultados.granularidade }}
+        </p>
+    </div>
+    {% if ctx_resultados.evolucao.tem_dados %}
+    <div class="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+        <div class="relative h-72 w-full">
+            <canvas id="chartResultadosEvolucao" aria-label="Evolução de resultados do negócio"></canvas>
+        </div>
+    </div>
+    {% else %}
+    <p class="mt-4 text-sm text-zinc-500">Sem movimentação no período para exibir o gráfico.</p>
+    {% endif %}
+</div>

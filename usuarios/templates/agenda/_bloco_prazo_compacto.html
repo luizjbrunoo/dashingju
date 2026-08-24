@@ -1,0 +1,8 @@
+{% if compromisso.tipo == 'prazo' and compromisso.prazo_oficial or compromisso.prazo_interno %}
+    <p class="mt-0.5 text-xs {% if compromisso.prazo_interno_vencido or compromisso.prazo_oficial_vencido %}text-red-400{% else %}text-zinc-500{% endif %}">
+        {% if compromisso.prazo_oficial %}Oficial: {{ compromisso.prazo_oficial|date:"d/m/Y" }}{% endif %}
+        {% if compromisso.prazo_interno %}
+            {% if compromisso.prazo_oficial %} · {% endif %}Interno: {{ compromisso.prazo_interno|date:"d/m/Y" }}
+        {% endif %}
+    </p>
+{% endif %}

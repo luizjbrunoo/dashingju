@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="app-shell py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'marketing/_subnav.html' %}
+
+    <section class="mb-8 border-b border-zinc-800 pb-6">
+        <h1 class="text-xl font-semibold text-zinc-100">Perfil de conteúdo</h1>
+        <p class="mt-1 text-sm text-zinc-500">
+            Informações do escritório usadas pela IA na geração de conteúdo (Fase 2).
+        </p>
+    </section>
+
+    <form method="post" class="max-w-3xl space-y-5">
+        {% csrf_token %}
+        {% for field in form %}
+        <div>
+            <label class="mb-1 block text-sm font-medium text-zinc-400" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}
+            <p class="mt-1 text-sm text-red-400">{{ field.errors.0 }}</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+        <div class="flex gap-3 pt-2">
+            <button type="submit" class="rounded-md bg-bally px-4 py-2 text-sm font-semibold text-white hover:bg-bally-bright">Salvar perfil</button>
+            <a href="{% url 'marketing_conteudo_dashboard' %}" class="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800">Voltar</a>
+        </div>
+    </form>
+</div>
+{% endblock 'body' %}

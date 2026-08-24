@@ -1,0 +1,82 @@
+<form method="get" class="mt-6 space-y-4 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="sm:col-span-2 lg:col-span-4">
+            <label class="mb-1 block text-xs font-medium text-zinc-500" for="q">Buscar</label>
+            <input
+                type="search"
+                id="q"
+                name="q"
+                value="{{ filtros.q }}"
+                placeholder="Cliente, contrato ou descrição"
+                class="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100"
+            />
+        </div>
+        <div>
+            <label class="mb-1 block text-xs font-medium text-zinc-500" for="status">Status</label>
+            <select id="status" name="status" class="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100">
+                <option value="">Todos</option>
+                {% for valor, rotulo in status_choices %}
+                    <option value="{{ valor }}" {% if filtros.status == valor %}selected{% endif %}>{{ rotulo }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="mb-1 block text-xs font-medium text-zinc-500" for="cliente">Cliente</label>
+            <select id="cliente" name="cliente" class="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100">
+                <option value="">Todos</option>
+                {% for c in clientes_filtro %}
+                    <option value="{{ c.pk }}" {% if filtros.cliente_id == c.pk %}selected{% endif %}>{{ c.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="mb-1 block text-xs font-medium text-zinc-500" for="responsavel">Responsável</label>
+            <select id="responsavel" name="responsavel" class="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100">
+                <option value="">Todos</option>
+                {% for u in responsaveis_filtro %}
+                    <option value="{{ u.pk }}" {% if filtros.responsavel_id == u.pk %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="mb-1 block text-xs font-medium text-zinc-500" for="categoria">Categoria</label>
+            <select id="categoria" name="categoria" class="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100">
+                <option value="">Todas</option>
+                {% for valor, rotulo in categoria_choices %}
+                    <option value="{{ valor }}" {% if filtros.categoria == valor %}selected{% endif %}>{{ rotulo }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="mb-1 block text-xs font-medium text-zinc-500" for="vencimento_de">Vencimento de</label>
+            <input type="date" id="vencimento_de" name="vencimento_de" value="{{ filtros.vencimento_de|date:'Y-m-d' }}" class="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 [color-scheme:dark]" />
+        </div>
+        <div>
+            <label class="mb-1 block text-xs font-medium text-zinc-500" for="vencimento_ate">Vencimento até</label>
+            <input type="date" id="vencimento_ate" name="vencimento_ate" value="{{ filtros.vencimento_ate|date:'Y-m-d' }}" class="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 [color-scheme:dark]" />
+        </div>
+        <div>
+            <label class="mb-1 block text-xs font-medium text-zinc-500" for="forma_prevista">Forma prevista</label>
+            <select id="forma_prevista" name="forma_prevista" class="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100">
+                <option value="">Todas</option>
+                {% for valor, rotulo in forma_choices %}
+                    <option value="{{ valor }}" {% if filtros.forma_prevista == valor %}selected{% endif %}>{{ rotulo }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="mb-1 block text-xs font-medium text-zinc-500" for="ordem">Ordenar por</label>
+            <select id="ordem" name="ordem" class="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100">
+                <option value="vencimento" {% if filtros.ordem == 'vencimento' %}selected{% endif %}>Vencimento (vencidas primeiro)</option>
+                <option value="valor" {% if filtros.ordem == 'valor' %}selected{% endif %}>Valor</option>
+                <option value="cliente" {% if filtros.ordem == 'cliente' %}selected{% endif %}>Cliente</option>
+                <option value="status" {% if filtros.ordem == 'status' %}selected{% endif %}>Status</option>
+                <option value="criado_em" {% if filtros.ordem == 'criado_em' %}selected{% endif %}>Data de criação</option>
+            </select>
+        </div>
+    </div>
+    <div class="flex flex-wrap gap-2">
+        <button type="submit" class="rounded-md bg-zinc-800 px-4 py-2 text-sm font-semibold text-zinc-100 hover:bg-zinc-700">Aplicar filtros</button>
+        <a href="{% url 'financeiro_cobranca_listar' %}" class="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800">Limpar</a>
+    </div>
+</form>

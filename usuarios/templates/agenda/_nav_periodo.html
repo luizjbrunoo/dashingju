@@ -1,0 +1,18 @@
+{% if nav_periodo %}
+<section class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3">
+    <a href="{% url 'agenda' %}?{{ nav_periodo.anterior }}"
+        class="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:border-bally/40 hover:text-bally-bright">
+        ← Anterior
+    </a>
+    <div class="text-center">
+        <p class="text-sm font-semibold text-zinc-100">{{ periodo_label }}</p>
+        <a href="{% url 'agenda' %}?{{ nav_periodo.atual }}" class="text-xs text-zinc-500 hover:text-bally-bright">
+            Ir para {% if view_ativa == 'mes' %}mês atual{% else %}semana atual{% endif %}
+        </a>
+    </div>
+    <a href="{% url 'agenda' %}?{{ nav_periodo.proximo }}"
+        class="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:border-bally/40 hover:text-bally-bright">
+        Próximo →
+    </a>
+</section>
+{% endif %}

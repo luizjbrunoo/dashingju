@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="app-shell py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'financeiro/_subnav.html' %}
+
+    <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+            <h1 class="text-xl font-semibold text-zinc-100">Cobrar cliente</h1>
+            <p class="mt-1 text-sm text-zinc-500">Revise a mensagem antes de enviar por WhatsApp, e-mail ou outro canal externo.</p>
+        </div>
+        <a href="{% url 'financeiro_cobranca_detalhe' cobranca.pk %}" class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800">Voltar à cobrança</a>
+    </div>
+
+    <div class="mt-8 grid gap-6 lg:grid-cols-2">
+        <section class="rounded-lg border border-zinc-800 bg-zinc-900/30 p-6">
+            <h2 class="text-sm font-semibold text-zinc-200">Dados do cliente</h2>
+            <dl class="mt-4 space-y-3 text-sm">
+                <div class="flex justify-between gap-4"><dt class="text-zinc-500">Nome</dt><dd class="text-zinc-200">{{ contexto.cliente_nome }}</dd></div>
+                <div class="flex justify-between gap-4"><dt class="text-zinc-500">Telefone</dt><dd class="text-zinc-300">{{ contexto.cliente_telefone|default:"—" }}</dd></div>
+                <div class="flex justify-between gap-4"><dt class="text-zinc-500">E-mail</dt><dd class="text-zinc-300">{{ contexto.cliente_email|default:"—" }}</dd></div>
+                <div class="flex justify-between gap-4"><dt class="text-zinc-500">Valor em aberto</dt><dd class="font-mono text-bally-bright">{{ contexto.saldo_fmt }}</dd></div>
+                <div class="flex justify-between gap-4"><dt class="text-zinc-500">Vencimento</dt><dd class="font-mono text-zinc-300">{{ contexto.vencimento_fmt }}</dd></div>
+                <div class="flex justify-between gap-4"><dt class="text-zinc-500">Dias de atraso</dt><dd class="{% if contexto.dias_atraso %}text-red-300{% else %}text-zinc-400{% endif %}">{% if contexto.dias_atraso %}{{ contexto.dias_atraso }} dia{{ contexto.dias_atraso|pluralize:"s" }}{% else %}—{% endif %}</dd></div>
+                <div class="flex justify-between gap-4"><dt class="text-zinc-500">Descrição</dt><dd class="text-right text-zinc-300">{{ contexto.descricao }}{% if contexto.parcela_rotulo %} ({{ contexto.parcela_rotulo }}){% endif %}</dd></div>
+            </dl>
+        </section>
+
+        <section class="rounded-lg border border-zinc-800 bg-zinc-900/30 p-6">
+            <h2 class="text-sm font-semibold text-zinc-200">Mensagem sugerida</h2>
+            <p class="mt-1 text-xs text-zinc-500">A Dashingju não envia automaticamente. Copie e envie pelo canal de sua preferência.</p>
+
+            <form method="post" class="mt-4 space-y-4">
+                {% csrf_token %}
+                <div>
+                    <label for="tom" class="block text-xs font-medium uppercase tracking-wide text-zinc-500">Tom</label>
+                    <select id="tom" name="tom" class="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200" onchange="this.form.querySelector('[name=acao]').value='atualizar'; this.form.submit();">
+                        {% for value, label in tom_choices %}
+                            <option value="{{ value }}" {% if tom == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="mensagem" class="block text-xs font-medium uppercase tracking-wide text-zinc-500">Texto</label>
+                    <textarea id="mensagem" name="mensagem" rows="10" class="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200">{{ mensagem }}</textarea>
+                </div>
+                <input type="hidden" name="acao" value="" />
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" id="btn-copiar" class="rounded-md border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-200 hover:border-bally/40 hover:text-bally-bright">Copiar mensagem</button>
+                    {% if ia_disponivel %}
+                        <button type="submit" onclick="this.form.querySelector('[name=acao]').value='gerar_ia';" class="rounded-md bg-bally px-4 py-2 text-sm font-semibold text-white shadow-md shadow-bally/20 hover:bg-bally-bright">Gerar com IA</button>
+                    {% else %}
+                        <span class="self-center text-xs text-zinc-500">IA indisponível (configure OPENAI_API_KEY no .env)</span>
+                    {% endif %}
+                </div>
+            </form>
+        </section>
+    </div>
+</div>
+
+<script>
+(function () {
+    var btn = document.getElementById("btn-copiar");
+    var area = document.getElementById("mensagem");
+    if (!btn || !area) return;
+    btn.addEventListener("click", function () {
+        area.select();
+        area.setSelectionRange(0, area.value.length);
+        navigator.clipboard.writeText(area.value).then(function () {
+            btn.textContent = "Copiado!";
+            setTimeout(function () { btn.textContent = "Copiar mensagem"; }, 2000);
+        }).catch(function () {
+            document.execCommand("copy");
+            btn.textContent = "Copiado!";
+            setTimeout(function () { btn.textContent = "Copiar mensagem"; }, 2000);
+        });
+    });
+})();
+</script>
+{% endblock 'body' %}

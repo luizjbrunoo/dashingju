@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="app-shell py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'marketing/_subnav.html' %}
+
+    <section class="mb-8 border-b border-zinc-800 pb-6">
+        <h1 class="text-xl font-semibold text-zinc-100">Agendar ideia</h1>
+        <p class="mt-1 text-sm text-zinc-500">{{ ideia.titulo }}</p>
+    </section>
+
+    <form method="post" class="max-w-sm space-y-4">
+        {% csrf_token %}
+        <div>{{ form.data_planejada.label_tag }}{{ form.data_planejada }}</div>
+        <div class="flex gap-3">
+            <button type="submit" class="rounded-md bg-bally px-4 py-2 text-sm font-semibold text-white hover:bg-bally-bright">Confirmar</button>
+            <a href="{% url 'marketing_conteudo_ideias' %}" class="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock 'body' %}

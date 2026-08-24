@@ -1,0 +1,32 @@
+{% include 'agenda/_nav_periodo.html' %}
+
+<section class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 shadow-sm shadow-black/20 md:p-6">
+    <div class="mb-3 flex flex-wrap items-center gap-3 text-[10px] text-zinc-500">
+        <span class="inline-flex items-center gap-1"><span class="rounded bg-bally-muted/30 px-1 py-0.5 text-bally-bright">comp.</span> compromissos</span>
+        <span class="inline-flex items-center gap-1"><span class="rounded bg-zinc-800/90 px-1 py-0.5 text-zinc-400">tar.</span> tarefas</span>
+        <span class="inline-flex items-center gap-1"><span class="rounded bg-purple-950/50 px-1 py-0.5 text-purple-300">aud.</span> audiências</span>
+        <span class="inline-flex items-center gap-1"><span class="rounded bg-amber-950/40 px-1 py-0.5 text-amber-300">praz.</span> prazos</span>
+        <span class="text-zinc-600">Clique no dia para ver detalhes</span>
+    </div>
+    <div class="mb-2 grid grid-cols-7 gap-1 text-center text-xs font-medium uppercase tracking-wide text-zinc-500">
+        {% for nome in dias_semana_pt %}
+            <div class="py-2">{{ nome }}</div>
+        {% endfor %}
+    </div>
+    {% for semana in mes_semanas %}
+        <div class="grid grid-cols-7 gap-1">
+            {% for celula in semana %}
+                <a href="{% url 'agenda' %}?view=hoje&amp;data={{ celula.data.isoformat }}{% if filtros_query_base %}&amp;{{ filtros_query_base }}{% endif %}"
+                    class="block min-h-[5.5rem] rounded-lg border p-1.5 transition-colors hover:border-bally/30 md:min-h-[6.5rem] md:p-2
+                    {% if celula.eh_hoje %}border-bally/40 bg-bally-muted/10{% elif celula.no_mes %}border-zinc-800 bg-zinc-950/40{% else %}border-zinc-900/60 bg-zinc-950/20{% endif %}">
+                    <span class="mb-1 block text-right text-xs font-semibold {% if celula.eh_hoje %}text-bally-bright{% elif celula.no_mes %}text-zinc-300{% else %}text-zinc-600{% endif %}">
+                        {{ celula.data.day }}
+                    </span>
+                    {% if celula.no_mes %}
+                        {% include 'agenda/_mes_celula_resumo.html' %}
+                    {% endif %}
+                </a>
+            {% endfor %}
+        </div>
+    {% endfor %}
+</section>

@@ -16,6 +16,9 @@ from django.utils import timezone
 from .forms import BancoForm, CategoriaForm, MovimentoForm
 from .models import Banco, Categoria, Movimento
 from .pdf_report import gerar_relatorio_pdf
+from .services.cobranca_dashboard import calcular_dashboard_cobrancas
+from .permissions import pode_ver_cobrancas
+from .decorators import perm_ver_relatorios
 
 
 def _parse_date(s, default):
@@ -168,6 +171,8 @@ def dashboard(request):
         "pizzaDespesas": pizza_despesas,
     }
 
+    cobrancas_resumo = calcular_dashboard_cobrancas(request.user, hoje=hoje) if pode_ver_cobrancas(request.user) else None
+
     return render(
         request,
         "financeiro/dashboard.html",
@@ -181,6 +186,7 @@ def dashboard(request):
             "charts_payload": charts_payload,
             "periodo_graficos_inicio": inicio_12,
             "periodo_graficos_fim": fim_12,
+            "cobrancas": cobrancas_resumo,
         },
     )
 
@@ -413,6 +419,7 @@ def movimento_excluir(request, pk):
     return render(request, "financeiro/movimento_confirmar_exclusao.html", {"movimento": mov})
 
 
+@perm_ver_relatorios
 @login_required
 def relatorio_pdf(request):
     qs, data_inicio, data_fim, tipo, _banco_id = _extrato_queryset(request)

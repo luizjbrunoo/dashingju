@@ -1,0 +1,95 @@
+<section class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 shadow-sm shadow-black/20">
+    <form method="get" class="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <input type="hidden" name="view" value="{{ view_ativa }}" />
+        <div>
+            <label class="mb-1 block text-sm text-zinc-500" for="filtro_escopo">Visualizar</label>
+            <select id="filtro_escopo" name="escopo" class="w-full rounded-xl border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 focus:border-bally/50 focus:ring-2 focus:ring-bally/30 outline-none">
+                {% for value, label in escopo_choices %}
+                    <option value="{{ value }}" {% if filtro_escopo == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="mb-1 block text-sm text-zinc-500" for="filtro_data">
+                {% if view_ativa == 'semana' %}Referência (semana){% elif view_ativa == 'mes' %}Referência (mês){% else %}Data{% endif %}
+            </label>
+            <input id="filtro_data" type="date" name="data" value="{{ filtro_data }}"
+                class="w-full rounded-xl border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 [color-scheme:dark] focus:border-bally/50 focus:ring-2 focus:ring-bally/30 outline-none" />
+            {% if view_ativa == 'hoje' %}
+                <p class="mt-1 text-xs text-zinc-600">Opcional — padrão: hoje</p>
+            {% endif %}
+        </div>
+        <div>
+            <label class="mb-1 block text-sm text-zinc-500" for="filtro_cliente">Cliente</label>
+            <select id="filtro_cliente" name="cliente" class="w-full rounded-xl border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 focus:border-bally/50 focus:ring-2 focus:ring-bally/30 outline-none">
+                <option value="">Todos</option>
+                {% for cliente in clientes_filtro %}
+                    <option value="{{ cliente.id }}" {% if filtro_cliente == cliente.id|stringformat:"s" %}selected{% endif %}>{{ cliente.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="mb-1 block text-sm text-zinc-500" for="filtro_tipo">Tipo (compromisso)</label>
+            <select id="filtro_tipo" name="tipo" class="w-full rounded-xl border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 focus:border-bally/50 focus:ring-2 focus:ring-bally/30 outline-none">
+                <option value="">Todos</option>
+                {% for value, label in tipo_choices %}
+                    <option value="{{ value }}" {% if filtro_tipo == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="mb-1 block text-sm text-zinc-500" for="filtro_responsavel">Responsável</label>
+            <select id="filtro_responsavel" name="responsavel" class="w-full rounded-xl border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 focus:border-bally/50 focus:ring-2 focus:ring-bally/30 outline-none">
+                <option value="">Todos</option>
+                {% for resp in responsaveis_filtro %}
+                    <option value="{{ resp.id }}" {% if filtro_responsavel == resp.id|stringformat:"s" %}selected{% endif %}>{{ resp.get_full_name|default:resp.username }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="mb-1 block text-sm text-zinc-500" for="filtro_status_compromisso">Status compromisso</label>
+            <select id="filtro_status_compromisso" name="status_compromisso" class="w-full rounded-xl border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 focus:border-bally/50 focus:ring-2 focus:ring-bally/30 outline-none">
+                <option value="">Todos</option>
+                {% for value, label in status_compromisso_choices %}
+                    {% if value != 'cancelado' %}
+                        <option value="{{ value }}" {% if filtro_status_compromisso == value %}selected{% endif %}>{{ label }}</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="mb-1 block text-sm text-zinc-500" for="filtro_status">Status tarefa</label>
+            <select id="filtro_status" name="status" class="w-full rounded-xl border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 focus:border-bally/50 focus:ring-2 focus:ring-bally/30 outline-none">
+                <option value="" {% if not status_tarefa %}selected{% endif %}>Todas</option>
+                <option value="pendente" {% if status_tarefa == 'pendente' %}selected{% endif %}>Pendentes</option>
+                <option value="concluida" {% if status_tarefa == 'concluida' %}selected{% endif %}>Concluídas</option>
+                <option value="em_andamento" {% if status_tarefa == 'em_andamento' %}selected{% endif %}>Em andamento</option>
+                <option value="cancelada" {% if status_tarefa == 'cancelada' %}selected{% endif %}>Canceladas</option>
+            </select>
+        </div>
+        <div>
+            <label class="mb-1 block text-sm text-zinc-500" for="filtro_prioridade">Prioridade</label>
+            <select id="filtro_prioridade" name="prioridade" class="w-full rounded-xl border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 focus:border-bally/50 focus:ring-2 focus:ring-bally/30 outline-none">
+                <option value="">Todas</option>
+                {% for value, label in prioridade_choices %}
+                    <option value="{{ value }}" {% if filtro_prioridade == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="mb-1 block text-sm text-zinc-500" for="filtro_processo">Processo</label>
+            <input id="filtro_processo" type="text" name="processo" value="{{ filtro_processo }}" list="processos-filtro-list"
+                placeholder="Nº CNJ ou referência"
+                class="w-full rounded-xl border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100 focus:border-bally/50 focus:ring-2 focus:ring-bally/30 outline-none" />
+            <datalist id="processos-filtro-list">
+                {% for ref in processos_filtro %}
+                    <option value="{{ ref }}"></option>
+                {% endfor %}
+            </datalist>
+        </div>
+        <div class="flex items-end gap-2 lg:col-span-2">
+            <button type="submit" class="rounded-xl border border-zinc-700 bg-zinc-800/80 px-4 py-2 text-sm text-zinc-200 hover:border-bally/40 hover:text-bally-bright">Aplicar filtros</button>
+            <a href="{% url 'agenda' %}?view={{ view_ativa }}" class="rounded-xl border border-zinc-700 bg-zinc-900/50 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200">Limpar</a>
+        </div>
+    </form>
+</section>

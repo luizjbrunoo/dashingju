@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="app-shell py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'marketing/_subnav.html' %}
+
+    <section class="mb-8 border-b border-zinc-800 pb-6">
+        <h1 class="text-xl font-semibold text-zinc-100">Banco de ideias</h1>
+        <p class="mt-1 text-sm text-zinc-500">
+            Sugestões de temas com IA, considerando conteúdos e calendário existentes.
+        </p>
+    </section>
+
+    <form method="post" class="mb-10 max-w-xl space-y-4 rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+        {% csrf_token %}
+        <input type="hidden" name="acao" value="sugerir">
+        {% for field in form %}
+        <div>
+            <label class="mb-1 block text-sm font-medium text-zinc-400" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+        </div>
+        {% endfor %}
+        <button type="submit" class="rounded-md bg-bally px-4 py-2 text-sm font-semibold text-white hover:bg-bally-bright">
+            Sugerir ideias com IA
+        </button>
+    </form>
+
+    {% if ideias %}
+    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {% for ideia in ideias %}
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="font-medium text-zinc-200">{{ ideia.titulo }}</p>
+            {% if ideia.descricao %}<p class="mt-1 text-xs text-zinc-500">{{ ideia.descricao|truncatewords:24 }}</p>{% endif %}
+            <p class="mt-2 text-xs text-zinc-600">
+                {% if ideia.area_juridica %}{{ ideia.area_juridica }}{% endif %}
+                {% if ideia.canal_sugerido %} · {{ ideia.get_canal_sugerido_display }}{% endif %}
+            </p>
+            <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                <form method="post" action="{% url 'marketing_conteudo_ideia_criar' ideia.pk %}" class="inline">
+                    {% csrf_token %}
+                    <button type="submit" class="text-bally-bright hover:underline">Criar conteúdo</button>
+                </form>
+                <a href="{% url 'marketing_conteudo_ideia_agendar' ideia.pk %}" class="text-zinc-400 hover:text-zinc-200">Adicionar ao calendário</a>
+                <form method="post" action="{% url 'marketing_conteudo_ideia_descartar' ideia.pk %}" class="inline">
+                    {% csrf_token %}
+                    <button type="submit" class="text-zinc-600 hover:text-red-400">Descartar</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-8 text-center text-sm text-zinc-500">
+        Nenhuma ideia pendente. Use o formulário acima para gerar sugestões.
+    </p>
+    {% endif %}
+</div>
+{% endblock 'body' %}

@@ -1,0 +1,76 @@
+<section class="mb-8 rounded-lg border border-zinc-800 bg-zinc-900/50 shadow-xs" aria-labelledby="financeiro-cliente-titulo">
+  <div class="flex flex-wrap items-start justify-between gap-4 px-6 pt-6">
+    <div>
+      <h2 id="financeiro-cliente-titulo" class="text-base font-semibold text-zinc-100">Financeiro</h2>
+      <p class="mt-1 text-xs text-zinc-500">Contratos, cobranças e saldo em aberto de {{ cliente.nome }}.</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <a href="{{ url_novo_contrato }}" class="rounded-md border border-zinc-700 bg-zinc-900/60 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:border-bally/40 hover:text-bally-bright">+ Contrato</a>
+      <a href="{{ url_nova_cobranca }}" class="rounded-md border border-zinc-700 bg-zinc-900/60 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:border-bally/40 hover:text-bally-bright">+ Cobrança</a>
+      <a href="{{ url_cobrancas_cliente }}" class="rounded-md bg-bally px-3 py-1.5 text-xs font-semibold text-white shadow-md shadow-bally/20 hover:bg-bally-bright">Ver cobranças</a>
+    </div>
+  </div>
+
+  <div class="mt-4 grid grid-cols-1 gap-3 px-6 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="rounded-lg border border-zinc-800 bg-zinc-950/40 px-4 py-3">
+      <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">A receber</p>
+      <p class="mt-1 text-xl font-semibold text-bally-bright">R$ {{ financeiro_resumo.a_receber|floatformat:2 }}</p>
+    </div>
+    <div class="rounded-lg border border-zinc-800 bg-zinc-950/40 px-4 py-3">
+      <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Vencido</p>
+      <p class="mt-1 text-xl font-semibold {% if financeiro_resumo.vencido %}text-red-300{% else %}text-zinc-100{% endif %}">R$ {{ financeiro_resumo.vencido|floatformat:2 }}</p>
+    </div>
+    <div class="rounded-lg border border-zinc-800 bg-zinc-950/40 px-4 py-3">
+      <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Contratos ativos</p>
+      <p class="mt-1 text-xl font-semibold text-zinc-100">{{ financeiro_resumo.contratos_ativos }}</p>
+    </div>
+    <div class="rounded-lg border border-zinc-800 bg-zinc-950/40 px-4 py-3">
+      <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Cobranças abertas</p>
+      <p class="mt-1 text-xl font-semibold text-zinc-100">{{ financeiro_resumo.cobrancas_abertas }}</p>
+    </div>
+  </div>
+
+  <div class="mt-6 grid grid-cols-1 gap-6 px-6 pb-6 lg:grid-cols-2">
+    <div>
+      <h3 class="text-sm font-semibold text-zinc-200">Contratos</h3>
+      {% if financeiro_contratos %}
+        <ul class="mt-3 divide-y divide-zinc-800/80 rounded-lg border border-zinc-800 bg-zinc-950/30">
+          {% for contrato in financeiro_contratos %}
+            <li class="flex items-center justify-between gap-3 px-4 py-3">
+              <div>
+                <p class="text-sm font-medium text-zinc-100">{{ contrato.referencia }} — {{ contrato.descricao|truncatechars:40 }}</p>
+                <p class="mt-0.5 text-xs text-zinc-500">{{ contrato.get_status_display }} · R$ {{ contrato.valor_total|floatformat:2 }}</p>
+              </div>
+              <a href="{% url 'financeiro_contrato_detalhe' contrato.pk %}" class="shrink-0 text-xs text-bally-bright hover:underline">Ver</a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="mt-2 text-sm text-zinc-500">Nenhum contrato cadastrado.</p>
+      {% endif %}
+    </div>
+
+    <div>
+      <h3 class="text-sm font-semibold text-zinc-200">Próximas cobranças</h3>
+      {% if financeiro_cobrancas %}
+        <ul class="mt-3 divide-y divide-zinc-800/80 rounded-lg border border-zinc-800 bg-zinc-950/30">
+          {% for cobranca in financeiro_cobrancas %}
+            <li class="flex items-center justify-between gap-3 px-4 py-3">
+              <div>
+                <p class="text-sm font-medium text-zinc-100">{{ cobranca.descricao|truncatechars:40 }}</p>
+                <p class="mt-0.5 text-xs text-zinc-500">
+                  {{ cobranca.get_status_display }}
+                  {% if cobranca.parcela_rotulo %}· {{ cobranca.parcela_rotulo }}{% endif %}
+                  · Venc. {{ cobranca.data_vencimento|date:"d/m/Y" }}
+                </p>
+              </div>
+              <a href="{% url 'financeiro_cobranca_detalhe' cobranca.pk %}" class="shrink-0 font-mono text-xs text-bally-bright hover:underline">R$ {{ cobranca.saldo|floatformat:2 }}</a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="mt-2 text-sm text-zinc-500">Nenhuma cobrança vinculada.</p>
+      {% endif %}
+    </div>
+  </div>
+</section>

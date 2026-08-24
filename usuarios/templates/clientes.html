@@ -10,7 +10,7 @@
     </style>
 {% endblock 'head' %}
 {% block 'body' %}
-    <div class="max-w-7xl mx-auto p-10 space-y-10">
+    <div class="app-shell space-y-10 py-10">
         <div class="flex justify-between items-center">
             <div>
                 <h1 class="text-3xl font-semibold tracking-tight text-zinc-100">Clientes</h1>
@@ -30,6 +30,15 @@
                     {{ message }}
                 </div>
             {% endfor %}
+        {% endif %}
+
+        {% if mkt_filter_label %}
+        <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-800/40 bg-amber-950/25 px-4 py-3 text-sm">
+            <p class="text-amber-100/90">
+                Filtro Marketing: <span class="font-medium">{{ mkt_filter_label }}</span>
+            </p>
+            <a href="{% url 'clientes' %}" class="text-xs font-medium text-amber-200/80 hover:text-amber-100 underline-offset-2 hover:underline">Limpar filtro</a>
+        </div>
         {% endif %}
 
         <div class="grid grid-cols-1 gap-6 md:grid-cols-4">
@@ -52,6 +61,8 @@
         </div>
         <div class="rounded-3xl border border-zinc-800 bg-zinc-900/40 shadow-sm">
             <form method="get" class="flex flex-col gap-4 justify-between border-b border-zinc-800 p-6 md:flex-row md:items-end">
+                {% if mkt_filter %}<input type="hidden" name="mkt" value="{{ mkt_filter }}" />{% endif %}
+                {% if request.GET.dias %}<input type="hidden" name="dias" value="{{ request.GET.dias }}" />{% endif %}
                 <div class="w-full md:max-w-md">
                     <label for="q" class="mb-1.5 block text-xs font-medium text-zinc-500">Buscar</label>
                     <input id="q" name="q" value="{{ q }}"
@@ -76,8 +87,8 @@
                     </button>
                 </div>
             </form>
-            <div class="p-6">
-                <table class="w-full text-sm border-separate border-spacing-y-3">
+            <div class="overflow-x-auto p-6">
+                <table class="w-full min-w-[40rem] text-sm border-separate border-spacing-y-3">
                     <thead class="text-zinc-500">
                         <tr>
                             <th class="text-left">Cliente</th>
@@ -188,6 +199,23 @@
                             <option value="inativo">Inativo</option>
                         </select>
                     </div>
+                    <div>
+                        <label for="origem" class="block text-sm font-medium text-zinc-300 mb-1">Origem do lead</label>
+                        <select name="origem"
+                                id="origem"
+                                class="w-full border border-zinc-700 rounded-xl bg-zinc-950/50 pl-4 pr-10 py-2.5 text-sm text-zinc-200 focus:ring-2 focus:ring-bally/30 focus:border-bally/50 outline-none">
+                            <option value="">Detectar automaticamente / não identificada</option>
+                            {% for value, label in origem_choices %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <p class="mt-1 text-xs text-zinc-500">Google Ads só entra nas métricas de mídia com gclid ou UTM compatível.</p>
+                    </div>
+                    {% for key, val in atrib_sessao.items %}
+                    {% if val %}
+                    <input type="hidden" name="{{ key }}" value="{{ val }}" />
+                    {% endif %}
+                    {% endfor %}
                     <div class="flex gap-3 pt-4">
                         <button type="button"
                                 onclick="fecharModal()"

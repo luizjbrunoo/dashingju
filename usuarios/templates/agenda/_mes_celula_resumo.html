@@ -1,0 +1,16 @@
+{% if celula.resumo.tem_itens %}
+    <div class="mt-1 flex flex-wrap gap-0.5">
+        {% if celula.resumo.compromissos %}
+            <span class="rounded bg-bally-muted/30 px-1 py-0.5 text-[9px] font-medium text-bally-bright" title="Compromissos">{{ celula.resumo.compromissos }} comp.</span>
+        {% endif %}
+        {% if celula.resumo.tarefas %}
+            <span class="rounded bg-zinc-800/90 px-1 py-0.5 text-[9px] font-medium text-zinc-400" title="Tarefas">{{ celula.resumo.tarefas }} tar.</span>
+        {% endif %}
+        {% if celula.resumo.audiencias %}
+            <span class="rounded bg-purple-950/50 px-1 py-0.5 text-[9px] font-medium text-purple-300" title="Audiências">{{ celula.resumo.audiencias }} aud.</span>
+        {% endif %}
+        {% if celula.resumo.prazos %}
+            <span class="rounded bg-amber-950/40 px-1 py-0.5 text-[9px] font-medium text-amber-300" title="Prazos">{{ celula.resumo.prazos }} praz.</span>
+        {% endif %}
+    </div>
+{% endif %}

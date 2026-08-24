@@ -1,0 +1,11 @@
+{% if compromisso.tipo == 'prazo' and compromisso.prazo_interno or compromisso.prazo_oficial %}
+    {% if compromisso.prazo_interno_vencido or compromisso.prazo_oficial_vencido %}
+        <span class="rounded-md border border-red-900/50 bg-red-950/40 px-2 py-0.5 text-[10px] font-medium text-red-300">
+            {% if compromisso.prazo_oficial_vencido %}Oficial vencido{% else %}Interno vencido{% endif %}
+        </span>
+    {% elif compromisso.dias_ate_prazo_interno is not None and compromisso.dias_ate_prazo_interno <= 2 %}
+        <span class="rounded-md border border-amber-900/50 bg-amber-950/40 px-2 py-0.5 text-[10px] font-medium text-amber-300">
+            {% if compromisso.dias_ate_prazo_interno == 0 %}Interno hoje{% else %}Interno {{ compromisso.dias_ate_prazo_interno }}d{% endif %}
+        </span>
+    {% endif %}
+{% endif %}

@@ -1,0 +1,10 @@
+{% if compromisso.tipo == 'consulta' and compromisso.confirmacao_consulta %}
+    <span class="rounded-md border px-2 py-0.5 text-[10px] font-medium
+        {% if compromisso.confirmacao_consulta == 'confirmada' %}border-emerald-900/40 bg-emerald-950/30 text-emerald-300
+        {% elif compromisso.confirmacao_consulta == 'cancelada' %}border-red-900/40 bg-red-950/30 text-red-300
+        {% else %}border-amber-900/40 bg-amber-950/30 text-amber-300{% endif %}">
+        {% if compromisso.confirmacao_consulta == 'confirmada' %}Confirmada
+        {% elif compromisso.confirmacao_consulta == 'cancelada' %}Consulta cancelada
+        {% else %}Confirmação pendente{% endif %}
+    </span>
+{% endif %}

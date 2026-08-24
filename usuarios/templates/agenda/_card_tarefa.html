@@ -1,0 +1,31 @@
+<div class="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4 shadow-sm shadow-black/20">
+    <div class="flex items-start justify-between gap-3">
+        <div>
+            <h3 class="font-medium {% if tarefa.status == 'concluida' %}text-zinc-500 line-through{% else %}text-zinc-100{% endif %}">{{ tarefa.titulo }}</h3>
+            <div class="mt-1.5 flex flex-wrap gap-1.5">
+                {% include 'agenda/_badge_status_tarefa.html' %}
+                {% include 'agenda/_badge_prioridade.html' with prioridade=tarefa.prioridade %}
+                {% if tarefa.responsavel %}
+                    <span class="rounded-md border border-bally/20 bg-bally-muted/20 px-2 py-0.5 text-[10px] text-bally-bright">{{ tarefa.responsavel.get_full_name|default:tarefa.responsavel.username }}</span>
+                {% endif %}
+                {% if tarefa.cliente %}
+                    <span class="rounded-md border border-zinc-700 bg-zinc-950/60 px-2 py-0.5 text-[10px] text-zinc-300">{{ tarefa.cliente.nome }}</span>
+                {% endif %}
+                {% if tarefa.processo_referencia %}
+                    <span class="rounded-md border border-zinc-700 bg-zinc-950/60 px-2 py-0.5 font-mono text-[10px] text-zinc-400">{{ tarefa.processo_referencia }}</span>
+                {% endif %}
+                {% if tarefa.metadados.cobranca_id %}
+                    <a href="{% url 'financeiro_cobranca_detalhe' tarefa.metadados.cobranca_id %}" class="rounded-md border border-emerald-900/40 bg-emerald-950/30 px-2 py-0.5 text-[10px] text-emerald-300 hover:text-emerald-200">Cobrança</a>
+                {% endif %}
+            </div>
+            <p class="mt-1 text-xs {% if tarefa.atrasada %}text-red-400{% else %}text-zinc-500{% endif %}">
+                {% if tarefa.prazo %}
+                    Prazo: {{ tarefa.prazo|date:"d/m/Y" }}{% if tarefa.atrasada %} ({{ tarefa.dias_atraso }} dia{{ tarefa.dias_atraso|pluralize }} de atraso){% endif %}
+                {% else %}
+                    Sem prazo
+                {% endif %}
+            </p>
+        </div>
+        {% include 'agenda/_acoes_tarefa.html' %}
+    </div>
+</div>
