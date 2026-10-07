@@ -10,7 +10,7 @@ from decimal import Decimal
 from django.utils import timezone
 
 from financeiro.choices import StatusCobranca
-from financeiro.services.cobranca_listagem import queryset_anotado, sincronizar_statuses
+from financeiro.services.cobranca_listagem import queryset_anotado_organization, sincronizar_statuses
 
 FAIXAS_ATRASO = (
     ("1_30", "1–30 dias", 1, 30),
@@ -46,16 +46,32 @@ class ResumoInadimplencia:
     cobrancas: list
 
 
-def _cobrancas_com_saldo(usuario):
-    return queryset_anotado(usuario).exclude(
+def _cobrancas_com_saldo(organization):
+    return queryset_anotado_organization(organization).exclude(
         status__in=[StatusCobranca.CANCELED, StatusCobranca.DRAFT]
     ).filter(saldo_calc__gt=0)
 
 
-def calcular_inadimplencia(usuario, *, hoje: date | None = None) -> ResumoInadimplencia:
+def _resumo_vazio() -> ResumoInadimplencia:
+    faixas = [
+        FaixaInadimplencia(codigo=codigo, rotulo=rotulo, total=Decimal("0"), quantidade=0)
+        for codigo, rotulo, _, _ in FAIXAS_ATRASO
+    ]
+    return ResumoInadimplencia(
+        total_vencido=Decimal("0"),
+        quantidade=0,
+        faixas=faixas,
+        clientes=[],
+        cobrancas=[],
+    )
+
+
+def calcular_inadimplencia(organization, *, hoje: date | None = None) -> ResumoInadimplencia:
     hoje = hoje or timezone.localdate()
+    if organization is None:
+        return _resumo_vazio()
     qs = (
-        _cobrancas_com_saldo(usuario)
+        _cobrancas_com_saldo(organization)
         .filter(data_vencimento__lt=hoje)
         .order_by("data_vencimento", "id")
     )

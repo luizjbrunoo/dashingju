@@ -7,12 +7,24 @@ from .choices import CanalConteudo, ObjetivoConteudo, PlataformaMarketing, Statu
 
 
 class TenantOwnedModel(models.Model):
-    """Base para isolamento por usuário (preparado para multi-tenant futuro)."""
+    """Ativos de marketing do escritório.
 
+    organization = tenant. usuario = criador / LEGACY_COMPAT. Não é o tenant.
+    """
+
+    organization = models.ForeignKey(
+        "organizacoes.Organization",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="%(class)s_org_marketing",
+        db_index=True,
+    )
     usuario = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="%(class)s_marketing",
+        help_text="Criador / compatibilidade legada. Não é o tenant.",
     )
 
     class Meta:
@@ -48,6 +60,11 @@ class ContentProfile(TenantOwnedModel):
         verbose_name_plural = "Perfis de conteúdo"
         constraints = [
             models.UniqueConstraint(fields=["usuario"], name="marketing_unique_profile_per_user"),
+            models.UniqueConstraint(
+                fields=["organization"],
+                condition=models.Q(organization__isnull=False),
+                name="marketing_unique_profile_per_org",
+            ),
         ]
 
     def __str__(self) -> str:
@@ -318,6 +335,11 @@ class MarketingIntegracao(TenantOwnedModel):
             models.UniqueConstraint(
                 fields=["usuario", "plataforma"],
                 name="marketing_unique_integracao_por_plataforma",
+            ),
+            models.UniqueConstraint(
+                fields=["organization", "plataforma"],
+                condition=models.Q(organization__isnull=False),
+                name="marketing_unique_integracao_org_plataforma",
             ),
         ]
 

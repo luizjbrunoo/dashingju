@@ -8,6 +8,7 @@ from marketing.services.atribuicao import (
     clientes_google_ads,
     resolver_atribuicao,
 )
+from organizacoes.models import Membership, Organization
 from usuarios.choices import OrigemLead
 from usuarios.models import Cliente
 
@@ -17,6 +18,13 @@ User = get_user_model()
 class AtribuicaoLeadFase1Tests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="adv_attr", password="senha123")
+        self.org = Organization.objects.create(name="Attr Org A")
+        Membership.objects.create(
+            user=self.user,
+            organization=self.org,
+            role=Membership.Role.MEMBER,
+            status=Membership.Status.ACTIVE,
+        )
         self.http = Client()
 
     def test_gclid_atribui_google_ads_confiavel(self):
@@ -109,8 +117,16 @@ class AtribuicaoLeadFase1Tests(TestCase):
 
     def test_tenant_isolado(self):
         user_b = User.objects.create_user(username="adv_b", password="senha123")
+        org_b = Organization.objects.create(name="Attr Org B")
+        Membership.objects.create(
+            user=user_b,
+            organization=org_b,
+            role=Membership.Role.MEMBER,
+            status=Membership.Status.ACTIVE,
+        )
         Cliente.objects.create(
             user=self.user,
+            organization=self.org,
             nome="A",
             email="a@test.com",
             origem=OrigemLead.GOOGLE_ADS,
@@ -118,13 +134,14 @@ class AtribuicaoLeadFase1Tests(TestCase):
         )
         Cliente.objects.create(
             user=user_b,
+            organization=org_b,
             nome="B",
             email="b@test.com",
             origem=OrigemLead.GOOGLE_ADS,
             atribuicao_confiavel=True,
         )
-        self.assertEqual(clientes_google_ads(self.user).count(), 1)
-        self.assertEqual(clientes_google_ads(user_b).count(), 1)
+        self.assertEqual(clientes_google_ads(self.user, organization=self.org).count(), 1)
+        self.assertEqual(clientes_google_ads(user_b, organization=org_b).count(), 1)
 
     def test_origem_lead_consulta_tem_google_ads(self):
         from usuarios.choices import OrigemLeadConsulta

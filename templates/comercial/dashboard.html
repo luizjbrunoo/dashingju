@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block 'body' %}
+<div class="app-shell py-8">
+    {% if messages %}
+    <div class="mb-6 space-y-2">
+        {% for message in messages %}
+            <p class="rounded-md px-3 py-2 text-sm {{ message.tags }}">{{ message }}</p>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% include 'comercial/_subnav.html' with aba='painel' %}
+
+    <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+            <h1 class="text-xl font-semibold text-zinc-100">Comercial</h1>
+            <p class="mt-1 text-sm text-zinc-500">Crescimento, conversão e receita.</p>
+        </div>
+        <form method="get" class="flex flex-wrap items-end gap-2 text-sm">
+            {% if ctx.aba != 'visao' %}
+            <input type="hidden" name="aba" value="{{ ctx.aba }}" />
+            {% endif %}
+            <div>
+                <label class="sr-only" for="mes">Período</label>
+                <select id="mes" name="mes" class="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-zinc-100" onchange="this.form.submit()">
+                    {% for m in ctx.meses_opcoes %}
+                    <option value="{{ m.valor }}" {% if m.valor == ctx.mes_slug %}selected{% endif %}>{{ m.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </div>
+
+    <nav class="mt-6 flex flex-wrap gap-1 border-b border-zinc-800 text-xs font-medium uppercase tracking-wide">
+        <a href="{% url 'comercial_dashboard' %}?mes={{ ctx.mes_slug }}" class="rounded-t-md px-3 py-2 {% if ctx.aba == 'visao' %}text-bally-bright border-b-2 border-bally{% else %}text-zinc-500 hover:text-zinc-200{% endif %}">Visão geral</a>
+        <a href="{% url 'comercial_dashboard' %}?mes={{ ctx.mes_slug }}&aba=oportunidades" class="rounded-t-md px-3 py-2 {% if ctx.aba == 'oportunidades' %}text-bally-bright border-b-2 border-bally{% else %}text-zinc-500 hover:text-zinc-200{% endif %}">Oportunidades</a>
+        <a href="{% url 'comercial_dashboard' %}?mes={{ ctx.mes_slug }}&aba=origens" class="rounded-t-md px-3 py-2 {% if ctx.aba == 'origens' %}text-bally-bright border-b-2 border-bally{% else %}text-zinc-500 hover:text-zinc-200{% endif %}">Origens</a>
+        <a href="{% url 'comercial_dashboard' %}?mes={{ ctx.mes_slug }}&aba=score" class="rounded-t-md px-3 py-2 {% if ctx.aba == 'score' %}text-bally-bright border-b-2 border-bally{% else %}text-zinc-500 hover:text-zinc-200{% endif %}">Score</a>
+        <a href="{% url 'comercial_dashboard' %}?mes={{ ctx.mes_slug }}&aba=simulador" class="rounded-t-md px-3 py-2 {% if ctx.aba == 'simulador' %}text-bally-bright border-b-2 border-bally{% else %}text-zinc-500 hover:text-zinc-200{% endif %}">Simulador</a>
+    </nav>
+
+    {% if ctx.aba == 'visao' %}
+        {% include 'comercial/_visao.html' %}
+    {% elif ctx.aba == 'oportunidades' %}
+        {% include 'comercial/_oportunidades.html' %}
+    {% elif ctx.aba == 'origens' %}
+        {% include 'comercial/_origens.html' %}
+    {% elif ctx.aba == 'score' %}
+        {% include 'comercial/_fase3.html' %}
+    {% elif ctx.aba == 'simulador' %}
+        {% include 'comercial/_simulador.html' %}
+    {% endif %}
+</div>
+{% endblock 'body' %}

@@ -53,11 +53,11 @@ def calcular_vencimentos_parcelas(
 
 
 def parcelas_do_grupo(cobranca: Cobranca):
-    if not cobranca.grupo_parcelamento_id:
+    if not cobranca.grupo_parcelamento_id or not cobranca.organization_id:
         return Cobranca.objects.none()
     return (
         Cobranca.objects.filter(
-            usuario=cobranca.usuario,
+            organization_id=cobranca.organization_id,
             grupo_parcelamento_id=cobranca.grupo_parcelamento_id,
         )
         .select_related("cliente", "responsavel")
@@ -77,6 +77,7 @@ def criar_cobrancas_parceladas(
     num_parcelas: int,
     periodicidade: str,
     categoria: str,
+    organization,
     responsavel=None,
     contrato_referencia: str = "",
     contrato=None,
@@ -88,6 +89,12 @@ def criar_cobrancas_parceladas(
     vencimentos = calcular_vencimentos_parcelas(
         primeiro_vencimento, num_parcelas, periodicidade
     )
+    from financeiro.tenancy_write import assert_parent_organization
+
+    assert_parent_organization(cliente, organization)
+    if contrato is not None:
+        assert_parent_organization(contrato, organization)
+
     grupo_id = novo_grupo_parcelamento()
     status_inicial = StatusCobranca.DRAFT if salvar_como_rascunho else StatusCobranca.PENDING
 
@@ -95,6 +102,7 @@ def criar_cobrancas_parceladas(
     for numero, (valor, vencimento) in enumerate(zip(valores, vencimentos), start=1):
         cobranca = Cobranca(
             usuario=usuario,
+            organization=organization,
             cliente=cliente,
             contrato=contrato,
             contrato_referencia=contrato.referencia if contrato else contrato_referencia,
@@ -111,7 +119,7 @@ def criar_cobrancas_parceladas(
             parcela_total=num_parcelas,
             criado_por=autor,
         )
-        criar_cobranca(cobranca, autor=autor)
+        criar_cobranca(cobranca, autor=autor, organization=organization)
         parcelas.append(cobranca)
 
     garantir_cron_lembretes_cobrancas()

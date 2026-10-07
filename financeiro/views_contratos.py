@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.messages import constants
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .decorators import perm_criar_cobrancas, perm_editar_cobrancas, perm_ver_cobrancas
@@ -8,21 +9,42 @@ from .forms import ContratoForm, GerarCobrancasContratoForm
 from .models import Contrato
 from .services.contrato_cobrancas import gerar_cobrancas_do_contrato
 from .services.contrato_crud import atualizar_contrato, contratos_queryset, criar_contrato
+from .tenancy_write import (
+    MSG_PARENT_TENANT,
+    organization_for_finance_write,
+    parent_in_organization,
+    preserve_organization,
+    reject_or_organization,
+    update_allowed,
+)
 
 
-def _get_contrato(usuario, pk):
+def _billing_organization(request):
+    return organization_for_finance_write(request)
+
+
+def _billing_org_or_404(request):
+    org = _billing_organization(request)
+    if org is None:
+        raise Http404()
+    return org
+
+
+def _get_contrato(request, pk):
+    org = _billing_org_or_404(request)
     return get_object_or_404(
         Contrato.objects.select_related("cliente", "responsavel", "criado_por"),
         pk=pk,
-        usuario=usuario,
+        organization=org,
     )
 
 
 @perm_ver_cobrancas
 @login_required
 def contrato_listar(request):
+    org = _billing_organization(request)
+    contratos = contratos_queryset(org)
     cliente_id = (request.GET.get("cliente") or "").strip()
-    contratos = contratos_queryset(request.user)
     if cliente_id.isdigit():
         contratos = contratos.filter(cliente_id=int(cliente_id))
     return render(
@@ -37,24 +59,28 @@ def contrato_listar(request):
 def contrato_novo(request):
     initial = {}
     cliente_id = (request.GET.get("cliente") or "").strip()
-    if cliente_id.isdigit():
+    org_get = _billing_organization(request)
+    if cliente_id.isdigit() and org_get is not None:
         from usuarios.models import Cliente
 
-        if Cliente.objects.filter(pk=int(cliente_id), user=request.user).exists():
+        if Cliente.objects.filter(pk=int(cliente_id), organization=org_get).exists():
             initial["cliente"] = int(cliente_id)
 
     if request.method == "POST":
-        form = ContratoForm(request.POST, usuario=request.user)
+        org, denied = reject_or_organization(request, "financeiro_contrato_listar")
+        if denied:
+            return denied
+        form = ContratoForm(request.POST, usuario=request.user, organization=org)
         if form.is_valid():
             contrato = form.save(commit=False)
             contrato.criado_por = request.user
-            criar_contrato(contrato, autor=request.user)
+            criar_contrato(contrato, autor=request.user, organization=org)
             messages.add_message(
                 request, constants.SUCCESS, "Contrato criado com sucesso."
             )
             return redirect("financeiro_contrato_detalhe", pk=contrato.pk)
     else:
-        form = ContratoForm(usuario=request.user, initial=initial)
+        form = ContratoForm(usuario=request.user, organization=org_get, initial=initial)
 
     return render(
         request,
@@ -66,9 +92,11 @@ def contrato_novo(request):
 @perm_ver_cobrancas
 @login_required
 def contrato_detalhe(request, pk):
-    contrato = _get_contrato(request.user, pk)
-    cobrancas = contrato.cobrancas.select_related("cliente").order_by(
-        "data_vencimento", "id"
+    contrato = _get_contrato(request, pk)
+    cobrancas = (
+        contrato.cobrancas.filter(organization=contrato.organization)
+        .select_related("cliente")
+        .order_by("data_vencimento", "id")
     )
     pode_gerar = not cobrancas.exclude(status="canceled").exists()
     return render(
@@ -85,18 +113,32 @@ def contrato_detalhe(request, pk):
 @perm_editar_cobrancas
 @login_required
 def contrato_editar(request, pk):
-    contrato = _get_contrato(request.user, pk)
+    contrato = _get_contrato(request, pk)
+    original_org_id = contrato.organization_id
+    org_lookup = contrato.organization
     if request.method == "POST":
-        form = ContratoForm(request.POST, instance=contrato, usuario=request.user)
+        org, denied = reject_or_organization(request, "financeiro_contrato_listar")
+        if denied:
+            return denied
+        if not update_allowed(contrato, org):
+            messages.add_message(request, constants.ERROR, MSG_PARENT_TENANT)
+            return redirect("financeiro_contrato_detalhe", pk=contrato.pk)
+        form = ContratoForm(
+            request.POST, instance=contrato, usuario=request.user, organization=org
+        )
         if form.is_valid():
-            contrato = form.save()
+            contrato = form.save(commit=False)
+            preserve_organization(contrato, original_org_id)
+            contrato.save()
             atualizar_contrato(contrato)
             messages.add_message(
                 request, constants.SUCCESS, "Contrato atualizado com sucesso."
             )
             return redirect("financeiro_contrato_detalhe", pk=contrato.pk)
     else:
-        form = ContratoForm(instance=contrato, usuario=request.user)
+        form = ContratoForm(
+            instance=contrato, usuario=request.user, organization=org_lookup
+        )
 
     return render(
         request,
@@ -108,7 +150,7 @@ def contrato_editar(request, pk):
 @perm_criar_cobrancas
 @login_required
 def contrato_gerar_cobrancas(request, pk):
-    contrato = _get_contrato(request.user, pk)
+    contrato = _get_contrato(request, pk)
     if contrato.cobrancas.exclude(status="canceled").exists():
         messages.add_message(
             request,
@@ -118,11 +160,20 @@ def contrato_gerar_cobrancas(request, pk):
         return redirect("financeiro_contrato_detalhe", pk=contrato.pk)
 
     if request.method == "POST":
+        org, denied = reject_or_organization(
+            request, "financeiro_contrato_detalhe", pk=contrato.pk
+        )
+        if denied:
+            return denied
+        if not parent_in_organization(contrato, org):
+            messages.add_message(request, constants.ERROR, MSG_PARENT_TENANT)
+            return redirect("financeiro_contrato_detalhe", pk=contrato.pk)
         form = GerarCobrancasContratoForm(request.POST, contrato=contrato)
         if form.is_valid():
             cobrancas = gerar_cobrancas_do_contrato(
                 contrato,
                 autor=request.user,
+                organization=org,
                 tipo_lancamento=form.cleaned_data["tipo_lancamento"],
                 primeiro_vencimento=form.cleaned_data["primeiro_vencimento"],
                 categoria=form.cleaned_data["categoria"],

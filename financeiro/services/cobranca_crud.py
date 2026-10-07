@@ -12,15 +12,23 @@ from financeiro.services.cobranca_agenda import (
 )
 
 
-def cobrancas_queryset(usuario):
+def cobrancas_queryset(organization):
+    if organization is None:
+        return Cobranca.objects.none()
     return (
-        Cobranca.objects.filter(usuario=usuario)
+        Cobranca.objects.filter(organization=organization)
         .select_related("cliente", "responsavel", "criado_por")
         .order_by("data_vencimento", "id")
     )
 
 
-def criar_cobranca(cobranca: Cobranca, *, autor) -> Cobranca:
+def criar_cobranca(cobranca: Cobranca, *, autor, organization) -> Cobranca:
+    from financeiro.tenancy_write import assert_parent_organization
+
+    cobranca.organization = organization
+    assert_parent_organization(cobranca.cliente, organization)
+    if cobranca.contrato_id:
+        assert_parent_organization(cobranca.contrato, organization)
     if cobranca.status != StatusCobranca.DRAFT:
         cobranca.status = StatusCobranca.PENDING
     cobranca.save()

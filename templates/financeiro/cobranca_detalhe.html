@@ -41,15 +41,15 @@
     <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <p class="text-xs uppercase tracking-wide text-zinc-500">Valor original</p>
-            <p class="mt-1 text-lg font-semibold text-zinc-100">R$ {{ cobranca.valor_original|floatformat:2 }}</p>
+            <p class="mt-1 text-lg font-semibold text-zinc-100">R$ {{ cobranca.valor_original|brnum:2 }}</p>
         </div>
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <p class="text-xs uppercase tracking-wide text-zinc-500">Total recebido</p>
-            <p class="mt-1 text-lg font-semibold text-emerald-400">R$ {{ cobranca.total_recebido|floatformat:2 }}</p>
+            <p class="mt-1 text-lg font-semibold text-emerald-400">R$ {{ cobranca.total_recebido|brnum:2 }}</p>
         </div>
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <p class="text-xs uppercase tracking-wide text-zinc-500">Saldo</p>
-            <p class="mt-1 text-lg font-semibold text-bally-bright">R$ {{ cobranca.saldo|floatformat:2 }}</p>
+            <p class="mt-1 text-lg font-semibold text-bally-bright">R$ {{ cobranca.saldo|brnum:2 }}</p>
         </div>
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <p class="text-xs uppercase tracking-wide text-zinc-500">Status</p>
@@ -74,15 +74,15 @@
             </dl>
         </section>
 
+        {% if fin_perms.ver_recebimentos %}
         <section class="rounded-lg border border-zinc-800 bg-zinc-900/30 p-6">
             <h2 class="text-sm font-semibold text-zinc-200">Histórico de recebimentos</h2>
-            {% if fin_perms.ver_recebimentos %}
             {% if recebimentos %}
                 <ul class="mt-4 divide-y divide-zinc-800/80">
                     {% for r in recebimentos %}
                         <li class="flex items-start justify-between gap-3 py-3 text-sm">
                             <div>
-                                <p class="font-mono text-emerald-400">R$ {{ r.valor|floatformat:2 }} — {{ r.data_recebimento|date:"d/m/Y" }}</p>
+                                <p class="font-mono text-emerald-400">R$ {{ r.valor|brnum:2 }} — {{ r.data_recebimento|date:"d/m/Y" }}</p>
                                 <p class="text-xs text-zinc-500">
                                     {{ r.get_forma_pagamento_display }}
                                     {% if r.referencia %} · {{ r.referencia }}{% endif %}
@@ -98,10 +98,8 @@
             {% else %}
                 <p class="mt-4 text-sm text-zinc-500">Nenhum recebimento registrado.</p>
             {% endif %}
-            {% else %}
-                <p class="mt-4 text-sm text-zinc-500">Sem permissão para visualizar recebimentos.</p>
-            {% endif %}
         </section>
+        {% endif %}
     </div>
 
     {% if parcelas_grupo %}
@@ -123,10 +121,10 @@
                         {% for p in parcelas_grupo %}
                             <tr class="{% if p.pk == cobranca.pk %}bg-bally/5{% endif %}">
                                 <td class="px-3 py-2 font-mono text-zinc-300">{{ p.parcela_numero }}/{{ p.parcela_total }}</td>
-                                <td class="px-3 py-2 font-mono text-zinc-100">R$ {{ p.valor_original|floatformat:2 }}</td>
+                                <td class="px-3 py-2 font-mono text-zinc-100">R$ {{ p.valor_original|brnum:2 }}</td>
                                 <td class="px-3 py-2 font-mono text-zinc-400">{{ p.data_vencimento|date:"d/m/Y" }}</td>
                                 <td class="px-3 py-2 text-zinc-400">{{ p.get_status_display }}</td>
-                                <td class="px-3 py-2 font-mono text-bally-bright">R$ {{ p.saldo|floatformat:2 }}</td>
+                                <td class="px-3 py-2 font-mono text-bally-bright">R$ {{ p.saldo|brnum:2 }}</td>
                                 <td class="px-3 py-2">
                                     {% if p.pk != cobranca.pk %}
                                         <a href="{% url 'financeiro_cobranca_detalhe' p.pk %}" class="text-bally-bright hover:underline">Ver</a>

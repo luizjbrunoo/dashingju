@@ -11,9 +11,28 @@ from financeiro.choices import StatusCobranca
 from financeiro.models import Cobranca, CobrancaHistorico, CobrancaRecebimento
 from financeiro.services.cobrancas import resolver_status_cobranca, saldo_cobranca
 from financeiro.services.historico_cobranca import registrar_historico_cobranca
+from financeiro.tests_helpers import grant_billing_permissions
 from usuarios.models import Cliente
+from organizacoes.models import Membership, Organization
 
 User = get_user_model()
+
+
+def _provision_tenant(user, *clientes):
+    org = Organization.objects.create(name=f"Org {user.username}-{user.pk}")
+    Membership.objects.create(
+        user=user,
+        organization=org,
+        role=Membership.Role.OWNER,
+        status=Membership.Status.ACTIVE,
+    )
+    grant_billing_permissions(user)
+    for cli in clientes:
+        if cli is None:
+            continue
+        cli.organization = org
+        cli.save(update_fields=["organization"])
+    return org
 
 
 class CobrancaModelTests(TestCase):
@@ -26,6 +45,7 @@ class CobrancaModelTests(TestCase):
         self.cliente_b = Cliente.objects.create(
             user=self.user_b, nome="Maria", email="maria@test.com"
         )
+        self.org_a = _provision_tenant(self.user_a, self.cliente_a)
         self.hoje = timezone.localdate()
 
     def _criar_cobranca(self, **kwargs):
@@ -36,6 +56,7 @@ class CobrancaModelTests(TestCase):
             "valor_original": Decimal("5000.00"),
             "data_vencimento": self.hoje + timedelta(days=15),
             "criado_por": self.user_a,
+            "organization": getattr(self, "org_a", None),
         }
         defaults.update(kwargs)
         return Cobranca.objects.create(**defaults)
@@ -48,6 +69,7 @@ class CobrancaModelTests(TestCase):
     def test_valor_zero_rejeitado(self):
         c = Cobranca(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_a,
             descricao="X",
             valor_original=Decimal("0"),
@@ -59,6 +81,7 @@ class CobrancaModelTests(TestCase):
     def test_cliente_outro_usuario_rejeitado(self):
         c = Cobranca(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_b,
             descricao="X",
             valor_original=Decimal("100"),
@@ -156,6 +179,8 @@ class CobrancaCrudTests(TestCase):
         self.cliente_b = Cliente.objects.create(
             user=self.user_b, nome="Outro", email="outro@test.com"
         )
+        self.org_a = _provision_tenant(self.user_a, self.cliente_a)
+        self.org_b = _provision_tenant(self.user_b, self.cliente_b)
         self.http = Client()
         self.hoje = timezone.localdate()
 
@@ -200,6 +225,7 @@ class CobrancaCrudTests(TestCase):
     def test_detalhe_bloqueia_outro_usuario(self):
         c = Cobranca.objects.create(
             usuario=self.user_b,
+            organization=self.org_b,
             cliente=self.cliente_b,
             descricao="Secreta",
             valor_original=Decimal("100"),
@@ -212,6 +238,7 @@ class CobrancaCrudTests(TestCase):
     def test_editar_cobranca_registra_historico(self):
         c = Cobranca.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_a,
             descricao="Original",
             valor_original=Decimal("1000"),
@@ -243,6 +270,7 @@ class CobrancaCrudTests(TestCase):
     def test_cancelar_cobranca(self):
         c = Cobranca.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_a,
             descricao="Cancelável",
             valor_original=Decimal("500"),
@@ -262,6 +290,7 @@ class CobrancaCrudTests(TestCase):
     def test_listar_cobrancas_usuario(self):
         Cobranca.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_a,
             descricao="Minha",
             valor_original=Decimal("100"),
@@ -269,6 +298,7 @@ class CobrancaCrudTests(TestCase):
         )
         Cobranca.objects.create(
             usuario=self.user_b,
+            organization=self.org_b,
             cliente=self.cliente_b,
             descricao="De outro",
             valor_original=Decimal("200"),
@@ -289,12 +319,14 @@ class CobrancaListagemFase3Tests(TestCase):
         self.cliente_b = Cliente.objects.create(
             user=self.user_a, nome="Maria", email="maria@test.com"
         )
+        self.org_a = _provision_tenant(self.user_a, self.cliente_a, self.cliente_b)
         self.http = Client()
         self.hoje = timezone.localdate()
 
     def test_listagem_exibe_kpis(self):
         Cobranca.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_a,
             descricao="Aberta",
             valor_original=Decimal("1000"),
@@ -308,6 +340,7 @@ class CobrancaListagemFase3Tests(TestCase):
     def test_filtro_status_vencido(self):
         Cobranca.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_a,
             descricao="Vencida",
             valor_original=Decimal("500"),
@@ -331,6 +364,7 @@ class CobrancaListagemFase3Tests(TestCase):
     def test_filtro_busca_descricao(self):
         Cobranca.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_a,
             descricao="Honorários trabalhistas",
             valor_original=Decimal("100"),
@@ -346,15 +380,16 @@ class CobrancaListagemFase3Tests(TestCase):
     def test_kpis_excluem_canceladas(self):
         Cobranca.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_a,
             descricao="Cancelada",
             valor_original=Decimal("9000"),
             data_vencimento=self.hoje + timedelta(days=5),
             status=StatusCobranca.CANCELED,
         )
-        from financeiro.services.cobranca_listagem import calcular_kpis_cobrancas
+        from financeiro.services.cobranca_listagem import calcular_kpis_cobrancas_organization
 
-        kpis = calcular_kpis_cobrancas(self.user_a, hoje=self.hoje)
+        kpis = calcular_kpis_cobrancas_organization(self.org_a, hoje=self.hoje)
         self.assertEqual(kpis.a_receber, Decimal("0"))
 
 
@@ -368,6 +403,8 @@ class CobrancaRecebimentoFase4Tests(TestCase):
         self.cliente_b = Cliente.objects.create(
             user=self.user_b, nome="Maria", email="maria@test.com"
         )
+        self.org_a = _provision_tenant(self.user_a, self.cliente_a)
+        self.org_b = _provision_tenant(self.user_b, self.cliente_b)
         self.http = Client()
         self.hoje = timezone.localdate()
 
@@ -379,6 +416,7 @@ class CobrancaRecebimentoFase4Tests(TestCase):
             "valor_original": Decimal("5000.00"),
             "data_vencimento": self.hoje + timedelta(days=15),
             "criado_por": self.user_a,
+            "organization": getattr(self, "org_a", None),
         }
         defaults.update(kwargs)
         return Cobranca.objects.create(**defaults)
@@ -393,6 +431,7 @@ class CobrancaRecebimentoFase4Tests(TestCase):
             data_recebimento=self.hoje,
             forma_pagamento="pix",
             autor=self.user_a,
+            organization=self.org_a,
         )
         c.refresh_from_db()
         self.assertEqual(c.status, StatusCobranca.PAID)
@@ -409,6 +448,7 @@ class CobrancaRecebimentoFase4Tests(TestCase):
             data_recebimento=self.hoje,
             forma_pagamento="pix",
             autor=self.user_a,
+            organization=self.org_a,
         )
         c.refresh_from_db()
         self.assertEqual(c.status, StatusCobranca.PARTIALLY_PAID)
@@ -425,6 +465,7 @@ class CobrancaRecebimentoFase4Tests(TestCase):
                 data_recebimento=self.hoje,
                 forma_pagamento="pix",
                 autor=self.user_a,
+                organization=self.org_a,
             )
 
     def test_estorno_restaura_saldo_e_historico(self):
@@ -440,6 +481,7 @@ class CobrancaRecebimentoFase4Tests(TestCase):
             data_recebimento=self.hoje,
             forma_pagamento="transferencia",
             autor=self.user_a,
+            organization=self.org_a,
         )
         estornar_recebimento(r, autor=self.user_a, motivo="Lançamento duplicado")
         c.refresh_from_db()
@@ -490,6 +532,7 @@ class CobrancaRecebimentoFase4Tests(TestCase):
             data_recebimento=self.hoje,
             forma_pagamento="pix",
             autor=self.user_a,
+            organization=self.org_a,
         )
         self.http.login(username="adv_a", password="senha123")
         response = self.http.post(
@@ -508,6 +551,7 @@ class CobrancaRecebimentoFase4Tests(TestCase):
     def test_estornar_bloqueia_outro_usuario(self):
         c = Cobranca.objects.create(
             usuario=self.user_b,
+            organization=self.org_b,
             cliente=self.cliente_b,
             descricao="Secreta",
             valor_original=Decimal("1000"),
@@ -536,6 +580,7 @@ class CobrancaParcelamentoFase5Tests(TestCase):
         self.cliente_a = Cliente.objects.create(
             user=self.user_a, nome="João", email="joao@test.com"
         )
+        self.org_a = _provision_tenant(self.user_a, self.cliente_a)
         self.http = Client()
         self.hoje = timezone.localdate()
 
@@ -566,6 +611,7 @@ class CobrancaParcelamentoFase5Tests(TestCase):
             num_parcelas=3,
             periodicidade="mensal",
             categoria="honorarios",
+            organization=self.org_a,
         )
         self.assertEqual(len(parcelas), 3)
         self.assertEqual(Cobranca.objects.filter(usuario=self.user_a).count(), 3)
@@ -629,6 +675,7 @@ class CobrancaParcelamentoFase5Tests(TestCase):
             num_parcelas=3,
             periodicidade="mensal",
             categoria="honorarios",
+            organization=self.org_a,
         )
         self.http.login(username="adv_a", password="senha123")
         response = self.http.get(
@@ -649,6 +696,8 @@ class CobrancaContratoFase6Tests(TestCase):
         self.cliente_b = Cliente.objects.create(
             user=self.user_b, nome="Maria", email="maria@test.com"
         )
+        self.org_a = _provision_tenant(self.user_a, self.cliente_a)
+        self.org_b = _provision_tenant(self.user_b, self.cliente_b)
         self.http = Client()
         self.hoje = timezone.localdate()
 
@@ -657,6 +706,7 @@ class CobrancaContratoFase6Tests(TestCase):
 
         contrato = Contrato.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_a,
             referencia="00042",
             descricao="Honorários trabalhistas",
@@ -670,6 +720,7 @@ class CobrancaContratoFase6Tests(TestCase):
 
         contrato = Contrato(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_b,
             referencia="X",
             descricao="Inválido",
@@ -684,6 +735,7 @@ class CobrancaContratoFase6Tests(TestCase):
 
         contrato = Contrato.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_a,
             referencia="00099",
             descricao="Plano 6x",
@@ -693,6 +745,7 @@ class CobrancaContratoFase6Tests(TestCase):
         cobrancas = gerar_cobrancas_do_contrato(
             contrato,
             autor=self.user_a,
+            organization=self.org_a,
             tipo_lancamento="parcelada",
             primeiro_vencimento=self.hoje,
             num_parcelas=6,
@@ -710,6 +763,7 @@ class CobrancaContratoFase6Tests(TestCase):
 
         contrato = Contrato.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_a,
             referencia="00100",
             descricao="À vista",
@@ -719,6 +773,7 @@ class CobrancaContratoFase6Tests(TestCase):
         cobrancas = gerar_cobrancas_do_contrato(
             contrato,
             autor=self.user_a,
+            organization=self.org_a,
             tipo_lancamento="unica",
             primeiro_vencimento=self.hoje,
             categoria="honorarios",
@@ -731,6 +786,7 @@ class CobrancaContratoFase6Tests(TestCase):
 
         contrato = Contrato.objects.create(
             usuario=self.user_b,
+            organization=self.org_b,
             cliente=self.cliente_b,
             referencia="SEC",
             descricao="Secreta",
@@ -745,6 +801,7 @@ class CobrancaContratoFase6Tests(TestCase):
 
         contrato = Contrato.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_a,
             referencia="REF1",
             descricao="Contrato A",
@@ -777,6 +834,7 @@ class CobrancaContratoFase6Tests(TestCase):
 
         contrato = Contrato.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_a,
             referencia="WEB01",
             descricao="Via web",
@@ -807,6 +865,7 @@ class CobrancaAgendaFase7Tests(TestCase):
         self.cliente_a = Cliente.objects.create(
             user=self.user_a, nome="João", email="joao@test.com"
         )
+        self.org_a = _provision_tenant(self.user_a, self.cliente_a)
         self.http = Client()
         self.hoje = timezone.localdate()
 
@@ -818,6 +877,7 @@ class CobrancaAgendaFase7Tests(TestCase):
             "valor_original": Decimal("2000.00"),
             "data_vencimento": self.hoje + timedelta(days=5),
             "criado_por": self.user_a,
+            "organization": getattr(self, "org_a", None),
         }
         defaults.update(kwargs)
         return Cobranca.objects.create(**defaults)
@@ -868,7 +928,7 @@ class CobrancaAgendaFase7Tests(TestCase):
         from usuarios.choices import StatusCompromisso
 
         c = self._criar_cobranca()
-        criar_cobranca(c, autor=self.user_a)
+        criar_cobranca(c, autor=self.user_a, organization=self.org_a)
         sincronizar_lembrete_cobranca(c)
         registrar_recebimento(
             c,
@@ -876,6 +936,7 @@ class CobrancaAgendaFase7Tests(TestCase):
             data_recebimento=self.hoje,
             forma_pagamento="pix",
             autor=self.user_a,
+            organization=self.org_a,
         )
         comp = compromisso_lembrete_automatico(c)
         self.assertIsNone(comp)
@@ -895,14 +956,17 @@ class CobrancaAgendaFase7Tests(TestCase):
             data_vencimento=self.hoje - timedelta(days=3),
             status=StatusCobranca.OVERDUE,
         )
-        itens = itens_atencao(self.user_a, ref=self.hoje)
+        itens = itens_atencao(self.org_a, ref=self.hoje)
         self.assertTrue(any(i.item_tipo == "cobranca" for i in itens))
 
     def test_compromisso_cobranca_aparece_na_agenda(self):
         from financeiro.services.cobranca_crud import criar_cobranca
 
         c = self._criar_cobranca(data_vencimento=self.hoje + timedelta(days=10))
-        criar_cobranca(c, autor=self.user_a)
+        criar_cobranca(c, autor=self.user_a, organization=self.org_a)
+        from usuarios.tests_helpers import grant_agenda_permissions
+
+        grant_agenda_permissions(self.user_a)
         self.http.login(username="adv_a", password="senha123")
         response = self.http.get(reverse("agenda"), {"view": "lista"})
         self.assertContains(response, c.descricao)
@@ -922,6 +986,8 @@ class CobrancaInadimplenciaPrevisaoFase8Tests(TestCase):
         self.cliente_outro = Cliente.objects.create(
             user=self.user_b, nome="Maria", email="maria@test.com"
         )
+        self.org_a = _provision_tenant(self.user_a, self.cliente_a, self.cliente_b)
+        self.org_b = _provision_tenant(self.user_b, self.cliente_outro)
         self.http = Client()
         self.hoje = timezone.localdate()
 
@@ -933,6 +999,7 @@ class CobrancaInadimplenciaPrevisaoFase8Tests(TestCase):
             "valor_original": Decimal("1000.00"),
             "data_vencimento": self.hoje - timedelta(days=10),
             "criado_por": self.user_a,
+            "organization": getattr(self, "org_a", None),
         }
         defaults.update(kwargs)
         return Cobranca.objects.create(**defaults)
@@ -958,6 +1025,7 @@ class CobrancaInadimplenciaPrevisaoFase8Tests(TestCase):
         # Não vencida — não entra
         Cobranca.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_a,
             descricao="Futura",
             valor_original=Decimal("999.00"),
@@ -974,7 +1042,7 @@ class CobrancaInadimplenciaPrevisaoFase8Tests(TestCase):
             criado_por=self.user_b,
         )
 
-        resumo = calcular_inadimplencia(self.user_a, hoje=self.hoje)
+        resumo = calcular_inadimplencia(self.org_a, hoje=self.hoje)
         soma_faixas = sum(f.total for f in resumo.faixas)
         self.assertEqual(soma_faixas, resumo.total_vencido)
         self.assertEqual(resumo.total_vencido, Decimal("600.00"))
@@ -1012,6 +1080,7 @@ class CobrancaInadimplenciaPrevisaoFase8Tests(TestCase):
         # Além de 90 dias — não entra
         Cobranca.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_a,
             descricao="Longe",
             valor_original=Decimal("999.00"),
@@ -1019,7 +1088,7 @@ class CobrancaInadimplenciaPrevisaoFase8Tests(TestCase):
             criado_por=self.user_a,
         )
 
-        resumo = calcular_previsao(self.user_a, hoje=self.hoje)
+        resumo = calcular_previsao(self.org_a, hoje=self.hoje)
         self.assertEqual(resumo.cumulativo_30, Decimal("100.00"))
         self.assertEqual(resumo.cumulativo_60, Decimal("300.00"))
         self.assertEqual(resumo.cumulativo_90, Decimal("600.00"))
@@ -1067,8 +1136,12 @@ class CobrancaDashboardFase9Tests(TestCase):
         self.cliente_outro = Cliente.objects.create(
             user=self.user_b, nome="Maria", email="maria@test.com"
         )
+        self.org_a = _provision_tenant(self.user_a, self.cliente_a)
+        self.org_b = _provision_tenant(self.user_b, self.cliente_outro)
         self.http = Client()
         self.hoje = timezone.localdate()
+        grant_billing_permissions(self.user_a)
+        grant_billing_permissions(self.user_b)
 
     def _criar_cobranca(self, **kwargs):
         defaults = {
@@ -1078,6 +1151,7 @@ class CobrancaDashboardFase9Tests(TestCase):
             "valor_original": Decimal("1000.00"),
             "data_vencimento": self.hoje + timedelta(days=10),
             "criado_por": self.user_a,
+            "organization": getattr(self, "org_a", None),
         }
         defaults.update(kwargs)
         return Cobranca.objects.create(**defaults)
@@ -1096,6 +1170,7 @@ class CobrancaDashboardFase9Tests(TestCase):
         )
         Cobranca.objects.create(
             usuario=self.user_b,
+            organization=self.org_b,
             cliente=self.cliente_outro,
             descricao="Outro tenant",
             valor_original=Decimal("9000.00"),
@@ -1103,7 +1178,7 @@ class CobrancaDashboardFase9Tests(TestCase):
             criado_por=self.user_b,
         )
 
-        resumo = calcular_dashboard_cobrancas(self.user_a, hoje=self.hoje)
+        resumo = calcular_dashboard_cobrancas(self.org_a, hoje=self.hoje)
         self.assertEqual(resumo.a_receber, Decimal("800.00"))
         self.assertEqual(resumo.vencido, Decimal("500.00"))
         self.assertEqual(resumo.previsao_30, Decimal("300.00"))
@@ -1112,7 +1187,7 @@ class CobrancaDashboardFase9Tests(TestCase):
     def test_taxa_inadimplencia_zero_sem_saldo_aberto(self):
         from financeiro.services.cobranca_dashboard import calcular_dashboard_cobrancas
 
-        resumo = calcular_dashboard_cobrancas(self.user_a, hoje=self.hoje)
+        resumo = calcular_dashboard_cobrancas(self.org_a, hoje=self.hoje)
         self.assertEqual(resumo.taxa_inadimplencia, Decimal("0"))
 
     def test_prazo_medio_recebimento(self):
@@ -1122,11 +1197,12 @@ class CobrancaDashboardFase9Tests(TestCase):
         CobrancaRecebimento.objects.create(
             cobranca=c,
             usuario=self.user_a,
+            organization=self.org_a,
             valor=Decimal("1000.00"),
             data_recebimento=self.hoje - timedelta(days=5),
             registrado_por=self.user_a,
         )
-        resumo = calcular_dashboard_cobrancas(self.user_a, hoje=self.hoje)
+        resumo = calcular_dashboard_cobrancas(self.org_a, hoje=self.hoje)
         self.assertEqual(resumo.prazo_medio_recebimento, Decimal("5.0"))
 
     def test_dashboard_renderiza_bloco_cobrancas(self):
@@ -1143,7 +1219,7 @@ class CobrancaDashboardFase9Tests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Honorários e cobranças")
         self.assertContains(response, "Taxa inadimplência")
-        self.assertContains(response, "Previsto 30 dias")
+        self.assertContains(response, "Previsão 30 dias")
         self.assertContains(response, "João")
         self.assertContains(response, "Dashboard futura")
 
@@ -1151,6 +1227,7 @@ class CobrancaDashboardFase9Tests(TestCase):
         self._criar_cobranca(descricao="Privada A")
         Cobranca.objects.create(
             usuario=self.user_b,
+            organization=self.org_b,
             cliente=self.cliente_outro,
             descricao="Privada B",
             valor_original=Decimal("5000.00"),
@@ -1177,6 +1254,8 @@ class CobrancaMensagemFase10Tests(TestCase):
         self.cliente_b = Cliente.objects.create(
             user=self.user_b, nome="Maria", email="maria@test.com"
         )
+        self.org_a = _provision_tenant(self.user_a, self.cliente_a)
+        self.org_b = _provision_tenant(self.user_b, self.cliente_b)
         self.http = Client()
         self.hoje = timezone.localdate()
 
@@ -1188,6 +1267,7 @@ class CobrancaMensagemFase10Tests(TestCase):
             "valor_original": Decimal("5000.00"),
             "data_vencimento": self.hoje - timedelta(days=10),
             "criado_por": self.user_a,
+            "organization": getattr(self, "org_a", None),
         }
         defaults.update(kwargs)
         return Cobranca.objects.create(**defaults)
@@ -1302,6 +1382,7 @@ class CobrancaRbacFase11Tests(TestCase):
         self.cliente_a = Cliente.objects.create(
             user=self.user_a, nome="João", email="joao@test.com"
         )
+        self.org_a = _provision_tenant(self.user_a, self.cliente_a)
         self.http = Client()
         self.hoje = timezone.localdate()
 
@@ -1333,15 +1414,17 @@ class CobrancaRbacFase11Tests(TestCase):
             "valor_original": Decimal("1000.00"),
             "data_vencimento": self.hoje - timedelta(days=5),
             "criado_por": self.user_a,
+            "organization": getattr(self, "org_a", None),
         }
         defaults.update(kwargs)
         return Cobranca.objects.create(**defaults)
 
-    def test_usuario_sem_grupo_mantem_acesso_legado(self):
-        self._criar_cobranca()
-        self.http.login(username="adv_a", password="senha123")
+    def test_usuario_sem_grupo_sem_perm_e_negado(self):
+        user = User.objects.create_user(username="sem_grupo", password="senha123")
+        self.http.login(username="sem_grupo", password="senha123")
         response = self.http.get(reverse("financeiro_cobranca_listar"))
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("home"))
 
     def test_usuario_grupo_sem_perm_bloqueado(self):
         self.http.login(username="assistente", password="senha123")
@@ -1376,7 +1459,7 @@ class CobrancaRbacFase11Tests(TestCase):
         from financeiro.services.cobranca_crud import criar_cobranca
 
         c = self._criar_cobranca()
-        criar_cobranca(c, autor=self.user_a)
+        criar_cobranca(c, autor=self.user_a, organization=self.org_a)
         self.http.login(username="adv_a", password="senha123")
         response = self.http.get(reverse("financeiro_cobranca_auditoria"))
         self.assertEqual(response.status_code, 200)
@@ -1387,13 +1470,22 @@ class CobrancaRbacFase11Tests(TestCase):
 
         user_dono = User.objects.create_user(username="dono", password="senha123")
         user_assist = User.objects.create_user(username="assist2", password="senha123")
+        org = Organization.objects.create(name="Org Assist Fin")
+        Membership.objects.create(
+            user=user_assist,
+            organization=org,
+            role=Membership.Role.MEMBER,
+            status=Membership.Status.ACTIVE,
+        )
         cliente = Cliente.objects.create(user=user_dono, nome="Cliente X", email="x@test.com")
         g, _ = Group.objects.get_or_create(name="Equipe restrita")
         g.permissions.clear()
         user_assist.groups.add(g)
         # Assistente não acessa cliente de outro user anyway - test dono vs assist on same... 
         # Test: user in restricted group viewing own client - create client for assist
-        cliente_assist = Cliente.objects.create(user=user_assist, nome="Y", email="y@test.com")
+        cliente_assist = Cliente.objects.create(
+            user=user_assist, nome="Y", email="y@test.com", organization=org
+        )
         self.http.login(username="assist2", password="senha123")
         response = self.http.get(reverse("cliente", kwargs={"id": cliente_assist.id}))
         self.assertEqual(response.status_code, 200)
@@ -1418,6 +1510,8 @@ class CobrancaSpecFase12Tests(TestCase):
         self.cliente_b = Cliente.objects.create(
             user=self.user_b, nome="Maria", email="maria@test.com"
         )
+        self.org_a = _provision_tenant(self.user_a, self.cliente_a)
+        self.org_b = _provision_tenant(self.user_b, self.cliente_b)
         self.http = Client()
         self.hoje = timezone.localdate()
 
@@ -1433,6 +1527,7 @@ class CobrancaSpecFase12Tests(TestCase):
             "valor_original": Decimal("5000.00"),
             "data_vencimento": self.hoje + timedelta(days=15),
             "criado_por": usuario or self.user_a,
+            "organization": self.org_a if (usuario or self.user_a) == self.user_a else self.org_b,
         }
         defaults.update(kwargs)
         return Cobranca.objects.create(**defaults)
@@ -1442,7 +1537,7 @@ class CobrancaSpecFase12Tests(TestCase):
         from financeiro.services.cobranca_crud import criar_cobranca
 
         c = self._criar_cobranca()
-        criar_cobranca(c, autor=self.user_a)
+        criar_cobranca(c, autor=self.user_a, organization=self.org_a)
         self.assertTrue(Cobranca.objects.filter(pk=c.pk, usuario=self.user_a).exists())
         self.assertEqual(c.status, StatusCobranca.PENDING)
 
@@ -1464,6 +1559,7 @@ class CobrancaSpecFase12Tests(TestCase):
     def test_spec_03_cliente_outro_tenant_rejeitado(self):
         c = Cobranca(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_b,
             descricao="X",
             valor_original=Decimal("100"),
@@ -1479,6 +1575,7 @@ class CobrancaSpecFase12Tests(TestCase):
 
         contrato_b = Contrato.objects.create(
             usuario=self.user_b,
+            organization=self.org_b,
             cliente=self.cliente_b,
             referencia="OUT99",
             descricao="Contrato B",
@@ -1496,6 +1593,7 @@ class CobrancaSpecFase12Tests(TestCase):
                 "tipo_lancamento": "unica",
             },
             usuario=self.user_a,
+            organization=self.org_a,
         )
         self.assertFalse(form.is_valid())
         self.assertIn("contrato", form.errors)
@@ -1518,6 +1616,7 @@ class CobrancaSpecFase12Tests(TestCase):
             data_recebimento=self.hoje,
             forma_pagamento="pix",
             autor=self.user_a,
+            organization=self.org_a,
         )
         c.refresh_from_db()
         self.assertEqual(c.status, StatusCobranca.PAID)
@@ -1534,6 +1633,7 @@ class CobrancaSpecFase12Tests(TestCase):
             data_recebimento=self.hoje,
             forma_pagamento="pix",
             autor=self.user_a,
+            organization=self.org_a,
         )
         c.refresh_from_db()
         self.assertEqual(c.status, StatusCobranca.PARTIALLY_PAID)
@@ -1560,10 +1660,10 @@ class CobrancaSpecFase12Tests(TestCase):
 
     # TESTE 10 — Cobrança cancelada não entra em total a receber.
     def test_spec_10_cancelada_fora_do_total_a_receber(self):
-        from financeiro.services.cobranca_listagem import calcular_kpis_cobrancas
+        from financeiro.services.cobranca_listagem import calcular_kpis_cobrancas_organization
 
         self._criar_cobranca(status=StatusCobranca.CANCELED)
-        kpis = calcular_kpis_cobrancas(self.user_a, hoje=self.hoje)
+        kpis = calcular_kpis_cobrancas_organization(self.org_a, hoje=self.hoje)
         self.assertEqual(kpis.a_receber, Decimal("0"))
 
     # TESTE 11 — Pagamento não pode exceder saldo.
@@ -1578,6 +1678,7 @@ class CobrancaSpecFase12Tests(TestCase):
                 data_recebimento=self.hoje,
                 forma_pagamento="pix",
                 autor=self.user_a,
+                organization=self.org_a,
             )
 
     # TESTE 12 — Parcelamento soma exatamente o valor total.
@@ -1602,18 +1703,19 @@ class CobrancaSpecFase12Tests(TestCase):
         self._criar_cobranca(valor_original=Decimal("100.00"))
         Cobranca.objects.create(
             usuario=self.user_b,
+            organization=self.org_b,
             cliente=self.cliente_b,
             descricao="Outro tenant",
             valor_original=Decimal("9999.00"),
             data_vencimento=self.hoje + timedelta(days=5),
             criado_por=self.user_b,
         )
-        resumo = calcular_dashboard_cobrancas(self.user_a, hoje=self.hoje)
+        resumo = calcular_dashboard_cobrancas(self.org_a, hoje=self.hoje)
         self.assertEqual(resumo.a_receber, Decimal("100.00"))
 
     # TESTE 15 — Recebimentos alimentam indicadores corretamente.
     def test_spec_15_recebimentos_alimentam_indicadores(self):
-        from financeiro.services.cobranca_listagem import calcular_kpis_cobrancas
+        from financeiro.services.cobranca_listagem import calcular_kpis_cobrancas_organization
         from financeiro.services.cobranca_recebimento import registrar_recebimento
 
         c = self._criar_cobranca()
@@ -1623,8 +1725,9 @@ class CobrancaSpecFase12Tests(TestCase):
             data_recebimento=self.hoje,
             forma_pagamento="pix",
             autor=self.user_a,
+            organization=self.org_a,
         )
-        kpis = calcular_kpis_cobrancas(self.user_a, hoje=self.hoje)
+        kpis = calcular_kpis_cobrancas_organization(self.org_a, hoje=self.hoje)
         self.assertEqual(kpis.recebido_mes, Decimal("2500.00"))
 
     # TESTE 16 — Histórico registra alterações.
@@ -1632,7 +1735,7 @@ class CobrancaSpecFase12Tests(TestCase):
         from financeiro.services.cobranca_crud import atualizar_cobranca, criar_cobranca
 
         c = self._criar_cobranca()
-        criar_cobranca(c, autor=self.user_a)
+        criar_cobranca(c, autor=self.user_a, organization=self.org_a)
         venc_anterior = c.data_vencimento
         c.data_vencimento = self.hoje + timedelta(days=30)
         c.save(update_fields=["data_vencimento"])
@@ -1650,7 +1753,7 @@ class CobrancaSpecFase12Tests(TestCase):
         from financeiro.services.cobranca_crud import cancelar_cobranca, criar_cobranca
 
         c = self._criar_cobranca()
-        criar_cobranca(c, autor=self.user_a)
+        criar_cobranca(c, autor=self.user_a, organization=self.org_a)
         qtd_antes = c.historico.count()
         self.assertGreaterEqual(qtd_antes, 1)
         cancelar_cobranca(c, autor=self.user_a, motivo="Acordo")
@@ -1665,7 +1768,7 @@ class CobrancaSpecFase12Tests(TestCase):
         from usuarios.models import Compromisso
 
         c = self._criar_cobranca(data_vencimento=self.hoje + timedelta(days=10))
-        criar_cobranca(c, autor=self.user_a)
+        criar_cobranca(c, autor=self.user_a, organization=self.org_a)
         sincronizar_lembrete_cobranca(c)
         self.assertTrue(
             Compromisso.objects.filter(
@@ -1673,6 +1776,9 @@ class CobrancaSpecFase12Tests(TestCase):
                 metadados__cobranca_id=c.pk,
             ).exists()
         )
+        from usuarios.tests_helpers import grant_agenda_permissions
+
+        grant_agenda_permissions(self.user_a)
         self.http.login(username="spec_a", password="senha123")
         response = self.http.get(reverse("agenda"), {"view": "lista"})
         self.assertContains(response, c.descricao)

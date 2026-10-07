@@ -1,0 +1,75 @@
+{% if clientes_pro and clientes_pro.tenant_ok %}
+<section class="mb-8 rounded-lg border border-zinc-800 bg-zinc-900/50 px-6 py-4" aria-labelledby="cliente-pro-faixa">
+  <h2 id="cliente-pro-faixa" class="sr-only">Estado do relacionamento</h2>
+  <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+    <div>
+      <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Status</p>
+      <p class="mt-1 text-sm font-semibold text-zinc-100">{{ clientes_pro.status_label }}</p>
+    </div>
+    <div>
+      <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Fase</p>
+      <p class="mt-1 text-sm font-semibold text-zinc-100">{{ clientes_pro.fase_label }}</p>
+    </div>
+    <div>
+      <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Temperatura</p>
+      <p class="mt-1 text-sm font-semibold text-zinc-100">{{ clientes_pro.temperatura_label }}</p>
+    </div>
+    <div>
+      <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Última interação</p>
+      <p class="mt-1 text-sm font-semibold text-zinc-100">{{ clientes_pro.ultima_interacao.label }}</p>
+    </div>
+    <div>
+      <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Próxima ação</p>
+      {% if clientes_pro.proxima_acao.existe %}
+      <p class="mt-1 text-sm font-semibold text-zinc-100">{{ clientes_pro.proxima_acao.titulo }}{% if clientes_pro.proxima_acao.quando_label %} · {{ clientes_pro.proxima_acao.quando_label }}{% endif %}</p>
+      {% else %}
+      <p class="mt-1 text-sm font-semibold text-zinc-500">Não registrada</p>
+      {% endif %}
+    </div>
+    <div>
+      <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Em aberto</p>
+      {% if clientes_pro.financeiro and clientes_pro.financeiro.a_receber is not None %}
+      <p class="mt-1 text-sm font-semibold text-zinc-100">R$ {{ clientes_pro.financeiro.a_receber|brnum:2 }}</p>
+      {% else %}
+      <p class="mt-1 text-sm font-semibold text-zinc-500">{% if not clientes_pro.caps.financeiro %}Não aplicável{% else %}Não disponível{% endif %}</p>
+      {% endif %}
+    </div>
+  </div>
+  <div class="mt-3 flex flex-wrap items-center gap-2">
+    <span class="inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide
+      {% if clientes_pro.health.estado == 'critico' %}border-red-900/50 bg-red-950/40 text-red-300
+      {% elif clientes_pro.health.estado == 'atencao' %}border-amber-800/40 bg-amber-950/35 text-amber-100/90
+      {% elif clientes_pro.health.estado == 'saudavel' %}border-bally/40 bg-bally-muted/30 text-bally-bright
+      {% else %}border-zinc-700 text-zinc-400{% endif %}">{{ clientes_pro.health.label }}</span>
+    <p class="text-[12px] text-zinc-500">{{ clientes_pro.health.motivos.0 }}</p>
+  </div>
+  {% if clientes_pro.comercial.desfecho == 'perdido' %}
+  <p class="mt-3 text-[12px] text-zinc-500">Desfecho: perdido{% if clientes_pro.comercial.motivo_perda %} · {{ clientes_pro.comercial.motivo_perda }}{% endif %}. Valor potencial ≠ receita perdida.</p>
+  {% endif %}
+  {% if clientes_pro.origem %}
+  <p class="mt-2 text-[11px] text-zinc-600">Origem registrada: {{ clientes_pro.origem_label }}{% if not clientes_pro.atribuicao_confiavel %} · atribuição não confirmada{% endif %}. Origem ≠ causalidade.</p>
+  {% endif %}
+</section>
+
+<section class="mb-8 rounded-lg border border-zinc-800 bg-zinc-900/50 p-4" aria-labelledby="cliente-pro-advisor">
+  <div class="flex flex-wrap items-center justify-between gap-2">
+    <h2 id="cliente-pro-advisor" class="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Growth Advisor</h2>
+    <span class="inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide
+      {% if clientes_pro.advisor.status == 'critico' %}border-red-900/50 bg-red-950/40 text-red-300
+      {% elif clientes_pro.advisor.status == 'atencao' %}border-amber-800/40 bg-amber-950/35 text-amber-100/90
+      {% else %}border-zinc-700 text-zinc-400{% endif %}">{{ clientes_pro.advisor.status }}</span>
+  </div>
+  {% with p=clientes_pro.nba %}
+  <p class="mt-3 text-base font-semibold text-zinc-100">{{ p.titulo }}</p>
+  <p class="mt-3 text-[11px] uppercase tracking-wide text-zinc-500">Por quê</p>
+  <p class="mt-1 text-[13px] text-zinc-200">{{ clientes_pro.advisor.evidence }}</p>
+  {% if clientes_pro.advisor.impacto %}
+  <p class="mt-3 text-[11px] uppercase tracking-wide text-zinc-500">Impacto / contexto</p>
+  <p class="mt-1 text-[13px] text-zinc-300">{{ clientes_pro.advisor.impacto }}</p>
+  {% endif %}
+  <p class="mt-3 text-[11px] uppercase tracking-wide text-zinc-500">Próxima ação</p>
+  <p class="mt-1 text-sm text-zinc-100">{{ p.acao }}</p>
+  <a href="{{ p.url }}" class="mt-3 inline-flex rounded-md border border-bally/40 bg-bally-muted/30 px-3 py-1.5 text-xs font-medium text-bally-bright hover:bg-bally-muted/50">{{ p.cta }}</a>
+  {% endwith %}
+</section>
+{% endif %}

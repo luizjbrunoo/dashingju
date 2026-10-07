@@ -9,7 +9,7 @@ from django.db import IntegrityError
 from django.db.models import Sum
 from django.db.models.deletion import ProtectedError
 from django.db.models.functions import TruncMonth
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -17,8 +17,17 @@ from .forms import BancoForm, CategoriaForm, MovimentoForm
 from .models import Banco, Categoria, Movimento
 from .pdf_report import gerar_relatorio_pdf
 from .services.cobranca_dashboard import calcular_dashboard_cobrancas
-from .permissions import pode_ver_cobrancas
-from .decorators import perm_ver_relatorios
+from .permissions import pode_ver_caixa, pode_ver_cobrancas, pode_ver_recebimentos
+from .services.financeiro_pro import montar_financeiro_pro
+from .decorators import perm_gerir_caixa, perm_qualquer_financeiro, perm_ver_caixa
+from .tenancy_write import (
+    MSG_PARENT_TENANT,
+    organization_for_finance_write,
+    parent_in_organization,
+    preserve_organization,
+    reject_or_organization,
+    update_allowed,
+)
 
 
 def _parse_date(s, default):
@@ -62,14 +71,26 @@ def _ultimo_dia_mes_ref(hoje: date) -> date:
     return date(hoje.year, hoje.month, monthrange(hoje.year, hoje.month)[1])
 
 
-def _serie_historico_mensal(usuario, hoje: date, meses: int = 12):
+def _caixa_organization(request):
+    """Tenant da superfície Caixa: somente TenantContext RESOLVED. Sem fallback User."""
+    return organization_for_finance_write(request)
+
+
+def _caixa_org_or_404(request):
+    org = _caixa_organization(request)
+    if org is None:
+        raise Http404()
+    return org
+
+
+def _serie_historico_mensal(organization, hoje: date, meses: int = 12):
     """Totais de receitas e despesas por mês (últimos `meses` meses)."""
     inicio = _primeiro_dia_n_meses_atras(hoje, meses)
     fim = _ultimo_dia_mes_ref(hoje)
 
     rec_rows = (
         Movimento.objects.filter(
-            usuario=usuario,
+            organization=organization,
             data__gte=inicio,
             data__lte=fim,
             categoria__tipo=Categoria.Tipo.RECEITA,
@@ -80,7 +101,7 @@ def _serie_historico_mensal(usuario, hoje: date, meses: int = 12):
     )
     desp_rows = (
         Movimento.objects.filter(
-            usuario=usuario,
+            organization=organization,
             data__gte=inicio,
             data__lte=fim,
             categoria__tipo=Categoria.Tipo.DESPESA,
@@ -120,9 +141,14 @@ def _serie_historico_mensal(usuario, hoje: date, meses: int = 12):
     return {"labels": labels, "receitas": receitas, "despesas": despesas}
 
 
-def _top_categorias_pizza(usuario, tipo: str, data_ini: date, data_fim: date, top_n: int = 7):
+def _top_categorias_pizza(organization, tipo: str, data_ini: date, data_fim: date, top_n: int = 7):
     rows = list(
-        Movimento.objects.filter(usuario=usuario, data__gte=data_ini, data__lte=data_fim, categoria__tipo=tipo)
+        Movimento.objects.filter(
+            organization=organization,
+            data__gte=data_ini,
+            data__lte=data_fim,
+            categoria__tipo=tipo,
+        )
         .values("categoria__nome")
         .annotate(total=Sum("valor"))
         .order_by("-total")
@@ -141,42 +167,76 @@ def _top_categorias_pizza(usuario, tipo: str, data_ini: date, data_fim: date, to
     return {"labels": labels, "valores": valores}
 
 
+@perm_qualquer_financeiro
 @login_required
 def dashboard(request):
     hoje = timezone.localdate()
     inicio_mes = date(hoje.year, hoje.month, 1)
     fim_mes = date(hoje.year, hoje.month, monthrange(hoje.year, hoje.month)[1])
-
-    bancos = Banco.objects.filter(usuario=request.user)
-    mov_mes = Movimento.objects.filter(usuario=request.user, data__gte=inicio_mes, data__lte=fim_mes)
-
-    tot_rec = (
-        mov_mes.filter(categoria__tipo=Categoria.Tipo.RECEITA).aggregate(t=Sum("valor"))["t"] or Decimal("0")
-    )
-    tot_desp = (
-        mov_mes.filter(categoria__tipo=Categoria.Tipo.DESPESA).aggregate(t=Sum("valor"))["t"] or Decimal("0")
-    )
-
-    saldos = [{"banco": b.nome, "saldo": b.saldo_atual()} for b in bancos]
+    mostrar_caixa = pode_ver_caixa(request.user)
 
     inicio_12 = _primeiro_dia_n_meses_atras(hoje, 12)
     fim_12 = _ultimo_dia_mes_ref(hoje)
-    historico_mensal = _serie_historico_mensal(request.user, hoje, 12)
-    pizza_receitas = _top_categorias_pizza(request.user, Categoria.Tipo.RECEITA, inicio_12, fim_12)
-    pizza_despesas = _top_categorias_pizza(request.user, Categoria.Tipo.DESPESA, inicio_12, fim_12)
+    org = _caixa_organization(request) if mostrar_caixa else None
 
-    charts_payload = {
-        "historico": historico_mensal,
-        "pizzaReceitas": pizza_receitas,
-        "pizzaDespesas": pizza_despesas,
-    }
+    if mostrar_caixa and org is not None:
+        bancos = Banco.objects.filter(organization=org)
+        mov_mes = Movimento.objects.filter(
+            organization=org, data__gte=inicio_mes, data__lte=fim_mes
+        )
+        tot_rec = (
+            mov_mes.filter(categoria__tipo=Categoria.Tipo.RECEITA).aggregate(t=Sum("valor"))["t"]
+            or Decimal("0")
+        )
+        tot_desp = (
+            mov_mes.filter(categoria__tipo=Categoria.Tipo.DESPESA).aggregate(t=Sum("valor"))["t"]
+            or Decimal("0")
+        )
+        saldos = [{"banco": b.nome, "saldo": b.saldo_atual()} for b in bancos]
+        historico_mensal = _serie_historico_mensal(org, hoje, 12)
+        pizza_receitas = _top_categorias_pizza(
+            org, Categoria.Tipo.RECEITA, inicio_12, fim_12
+        )
+        pizza_despesas = _top_categorias_pizza(
+            org, Categoria.Tipo.DESPESA, inicio_12, fim_12
+        )
+        charts_payload = {
+            "historico": historico_mensal,
+            "pizzaReceitas": pizza_receitas,
+            "pizzaDespesas": pizza_despesas,
+        }
+    else:
+        bancos = Banco.objects.none()
+        tot_rec = Decimal("0")
+        tot_desp = Decimal("0")
+        saldos = []
+        charts_payload = {
+            "historico": {"labels": [], "receitas": [], "despesas": []},
+            "pizzaReceitas": {"labels": [], "valores": []},
+            "pizzaDespesas": {"labels": [], "valores": []},
+        }
 
-    cobrancas_resumo = calcular_dashboard_cobrancas(request.user, hoje=hoje) if pode_ver_cobrancas(request.user) else None
+    org_billing = organization_for_finance_write(request)
+    ver_cobrancas = pode_ver_cobrancas(request.user)
+    cobrancas_resumo = (
+        calcular_dashboard_cobrancas(org_billing, hoje=hoje) if ver_cobrancas else None
+    )
+    fin_pro = (
+        montar_financeiro_pro(
+            org_billing,
+            hoje=hoje,
+            ver_cobrancas=True,
+            ver_recebimentos=pode_ver_recebimentos(request.user),
+        )
+        if ver_cobrancas
+        else None
+    )
 
     return render(
         request,
         "financeiro/dashboard.html",
         {
+            "mostrar_caixa": mostrar_caixa,
             "bancos": bancos,
             "saldos": saldos,
             "total_receitas_mes": tot_rec,
@@ -187,23 +247,31 @@ def dashboard(request):
             "periodo_graficos_inicio": inicio_12,
             "periodo_graficos_fim": fim_12,
             "cobrancas": cobrancas_resumo,
+            "fin_pro": fin_pro,
         },
     )
 
 
+@perm_ver_caixa
 @login_required
 def banco_listar(request):
-    bancos = Banco.objects.filter(usuario=request.user)
+    org = _caixa_organization(request)
+    bancos = Banco.objects.filter(organization=org) if org else Banco.objects.none()
     return render(request, "financeiro/banco_listar.html", {"bancos": bancos})
 
 
+@perm_gerir_caixa
 @login_required
 def banco_novo(request):
     if request.method == "POST":
+        org, denied = reject_or_organization(request, "financeiro_banco_listar")
+        if denied:
+            return denied
         form = BancoForm(request.POST)
         if form.is_valid():
             b = form.save(commit=False)
             b.usuario = request.user
+            b.organization = org
             b.save()
             messages.add_message(request, constants.SUCCESS, "Banco cadastrado.")
             return redirect("financeiro_banco_listar")
@@ -212,13 +280,24 @@ def banco_novo(request):
     return render(request, "financeiro/banco_form.html", {"form": form, "titulo": "Novo banco"})
 
 
+@perm_gerir_caixa
 @login_required
 def banco_editar(request, pk):
-    banco = get_object_or_404(Banco, pk=pk, usuario=request.user)
+    org_lookup = _caixa_org_or_404(request)
+    banco = get_object_or_404(Banco, pk=pk, organization=org_lookup)
+    original_org_id = banco.organization_id
     if request.method == "POST":
+        org, denied = reject_or_organization(request, "financeiro_banco_listar")
+        if denied:
+            return denied
+        if not update_allowed(banco, org):
+            messages.add_message(request, constants.ERROR, MSG_PARENT_TENANT)
+            return redirect("financeiro_banco_listar")
         form = BancoForm(request.POST, instance=banco)
         if form.is_valid():
-            form.save()
+            b = form.save(commit=False)
+            preserve_organization(b, original_org_id)
+            b.save()
             messages.add_message(request, constants.SUCCESS, "Banco atualizado.")
             return redirect("financeiro_banco_listar")
     else:
@@ -226,9 +305,11 @@ def banco_editar(request, pk):
     return render(request, "financeiro/banco_form.html", {"form": form, "titulo": "Editar banco"})
 
 
+@perm_gerir_caixa
 @login_required
 def banco_excluir(request, pk):
-    banco = get_object_or_404(Banco, pk=pk, usuario=request.user)
+    org_lookup = _caixa_org_or_404(request)
+    banco = get_object_or_404(Banco, pk=pk, organization=org_lookup)
     if request.method == "POST":
         banco.delete()
         messages.add_message(request, constants.SUCCESS, "Banco removido.")
@@ -236,19 +317,28 @@ def banco_excluir(request, pk):
     return render(request, "financeiro/banco_confirmar_exclusao.html", {"banco": banco})
 
 
+@perm_ver_caixa
 @login_required
 def categoria_listar(request):
-    categorias = Categoria.objects.filter(usuario=request.user)
+    org = _caixa_organization(request)
+    categorias = (
+        Categoria.objects.filter(organization=org) if org else Categoria.objects.none()
+    )
     return render(request, "financeiro/categoria_listar.html", {"categorias": categorias})
 
 
+@perm_gerir_caixa
 @login_required
 def categoria_nova(request):
     if request.method == "POST":
+        org, denied = reject_or_organization(request, "financeiro_categoria_listar")
+        if denied:
+            return denied
         form = CategoriaForm(request.POST)
         if form.is_valid():
             c = form.save(commit=False)
             c.usuario = request.user
+            c.organization = org
             try:
                 c.save()
             except IntegrityError:
@@ -265,13 +355,24 @@ def categoria_nova(request):
     return render(request, "financeiro/categoria_form.html", {"form": form, "titulo": "Nova categoria"})
 
 
+@perm_gerir_caixa
 @login_required
 def categoria_editar(request, pk):
-    cat = get_object_or_404(Categoria, pk=pk, usuario=request.user)
+    org_lookup = _caixa_org_or_404(request)
+    cat = get_object_or_404(Categoria, pk=pk, organization=org_lookup)
+    original_org_id = cat.organization_id
     if request.method == "POST":
+        org, denied = reject_or_organization(request, "financeiro_categoria_listar")
+        if denied:
+            return denied
+        if not update_allowed(cat, org):
+            messages.add_message(request, constants.ERROR, MSG_PARENT_TENANT)
+            return redirect("financeiro_categoria_listar")
         form = CategoriaForm(request.POST, instance=cat)
         if form.is_valid():
-            form.save()
+            c = form.save(commit=False)
+            preserve_organization(c, original_org_id)
+            c.save()
             messages.add_message(request, constants.SUCCESS, "Categoria atualizada.")
             return redirect("financeiro_categoria_listar")
     else:
@@ -279,9 +380,11 @@ def categoria_editar(request, pk):
     return render(request, "financeiro/categoria_form.html", {"form": form, "titulo": "Editar categoria"})
 
 
+@perm_gerir_caixa
 @login_required
 def categoria_excluir(request, pk):
-    cat = get_object_or_404(Categoria, pk=pk, usuario=request.user)
+    org_lookup = _caixa_org_or_404(request)
+    cat = get_object_or_404(Categoria, pk=pk, organization=org_lookup)
     if request.method == "POST":
         try:
             cat.delete()
@@ -307,31 +410,35 @@ def _extrato_queryset(request):
     if data_fim < data_inicio:
         data_fim = data_inicio
 
-    qs = Movimento.objects.filter(usuario=request.user, data__gte=data_inicio, data__lte=data_fim).select_related(
-        "banco", "categoria"
-    )
-
-    banco_id = request.GET.get("banco")
-    if banco_id:
-        qs = qs.filter(banco_id=banco_id)
-
     tipo = request.GET.get("tipo") or "todos"
+    banco_id = request.GET.get("banco")
+    org = _caixa_organization(request)
+    if org is None:
+        return Movimento.objects.none(), data_inicio, data_fim, tipo, banco_id
+
+    qs = Movimento.objects.filter(
+        organization=org, data__gte=data_inicio, data__lte=data_fim
+    ).select_related("banco", "categoria")
+    if banco_id:
+        qs = qs.filter(banco_id=banco_id, banco__organization=org)
     if tipo == "receita":
         qs = qs.filter(categoria__tipo=Categoria.Tipo.RECEITA)
     elif tipo == "despesa":
         qs = qs.filter(categoria__tipo=Categoria.Tipo.DESPESA)
-
     return qs, data_inicio, data_fim, tipo, banco_id
 
 
-def _categorias_json_para_formulario(usuario):
+def _categorias_json_para_formulario(organization):
     """Receitas e despesas separadas para atualizar o select de categoria ao mudar o tipo."""
     data = {"receita": [], "despesa": []}
-    for c in Categoria.objects.filter(usuario=usuario).order_by("nome"):
+    if organization is None:
+        return data
+    for c in Categoria.objects.filter(organization=organization).order_by("nome"):
         data[c.tipo].append({"id": c.pk, "nome": c.nome})
     return data
 
 
+@perm_ver_caixa
 @login_required
 def extrato(request):
     qs, data_inicio, data_fim, tipo, banco_id = _extrato_queryset(request)
@@ -343,7 +450,8 @@ def extrato(request):
         qs.filter(categoria__tipo=Categoria.Tipo.DESPESA).aggregate(t=Sum("valor"))["t"] or Decimal("0")
     )
 
-    bancos_opts = Banco.objects.filter(usuario=request.user)
+    org = _caixa_organization(request)
+    bancos_opts = Banco.objects.filter(organization=org) if org else Banco.objects.none()
 
     return render(
         request,
@@ -362,56 +470,92 @@ def extrato(request):
     )
 
 
+@perm_gerir_caixa
 @login_required
 def movimento_novo(request):
     if request.method == "POST":
-        form = MovimentoForm(request.POST, usuario=request.user)
+        org, denied = reject_or_organization(request, "financeiro_extrato")
+        if denied:
+            return denied
+        form = MovimentoForm(request.POST, usuario=request.user, organization=org)
         if form.is_valid():
+            banco = form.cleaned_data["banco"]
+            categoria = form.cleaned_data["categoria"]
+            if not parent_in_organization(banco, org) or not parent_in_organization(
+                categoria, org
+            ):
+                messages.add_message(request, constants.ERROR, MSG_PARENT_TENANT)
+                return redirect("financeiro_extrato")
             m = form.save(commit=False)
             m.usuario = request.user
+            m.organization = org
             m.save()
             messages.add_message(request, constants.SUCCESS, "Lançamento registrado.")
             return redirect("financeiro_extrato")
     else:
-        form = MovimentoForm(usuario=request.user)
+        org = _caixa_organization(request)
+        form = MovimentoForm(usuario=request.user, organization=org)
     return render(
         request,
         "financeiro/movimento_form.html",
         {
             "form": form,
             "titulo": "Novo lançamento",
-            "categorias_json": _categorias_json_para_formulario(request.user),
+            "categorias_json": _categorias_json_para_formulario(org),
         },
     )
 
 
+@perm_gerir_caixa
 @login_required
 def movimento_editar(request, pk):
-    mov = get_object_or_404(Movimento, pk=pk, usuario=request.user)
+    org_lookup = _caixa_org_or_404(request)
+    mov = get_object_or_404(Movimento, pk=pk, organization=org_lookup)
+    original_org_id = mov.organization_id
     if request.method == "POST":
-        form = MovimentoForm(request.POST, instance=mov, usuario=request.user)
+        org, denied = reject_or_organization(request, "financeiro_extrato")
+        if denied:
+            return denied
+        if not update_allowed(mov, org):
+            messages.add_message(request, constants.ERROR, MSG_PARENT_TENANT)
+            return redirect("financeiro_extrato")
+        form = MovimentoForm(
+            request.POST, instance=mov, usuario=request.user, organization=org
+        )
         if form.is_valid():
+            banco = form.cleaned_data["banco"]
+            categoria = form.cleaned_data["categoria"]
+            if not parent_in_organization(banco, org) or not parent_in_organization(
+                categoria, org
+            ):
+                messages.add_message(request, constants.ERROR, MSG_PARENT_TENANT)
+                return redirect("financeiro_extrato")
             m = form.save(commit=False)
             m.usuario = request.user
+            preserve_organization(m, original_org_id)
             m.save()
             messages.add_message(request, constants.SUCCESS, "Lançamento atualizado.")
             return redirect("financeiro_extrato")
     else:
-        form = MovimentoForm(instance=mov, usuario=request.user)
+        form = MovimentoForm(
+            instance=mov, usuario=request.user, organization=org_lookup
+        )
     return render(
         request,
         "financeiro/movimento_form.html",
         {
             "form": form,
             "titulo": "Editar lançamento",
-            "categorias_json": _categorias_json_para_formulario(request.user),
+            "categorias_json": _categorias_json_para_formulario(org_lookup),
         },
     )
 
 
+@perm_gerir_caixa
 @login_required
 def movimento_excluir(request, pk):
-    mov = get_object_or_404(Movimento, pk=pk, usuario=request.user)
+    org_lookup = _caixa_org_or_404(request)
+    mov = get_object_or_404(Movimento, pk=pk, organization=org_lookup)
     if request.method == "POST":
         mov.delete()
         messages.add_message(request, constants.SUCCESS, "Lançamento excluído.")
@@ -419,7 +563,7 @@ def movimento_excluir(request, pk):
     return render(request, "financeiro/movimento_confirmar_exclusao.html", {"movimento": mov})
 
 
-@perm_ver_relatorios
+@perm_ver_caixa
 @login_required
 def relatorio_pdf(request):
     qs, data_inicio, data_fim, tipo, _banco_id = _extrato_queryset(request)
@@ -444,7 +588,8 @@ def relatorio_pdf(request):
             }
         )
 
-    bancos = Banco.objects.filter(usuario=request.user)
+    org = _caixa_organization(request)
+    bancos = Banco.objects.filter(organization=org) if org else Banco.objects.none()
     saldos_por_banco = [{"banco": b.nome, "saldo": b.saldo_atual()} for b in bancos]
 
     periodo_texto = f"{data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}"

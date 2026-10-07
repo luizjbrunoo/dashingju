@@ -7,6 +7,8 @@ from django.urls import reverse
 from marketing.choices import StatusConteudo, StatusIdeia, StatusIntegracao
 from marketing.models import ContentIdea, ContentItem, ContentPerformance, MarketingIntegracao
 from marketing.services.compliance import ComplianceService
+from marketing.tests_helpers import grant_marketing_permissions
+from organizacoes.models import Membership, Organization
 
 User = get_user_model()
 
@@ -15,14 +17,32 @@ class ConteudoIsolamentoTests(TestCase):
     def setUp(self):
         self.user_a = User.objects.create_user(username="adv_a", password="senha123")
         self.user_b = User.objects.create_user(username="adv_b", password="senha123")
+        self.org_a = Organization.objects.create(name="Mkt Org A")
+        self.org_b = Organization.objects.create(name="Mkt Org B")
+        Membership.objects.create(
+            user=self.user_a,
+            organization=self.org_a,
+            role=Membership.Role.MEMBER,
+            status=Membership.Status.ACTIVE,
+        )
+        Membership.objects.create(
+            user=self.user_b,
+            organization=self.org_b,
+            role=Membership.Role.MEMBER,
+            status=Membership.Status.ACTIVE,
+        )
+        grant_marketing_permissions(self.user_a)
+        grant_marketing_permissions(self.user_b)
         self.item_a = ContentItem.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             titulo="Conteúdo A",
             canal="blog",
             corpo="Texto original do artigo sobre direitos trabalhistas.",
         )
         self.ideia_a = ContentIdea.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             titulo="Ideia A",
             canal_sugerido="instagram",
         )
@@ -110,6 +130,7 @@ class ConteudoIsolamentoTests(TestCase):
     def test_reaproveitar_cria_derivados(self, mock_reaproveitar):
         derivado = ContentItem.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             titulo="Derivado LinkedIn",
             canal="linkedin",
             origem=self.item_a,
@@ -124,6 +145,7 @@ class ConteudoIsolamentoTests(TestCase):
     def test_reaproveitar_sem_texto_mostra_aviso(self):
         item_vazio = ContentItem.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             titulo="Vazio",
             canal="blog",
         )
@@ -166,6 +188,7 @@ class ConteudoIsolamentoTests(TestCase):
     def test_analytics_exibe_metricas_reais(self):
         item = ContentItem.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             titulo="Publicado",
             canal="blog",
             status=StatusConteudo.PUBLICADO,
@@ -183,6 +206,7 @@ class ConteudoIsolamentoTests(TestCase):
     def test_integracao_isolamento(self):
         MarketingIntegracao.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             plataforma="instagram",
             status=StatusIntegracao.PENDENTE,
         )

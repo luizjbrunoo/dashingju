@@ -1,0 +1,21 @@
+{% if clientes_pro and clientes_pro.tenant_ok %}
+<section class="mt-8 rounded-lg border border-zinc-800 bg-zinc-900/50" aria-labelledby="cliente-pro-timeline">
+  <div class="border-b border-zinc-800 px-6 py-4">
+    <h2 id="cliente-pro-timeline" class="text-sm font-semibold text-zinc-100">Linha do tempo</h2>
+    <p class="mt-0.5 text-[12px] text-zinc-500">Eventos reais do relacionamento neste escritório. Origem registrada não prova causalidade.</p>
+  </div>
+  {% if clientes_pro.timeline %}
+  <ol class="divide-y divide-zinc-800/80">
+    {% for ev in clientes_pro.timeline %}
+    <li class="px-6 py-3">
+      <p class="text-[11px] uppercase tracking-wide text-zinc-500">{{ ev.timestamp|date:"d/m/Y H:i" }} · {{ ev.tipo }}</p>
+      <p class="mt-0.5 text-sm text-zinc-200">{{ ev.titulo }}</p>
+      {% if ev.resumo %}<p class="mt-0.5 text-[12px] text-zinc-500">{{ ev.resumo }}</p>{% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="px-6 py-8 text-center text-sm text-zinc-500">Nenhum evento registrado.</p>
+  {% endif %}
+</section>
+{% endif %}

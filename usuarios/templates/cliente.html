@@ -22,10 +22,15 @@
             <h1>
               <div class="text-sm/6 text-zinc-500">{{ cliente.email }}</div>
               <div class="mt-1 text-base font-semibold text-zinc-100">{{ cliente.nome }}</div>
+              {% if detail_access_mode == 'basic' %}
+              <div class="mt-1 text-xs text-zinc-500">Visualização básica</div>
+              {% endif %}
             </h1>
           </div>
           <div class="flex items-center gap-x-4 sm:gap-x-6">
+            {% if detail_access_mode == 'full' %}
             <a href="{% url 'chat' cliente.id %}" class="rounded-md bg-bally px-3 py-2 text-sm font-semibold text-white shadow-md shadow-bally/25 hover:bg-bally-bright focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bally">Chat</a>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -41,6 +46,7 @@
           {% endfor %}
         </div>
       {% endif %}
+      {% include 'cliente/_pro_faixa.html' %}
       <div class="grid w-full grid-cols-1 items-start gap-x-8 gap-y-8 lg:grid-cols-3">
         <!-- Documentos -->
         <div class="lg:col-start-3 lg:row-end-1">
@@ -51,7 +57,7 @@
                 <dt class="text-zinc-500">Origem</dt>
                 <dd class="text-right text-zinc-200">{{ cliente.get_origem_display|default:"Origem não identificada" }}</dd>
               </div>
-              {% if cliente.utm_campaign %}
+              {% if detail_access_mode == 'full' and cliente.utm_campaign %}
               <div class="flex justify-between gap-4">
                 <dt class="text-zinc-500">Campanha</dt>
                 <dd class="text-right text-zinc-300">{{ cliente.utm_campaign }}</dd>
@@ -65,7 +71,7 @@
               </div>
             </dl>
           </div>
-          {% if cliente.status == 'em_prospeccao' %}
+          {% if detail_access_mode == 'full' and cliente.status == 'em_prospeccao' %}
             <div class="mb-6 rounded-lg border border-zinc-800 bg-zinc-900/50 shadow-xs">
               <div class="px-6 pt-6">
                 <h3 class="text-sm/6 font-semibold text-zinc-100">Funil de prospecção</h3>
@@ -97,6 +103,7 @@
               </form>
             </div>
           {% endif %}
+          {% if detail_access_mode == 'full' %}
           <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 shadow-xs">
             <div class="px-6 pt-6">
               <h3 class="text-sm/6 font-semibold text-zinc-100 mb-4">Documentos Cadastrados</h3>
@@ -116,12 +123,17 @@
                         </div>
                       </div>
                       {% if documento.arquivo %}
-                        <a href="{% url 'analise_jurisprudencia' documento.id %}" target="_blank" rel="noopener noreferrer" class="text-bally-bright hover:text-bally">
+                        <div class="flex items-center gap-2">
+                          {% if pode_baixar_documentos %}
+                            <a href="{% url 'documento_download' documento.id %}" class="text-bally-bright hover:text-bally" title="Baixar documento">Baixar</a>
+                          {% endif %}
+                          <a href="{% url 'analise_jurisprudencia' documento.id %}" target="_blank" rel="noopener noreferrer" class="text-bally-bright hover:text-bally">
                           <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path d="M12.232 4.232a2.5 2.5 0 0 1 3.536 3.536l-1.225 1.224a.75.75 0 0 0 1.061 1.06l1.224-1.224a4 4 0 0 0-5.656-5.656l-3 3a4 4 0 0 0 .225 5.865.75.75 0 0 0 .977-1.138 2.5 2.5 0 0 1-.142-3.667l3-3Z" />
                             <path d="M11.603 7.963a.75.75 0 0 0-.977 1.138 2.5 2.5 0 0 1 .142 3.667l-3 3a2.5 2.5 0 0 1-3.536-3.536l1.225-1.224a.75.75 0 0 0-1.061-1.06l-1.224 1.224a4 4 0 1 0 5.656 5.656l3-3a4 4 0 0 0-.225-5.865Z" />
                           </svg>
                         </a>
+                        </div>
                       {% endif %}
                     </div>
                   </li>
@@ -136,8 +148,10 @@
               </div>
             {% endif %}
           </div>
+          {% endif %}
         </div>
 
+        {% if detail_access_mode == 'full' %}
         <!-- Main content -->
         <div class="-mx-4 border border-zinc-800/80 bg-zinc-900/30 px-4 py-8 shadow-xs sm:mx-0 sm:rounded-lg sm:px-8 sm:pb-14 lg:col-span-2 lg:row-span-2 lg:row-end-2 xl:px-16 xl:pt-16 xl:pb-20">
           {% include 'cliente/_agenda_bloco.html' %}
@@ -193,7 +207,13 @@
               </button>
             </div>
           </form>
+          {% include 'cliente/_pro_timeline.html' %}
         </div>
+        {% else %}
+        <div class="lg:col-span-2">
+          {% include 'cliente/_pro_timeline.html' %}
+        </div>
+        {% endif %}
 
 
       </div>

@@ -232,6 +232,7 @@ class ResumoDiaMes:
     tarefas: int = 0
     audiencias: int = 0
     prazos: int = 0
+    atencao: int = 0
 
     @property
     def total(self) -> int:
@@ -269,16 +270,25 @@ _ORDEM_PRIORIDADE = {
 }
 
 
+def _item_pro_elevado(obj) -> bool:
+    pro = getattr(obj, "agenda_pro", None)
+    return bool(pro and getattr(pro, "elevado", False))
+
+
 def _calcular_resumo_dia_mes(compromissos, tarefas) -> ResumoDiaMes:
     audiencias = sum(
         1 for c in compromissos if c.tipo == TipoCompromisso.AUDIENCIA
     )
     prazos = sum(1 for c in compromissos if c.tipo == TipoCompromisso.PRAZO)
+    atencao = sum(1 for c in compromissos if _item_pro_elevado(c)) + sum(
+        1 for t in tarefas if _item_pro_elevado(t)
+    )
     return ResumoDiaMes(
         compromissos=len(compromissos),
         tarefas=len(tarefas),
         audiencias=audiencias,
         prazos=prazos,
+        atencao=atencao,
     )
 
 
@@ -573,14 +583,14 @@ def _url_agenda_tarefa(pk: int) -> str:
     return f"{reverse('agenda')}?modal=tarefa&tarefa_id={pk}"
 
 
-def calcular_kpis(user, ref: date | None = None) -> AgendaKpis:
+def calcular_kpis(organization, ref: date | None = None) -> AgendaKpis:
     ref = ref or timezone.localdate()
     ini_sem = inicio_semana(ref)
     fim_sem = fim_semana(ref)
     fim_proximos = ref + timedelta(days=DIAS_PRAZOS_PROXIMOS)
 
-    base_c = _base_compromissos(user)
-    base_t = _base_tarefas(user)
+    base_c = _base_compromissos(organization)
+    base_t = _base_tarefas(organization)
 
     tarefas_atrasadas = base_t.filter(
         prazo__lt=ref,
@@ -614,7 +624,7 @@ def calcular_kpis(user, ref: date | None = None) -> AgendaKpis:
     )
 
 
-def itens_atencao(user, ref: date | None = None, limit: int = 8) -> list[ItemAtencao]:
+def itens_atencao(organization, ref: date | None = None, limit: int = 8) -> list[ItemAtencao]:
     ref = ref or timezone.localdate()
     fim_proximos = ref + timedelta(days=2)
     resultado: list[ItemAtencao] = []
@@ -630,13 +640,13 @@ def itens_atencao(user, ref: date | None = None, limit: int = 8) -> list[ItemAte
     try:
         from financeiro.services.cobranca_agenda import cobrancas_itens_atencao
 
-        for item in cobrancas_itens_atencao(user, ref=ref, limit=limit):
+        for item in cobrancas_itens_atencao(organization, ref=ref, limit=limit):
             adicionar(item)
     except ImportError:
         pass
 
     for t in (
-        _base_tarefas(user)
+        _base_tarefas(organization)
         .filter(
             prazo__lt=ref,
             status__in=[StatusTarefa.PENDENTE, StatusTarefa.EM_ANDAMENTO],
@@ -658,7 +668,7 @@ def itens_atencao(user, ref: date | None = None, limit: int = 8) -> list[ItemAte
         )
 
     for t in (
-        _base_tarefas(user)
+        _base_tarefas(organization)
         .filter(
             prazo=ref,
             status__in=[StatusTarefa.PENDENTE, StatusTarefa.EM_ANDAMENTO],
@@ -679,7 +689,7 @@ def itens_atencao(user, ref: date | None = None, limit: int = 8) -> list[ItemAte
         )
 
     for c in (
-        _base_compromissos(user)
+        _base_compromissos(organization)
         .filter(
             tipo=TipoCompromisso.PRAZO,
             prazo_interno__isnull=False,
@@ -702,7 +712,7 @@ def itens_atencao(user, ref: date | None = None, limit: int = 8) -> list[ItemAte
         )
 
     for c in (
-        _base_compromissos(user)
+        _base_compromissos(organization)
         .filter(
             tipo=TipoCompromisso.PRAZO,
             prazo_interno__isnull=False,
@@ -725,7 +735,7 @@ def itens_atencao(user, ref: date | None = None, limit: int = 8) -> list[ItemAte
         )
 
     for c in (
-        _base_compromissos(user)
+        _base_compromissos(organization)
         .filter(
             tipo=TipoCompromisso.PRAZO,
             prazo_oficial__isnull=False,
@@ -748,7 +758,7 @@ def itens_atencao(user, ref: date | None = None, limit: int = 8) -> list[ItemAte
         )
 
     for c in (
-        _base_compromissos(user)
+        _base_compromissos(organization)
         .filter(
             tipo=TipoCompromisso.CONSULTA,
             status__in=[StatusCompromisso.AGENDADO, StatusCompromisso.CONFIRMADO],
@@ -774,7 +784,7 @@ def itens_atencao(user, ref: date | None = None, limit: int = 8) -> list[ItemAte
         )
 
     for c in (
-        _base_compromissos(user)
+        _base_compromissos(organization)
         .filter(
             data_hora__date=ref,
             prioridade__in=[Prioridade.URGENTE, Prioridade.ALTA],
@@ -795,7 +805,7 @@ def itens_atencao(user, ref: date | None = None, limit: int = 8) -> list[ItemAte
         )
 
     for c in (
-        _base_compromissos(user)
+        _base_compromissos(organization)
         .filter(
             tipo__in=[TipoCompromisso.PRAZO, TipoCompromisso.AUDIENCIA],
             data_hora__date__gt=ref,
@@ -817,7 +827,7 @@ def itens_atencao(user, ref: date | None = None, limit: int = 8) -> list[ItemAte
         )
 
     for t in (
-        _base_tarefas(user)
+        _base_tarefas(organization)
         .filter(
             prioridade=Prioridade.URGENTE,
             status__in=[StatusTarefa.PENDENTE, StatusTarefa.EM_ANDAMENTO],
@@ -877,18 +887,22 @@ def _int_param(get_params, name: str) -> Optional[int]:
         return None
 
 
-def _base_compromissos(user) -> QuerySet[Compromisso]:
+def _base_compromissos(organization) -> QuerySet[Compromisso]:
+    if organization is None:
+        return Compromisso.objects.none()
     return (
-        Compromisso.objects.filter(user=user)
+        Compromisso.objects.filter(organization=organization)
         .exclude(status=StatusCompromisso.CANCELADO)
         .select_related("cliente", "responsavel")
         .prefetch_related("participantes__usuario")
     )
 
 
-def _base_tarefas(user) -> QuerySet[Tarefa]:
+def _base_tarefas(organization) -> QuerySet[Tarefa]:
+    if organization is None:
+        return Tarefa.objects.none()
     return (
-        Tarefa.objects.filter(user=user)
+        Tarefa.objects.filter(organization=organization)
         .exclude(status=StatusTarefa.CANCELADA)
         .select_related("cliente", "responsavel")
     )
@@ -928,11 +942,14 @@ def _aplicar_filtros_tarefas(qs: QuerySet[Tarefa], filtros: AgendaFiltros) -> Qu
     return qs
 
 
-def compromissos_para_agenda(user, filtros: AgendaFiltros) -> QuerySet[Compromisso]:
+def compromissos_para_agenda(
+    organization, filtros: AgendaFiltros, *, user=None
+) -> QuerySet[Compromisso]:
     qs = filtrar_compromissos_escopo(
-        _aplicar_filtros_compromissos(_base_compromissos(user), filtros),
+        _aplicar_filtros_compromissos(_base_compromissos(organization), filtros),
         user,
         filtros.escopo,
+        organization=organization,
     )
 
     if filtros.view == VIEW_HOJE:
@@ -948,17 +965,25 @@ def compromissos_para_agenda(user, filtros: AgendaFiltros) -> QuerySet[Compromis
     return qs.order_by("data_hora")
 
 
-def tarefas_para_agenda(user, filtros: AgendaFiltros) -> QuerySet[Tarefa]:
+def tarefas_para_agenda(
+    organization, filtros: AgendaFiltros, *, user=None
+) -> QuerySet[Tarefa]:
     if filtros.status_tarefa == StatusTarefa.CANCELADA:
+        if organization is None:
+            return Tarefa.objects.none()
         qs = Tarefa.objects.filter(
-            user=user, status=StatusTarefa.CANCELADA
+            organization=organization, status=StatusTarefa.CANCELADA
         ).select_related("cliente", "responsavel")
         qs = _aplicar_filtros_tarefas(qs, filtros)
-        qs = filtrar_tarefas_escopo(qs, user, filtros.escopo)
+        qs = filtrar_tarefas_escopo(
+            qs, user, filtros.escopo, organization=organization
+        )
         return qs.order_by("prazo", "criado_em")
 
-    qs = _aplicar_filtros_tarefas(_base_tarefas(user), filtros)
-    qs = filtrar_tarefas_escopo(qs, user, filtros.escopo)
+    qs = _aplicar_filtros_tarefas(_base_tarefas(organization), filtros)
+    qs = filtrar_tarefas_escopo(
+        qs, user, filtros.escopo, organization=organization
+    )
 
     if filtros.view == VIEW_HOJE:
         hoje = filtros.data_referencia
@@ -989,8 +1014,10 @@ def tarefas_para_agenda(user, filtros: AgendaFiltros) -> QuerySet[Tarefa]:
     return qs.order_by("prazo", "criado_em")
 
 
-def clientes_para_filtro(user) -> QuerySet[Cliente]:
-    return Cliente.objects.filter(user=user).order_by("nome")
+def clientes_para_filtro(organization) -> QuerySet[Cliente]:
+    if organization is None:
+        return Cliente.objects.none()
+    return Cliente.objects.filter(organization=organization).order_by("nome")
 
 
 def registrar_audit(

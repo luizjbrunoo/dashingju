@@ -14,11 +14,11 @@
   <div class="mt-4 grid grid-cols-1 gap-3 px-6 sm:grid-cols-2 lg:grid-cols-4">
     <div class="rounded-lg border border-zinc-800 bg-zinc-950/40 px-4 py-3">
       <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">A receber</p>
-      <p class="mt-1 text-xl font-semibold text-bally-bright">R$ {{ financeiro_resumo.a_receber|floatformat:2 }}</p>
+      <p class="mt-1 text-xl font-semibold text-bally-bright">R$ {{ financeiro_resumo.a_receber|brnum:2 }}</p>
     </div>
     <div class="rounded-lg border border-zinc-800 bg-zinc-950/40 px-4 py-3">
       <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Vencido</p>
-      <p class="mt-1 text-xl font-semibold {% if financeiro_resumo.vencido %}text-red-300{% else %}text-zinc-100{% endif %}">R$ {{ financeiro_resumo.vencido|floatformat:2 }}</p>
+      <p class="mt-1 text-xl font-semibold {% if financeiro_resumo.vencido %}text-red-300{% else %}text-zinc-100{% endif %}">R$ {{ financeiro_resumo.vencido|brnum:2 }}</p>
     </div>
     <div class="rounded-lg border border-zinc-800 bg-zinc-950/40 px-4 py-3">
       <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Contratos ativos</p>
@@ -39,7 +39,7 @@
             <li class="flex items-center justify-between gap-3 px-4 py-3">
               <div>
                 <p class="text-sm font-medium text-zinc-100">{{ contrato.referencia }} — {{ contrato.descricao|truncatechars:40 }}</p>
-                <p class="mt-0.5 text-xs text-zinc-500">{{ contrato.get_status_display }} · R$ {{ contrato.valor_total|floatformat:2 }}</p>
+                <p class="mt-0.5 text-xs text-zinc-500">{{ contrato.get_status_display }} · R$ {{ contrato.valor_total|brnum:2 }}</p>
               </div>
               <a href="{% url 'financeiro_contrato_detalhe' contrato.pk %}" class="shrink-0 text-xs text-bally-bright hover:underline">Ver</a>
             </li>
@@ -64,7 +64,7 @@
                   · Venc. {{ cobranca.data_vencimento|date:"d/m/Y" }}
                 </p>
               </div>
-              <a href="{% url 'financeiro_cobranca_detalhe' cobranca.pk %}" class="shrink-0 font-mono text-xs text-bally-bright hover:underline">R$ {{ cobranca.saldo|floatformat:2 }}</a>
+              <a href="{% url 'financeiro_cobranca_detalhe' cobranca.pk %}" class="shrink-0 font-mono text-xs text-bally-bright hover:underline">R$ {{ cobranca.saldo|brnum:2 }}</a>
             </li>
           {% endfor %}
         </ul>

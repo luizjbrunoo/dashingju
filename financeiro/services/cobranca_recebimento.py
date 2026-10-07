@@ -36,18 +36,27 @@ def registrar_recebimento(
     referencia: str = "",
     observacao: str = "",
     autor,
+    organization,
+    movimento=None,
 ) -> CobrancaRecebimento:
+    from financeiro.tenancy_write import assert_parent_organization
+
     validar_valor_recebimento(cobranca, valor)
+    assert_parent_organization(cobranca, organization)
+    if movimento is not None:
+        assert_parent_organization(movimento, organization)
 
     recebimento = CobrancaRecebimento.objects.create(
         cobranca=cobranca,
         usuario=cobranca.usuario,
+        organization=organization,
         valor=valor,
         data_recebimento=data_recebimento,
         forma_pagamento=forma_pagamento,
         referencia=referencia,
         observacao=observacao,
         registrado_por=autor,
+        movimento=movimento,
     )
     cobranca.atualizar_status(salvar=True)
     if cobranca.saldo <= 0:

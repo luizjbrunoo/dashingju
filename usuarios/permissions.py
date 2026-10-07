@@ -9,6 +9,7 @@ PERM_CREATE_AGENDA = "usuarios.create_agenda"
 PERM_EDIT_AGENDA = "usuarios.edit_agenda"
 PERM_CANCEL_AGENDA = "usuarios.cancel_agenda"
 PERM_VIEW_AUDIT_AGENDA = "usuarios.view_audit_agenda"
+PERM_VIEW_DOCUMENTOS = "usuarios.view_documentos"
 
 TODAS_PERMISSOES_AGENDA = (
     PERM_VIEW_AGENDA,
@@ -18,17 +19,21 @@ TODAS_PERMISSOES_AGENDA = (
     PERM_VIEW_AUDIT_AGENDA,
 )
 
+TODAS_PERMISSOES_DOCUMENTOS = (PERM_VIEW_DOCUMENTOS,)
+
 
 def rbac_restritivo(user) -> bool:
-    """Usuários em grupos Django obedecem RBAC; demais mantêm acesso legado."""
-    return user.groups.exists()
+    """RBAC da Agenda é sempre restritivo (fail-closed). Membership ≠ capability."""
+    return True
 
 
 def _tem_perm(user, perm: str) -> bool:
-    if user.is_superuser:
-        return True
-    if not rbac_restritivo(user):
-        return True
+    """Fail-closed. Sem Group / Group vazio / Membership não concedem acesso.
+
+    Superuser segue o has_perm do Django (capability explícita), não fallback de tenant.
+    """
+    if not getattr(user, "is_authenticated", False):
+        return False
     return user.has_perm(perm)
 
 
@@ -71,3 +76,8 @@ def pode_cancelar_agenda(user) -> bool:
 
 def pode_ver_auditoria_agenda(user) -> bool:
     return _tem_perm(user, PERM_VIEW_AUDIT_AGENDA)
+
+
+def pode_baixar_documento(user) -> bool:
+    """Capability de download. Membership/same-org não bastam."""
+    return _tem_perm(user, PERM_VIEW_DOCUMENTOS)

@@ -152,6 +152,7 @@ class ReaproveitamentoService:
     ) -> ContentItem:
         return ContentItem.objects.create(
             usuario=user,
+            organization=getattr(origem, "organization", None),
             origem=origem,
             titulo=titulo or f"{origem.titulo[:200]} ({sufixo})",
             tema=origem.tema,

@@ -80,6 +80,15 @@
                         <option value="inativo" {% if status_filter == "inativo" %}selected{% endif %}>Inativo</option>
                     </select>
                 </div>
+                <div class="flex w-full flex-col gap-1.5 md:w-auto">
+                    <label for="atencao" class="text-xs font-medium text-zinc-500">Atenção</label>
+                    <select id="atencao" name="atencao"
+                            class="w-full min-w-[12rem] rounded-xl border border-zinc-700 bg-zinc-950/50 pl-4 pr-10 py-2.5 text-sm text-zinc-200 focus:border-bally/50 focus:ring-2 focus:ring-bally/30 md:w-auto"
+                            onchange="this.form.submit()">
+                        <option value="" {% if not atencao_filter %}selected{% endif %}>Todos</option>
+                        <option value="1" {% if atencao_filter == "1" %}selected{% endif %}>Com atenção</option>
+                    </select>
+                </div>
                 <div class="flex gap-2 md:items-end">
                     <button type="submit"
                             class="rounded-xl border border-zinc-700 bg-zinc-800/80 px-4 py-2.5 text-sm font-medium text-zinc-200 hover:border-bally/40 hover:text-bally-bright">
@@ -96,6 +105,7 @@
                             <th>Tipo</th>
                             <th>Status</th>
                             <th>Fase do funil</th>
+                            <th>Atenção</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -116,10 +126,24 @@
                                     —
                                 {% endif %}
                             </td>
+                            <td class="p-4 text-center">
+                                {% if cliente.pro_sinal %}
+                                <span class="rounded-full px-3 py-1 text-xs border
+                                    {% if cliente.pro_sinal.health == 'critico' %}border-red-900/50 bg-red-950/60 text-red-300
+                                    {% elif cliente.pro_sinal.health == 'atencao' %}border-amber-700/50 bg-amber-950/40 text-amber-300
+                                    {% elif cliente.pro_sinal.health == 'saudavel' %}border-bally/30 bg-bally-muted/50 text-bally-bright
+                                    {% else %}border-zinc-700 text-zinc-400{% endif %}">{{ cliente.pro_sinal.health_label }}</span>
+                                {% if cliente.pro_sinal.tem_proxima %}
+                                <span class="mt-1 block text-[10px] text-zinc-500">Com próxima ação</span>
+                                {% endif %}
+                                {% else %}
+                                <span class="text-zinc-500">—</span>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="5" class="rounded-xl border border-zinc-800/60 bg-zinc-900/30 p-8 text-center text-sm text-zinc-500">
+                            <td colspan="6" class="rounded-xl border border-zinc-800/60 bg-zinc-900/30 p-8 text-center text-sm text-zinc-500">
                                 Nenhum cliente encontrado com os filtros atuais.
                             </td>
                         </tr>

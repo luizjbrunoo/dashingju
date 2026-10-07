@@ -17,7 +17,7 @@
     <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div class="rounded-lg border border-red-900/40 bg-red-950/20 px-4 py-3">
             <p class="text-[10px] font-medium uppercase tracking-wide text-red-400">Total vencido</p>
-            <p class="mt-1 font-mono text-lg font-semibold text-red-300">R$ {{ resumo.total_vencido|floatformat:2 }}</p>
+            <p class="mt-1 font-mono text-lg font-semibold text-red-300">R$ {{ resumo.total_vencido|brnum:2 }}</p>
         </div>
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
             <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Cobranças vencidas</p>
@@ -31,7 +31,7 @@
             <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Maior faixa</p>
             {% if maior_faixa %}
                 <p class="mt-1 text-sm font-medium text-zinc-200">{{ maior_faixa.rotulo }}</p>
-                <p class="font-mono text-xs text-red-300">R$ {{ maior_faixa.total|floatformat:2 }}</p>
+                <p class="font-mono text-xs text-red-300">R$ {{ maior_faixa.total|brnum:2 }}</p>
             {% else %}
                 <p class="mt-1 text-sm text-zinc-500">—</p>
             {% endif %}
@@ -48,7 +48,7 @@
                             <p class="text-sm font-medium text-zinc-200">{{ faixa.rotulo }}</p>
                             <p class="text-xs text-zinc-500">{{ faixa.quantidade }} cobrança{{ faixa.quantidade|pluralize:"s" }}</p>
                         </div>
-                        <p class="font-mono text-sm {% if faixa.total %}text-red-300{% else %}text-zinc-500{% endif %}">R$ {{ faixa.total|floatformat:2 }}</p>
+                        <p class="font-mono text-sm {% if faixa.total %}text-red-300{% else %}text-zinc-500{% endif %}">R$ {{ faixa.total|brnum:2 }}</p>
                     </div>
                 {% endfor %}
             </div>
@@ -65,7 +65,7 @@
                                 <p class="text-xs text-zinc-500">{{ item.cobrancas }} cobrança{{ item.cobrancas|pluralize:"s" }} · até {{ item.dias_atraso_max }} dias de atraso</p>
                             </div>
                             <div class="text-right">
-                                <p class="font-mono text-sm text-red-300">R$ {{ item.saldo_vencido|floatformat:2 }}</p>
+                                <p class="font-mono text-sm text-red-300">R$ {{ item.saldo_vencido|brnum:2 }}</p>
                                 <a href="{% url 'financeiro_cobranca_listar' %}?cliente={{ item.cliente_id }}&status=overdue" class="text-xs text-bally-bright hover:underline">Ver</a>
                             </div>
                         </li>
@@ -94,7 +94,7 @@
                     <tr class="bg-red-950/10 hover:bg-red-950/20">
                         <td class="px-4 py-3 text-zinc-200">{{ cobranca.cliente.nome }}</td>
                         <td class="px-4 py-3 text-zinc-300">{{ cobranca.descricao }}</td>
-                        <td class="px-4 py-3 font-mono text-red-300">R$ {{ cobranca.saldo_exibicao|floatformat:2 }}</td>
+                        <td class="px-4 py-3 font-mono text-red-300">R$ {{ cobranca.saldo_exibicao|brnum:2 }}</td>
                         <td class="px-4 py-3 font-mono text-red-300">{{ cobranca.data_vencimento|date:"d/m/Y" }}</td>
                         <td class="px-4 py-3 text-xs text-red-400">{{ cobranca.dias_atraso }} dia{{ cobranca.dias_atraso|pluralize:"s" }}</td>
                         <td class="px-4 py-3"><a href="{% url 'financeiro_cobranca_detalhe' cobranca.pk %}" class="text-bally-bright hover:underline">Ver</a></td>

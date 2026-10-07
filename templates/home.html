@@ -1,12 +1,42 @@
 {% extends 'base.html' %}
 
 {% block 'body' %}
+{% if not request.user.is_authenticated %}
 <div class="min-h-screen flex items-center justify-center">
     <div class="text-center">
-        <h1 class="text-2xl font-semibold text-zinc-100">Bem-vindo ao DashingJu</h1>
+        {% if messages %}
+        <div class="mb-6 space-y-2 text-left">
+            {% for message in messages %}
+            <p class="rounded-md px-3 py-2 text-sm text-red-300">{{ message }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+        <h1 class="text-2xl font-semibold text-zinc-100">Bem-vindo ao ADV Growth 90</h1>
         <p class="mt-2 text-zinc-400">
             <a href="{% url 'cadastro' %}" class="font-medium text-bally-bright hover:text-bally hover:underline">Cadastre-se</a>
+            <span class="text-zinc-600"> · </span>
+            <a href="{% url 'login' %}" class="font-medium text-bally-bright hover:text-bally hover:underline">Entrar</a>
         </p>
     </div>
 </div>
+{% else %}
+<main class="app-shell py-8 md:py-10">
+    {% include '_modulos_nav.html' with current='home' %}
+    {% if messages %}
+    <div class="mt-4 space-y-2">
+        {% for message in messages %}
+        <p class="rounded-md border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-sm text-zinc-300">{{ message }}</p>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% if not tenant_ok %}
+    <section class="mt-8 rounded-xl border border-zinc-800 bg-zinc-900/50 p-6">
+        <h1 class="text-lg font-semibold text-zinc-100">Home Executiva</h1>
+        <p class="mt-2 text-sm text-zinc-400">Não foi possível determinar o escritório ativo para esta visão.</p>
+    </section>
+    {% else %}
+        {% include 'home_executiva.html' %}
+    {% endif %}
+</main>
+{% endif %}
 {% endblock 'body' %}

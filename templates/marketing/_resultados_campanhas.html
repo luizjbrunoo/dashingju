@@ -42,16 +42,16 @@
                 <tr class="hover:bg-zinc-950/30">
                     <td class="px-4 py-2.5 font-medium text-zinc-200">{{ c.label }}</td>
                     <td class="px-4 py-2.5 text-right tabular-nums text-zinc-300">
-                        {% if c.investimento is not None %}R$ {{ c.investimento|floatformat:2 }}{% if c.investimento_demo %}<span class="text-amber-300/90"> demo</span>{% endif %}{% else %}—{% endif %}
+                        {% if c.investimento is not None %}R$ {{ c.investimento|brnum:2 }}{% if c.investimento_demo %}<span class="text-amber-300/90"> demo</span>{% endif %}{% else %}—{% endif %}
                     </td>
-                    <td class="px-4 py-2.5 text-right tabular-nums text-bally-bright">{{ c.leads }}</td>
-                    <td class="px-4 py-2.5 text-right tabular-nums text-zinc-300">{{ c.consultas_realizadas }}</td>
-                    <td class="px-4 py-2.5 text-right tabular-nums text-zinc-300">{{ c.contratos }}</td>
+                    <td class="px-4 py-2.5 text-right tabular-nums text-bally-bright">{{ c.leads|brnum:0 }}</td>
+                    <td class="px-4 py-2.5 text-right tabular-nums text-zinc-300">{{ c.consultas_realizadas|brnum:0 }}</td>
+                    <td class="px-4 py-2.5 text-right tabular-nums text-zinc-300">{{ c.contratos|brnum:0 }}</td>
                     {% if not ctx_resultados.ocultar_financeiro %}
-                    <td class="px-4 py-2.5 text-right tabular-nums text-zinc-300">R$ {{ c.receita_contratada|floatformat:2 }}</td>
+                    <td class="px-4 py-2.5 text-right tabular-nums text-zinc-300">R$ {{ c.receita_contratada|brnum:2 }}</td>
                     {% endif %}
-                    <td class="px-4 py-2.5 text-right tabular-nums text-zinc-400">{% if c.cpl is not None %}R$ {{ c.cpl|floatformat:2 }}{% else %}—{% endif %}</td>
-                    <td class="px-4 py-2.5 text-right tabular-nums text-zinc-400">{% if c.cac_midia is not None %}R$ {{ c.cac_midia|floatformat:2 }}{% else %}—{% endif %}</td>
+                    <td class="px-4 py-2.5 text-right tabular-nums text-zinc-400">{% if c.cpl is not None %}R$ {{ c.cpl|brnum:2 }}{% else %}—{% endif %}</td>
+                    <td class="px-4 py-2.5 text-right tabular-nums text-zinc-400">{% if c.cac_midia is not None %}R$ {{ c.cac_midia|brnum:2 }}{% else %}—{% endif %}</td>
                     <td class="px-4 py-2.5 text-right tabular-nums text-zinc-400">{% if c.conv_lead_contrato_pct is not None %}{{ c.conv_lead_contrato_pct|floatformat:1 }}%{% else %}—{% endif %}</td>
                     {% if not ctx_resultados.ocultar_financeiro %}
                     <td class="px-4 py-2.5 text-right tabular-nums text-emerald-400">{% if c.receita_midia_ratio is not None %}{{ c.receita_midia_ratio|floatformat:2 }}x{% else %}—{% endif %}</td>

@@ -118,17 +118,19 @@ class ContentItemForm(forms.ModelForm):
             "corpo": forms.Textarea(attrs={"class": _INPUT_CLASS, "rows": 10}),
         }
 
-    def __init__(self, *args, areas_juridicas=None, usuario=None, **kwargs):
+    def __init__(self, *args, areas_juridicas=None, usuario=None, organization=None, **kwargs):
         super().__init__(*args, **kwargs)
         areas = areas_juridicas or AREAS_JURIDICAS_PADRAO
         self.fields["area_juridica"].widget = forms.Select(
             attrs={"class": _SELECT_CLASS},
             choices=[("", "Selecione")] + [(a, a) for a in areas],
         )
-        if usuario:
-            self.fields["conteudo_origem"].queryset = ContentItem.objects.filter(
-                usuario=usuario
-            ).exclude(pk=self.instance.pk if self.instance.pk else None)
+        origem_qs = ContentItem.objects.none()
+        if organization is not None:
+            origem_qs = ContentItem.objects.filter(organization=organization)
+        self.fields["conteudo_origem"].queryset = origem_qs.exclude(
+            pk=self.instance.pk if self.instance.pk else None
+        )
         canal = self.data.get("canal") if self.data.get("canal") else None
         if not canal and self.instance and self.instance.pk:
             canal = self.instance.canal

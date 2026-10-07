@@ -1,11 +1,12 @@
+import os
 import requests
 from urllib.parse import urlencode, urljoin
 
 class EvolutionAPI:
     def __init__(self):
-        self.BASE_URL = 'http://evolution-api-production-9f4f.up.railway.app'
+        self.BASE_URL = os.environ.get("EVOLUTION_API_BASE_URL") or ""
         self._API_KEY = {
-            'dashing' : 6viadzqpy8544equio2yt3
+            "dashing": os.environ.get("EVOLUTION_INSTANCE_KEY") or "",
         }
 
     def _send_request(
@@ -49,7 +50,12 @@ class EvolutionAPI:
         return url
 
     def get_token(self):
-        response = requests.post(urljoin(self.base_url, 'api/v1/auth/login'), json={'email': 'admin@gmail.com', 'password': '123456'})
+        email = os.environ.get("EVOLUTION_LOGIN_EMAIL") or ""
+        password = os.environ.get("EVOLUTION_LOGIN_PASSWORD") or ""
+        response = requests.post(
+            urljoin(self.base_url, "api/v1/auth/login"),
+            json={"email": email, "password": password},
+        )
         return response.json()['access_token']
 
     def get_user(self):
@@ -60,9 +66,3 @@ class SendMessage(EvolutionAPI):
     def send_message(self, instance, body):
         path = f'/message/sendText/{instance}/'
         return self._send_request(path, method='POST', body=body)
-
-
-        
-
-
-

@@ -95,34 +95,49 @@ def limpar_resumo_ia_sessao(request, user_id: int, ref: date) -> None:
         request.session.modified = True
 
 
-def _aplicar_filtros_resumo(user, base_c, base_t, filtros):
+def _aplicar_filtros_resumo(user, base_c, base_t, filtros, *, organization=None):
     if not filtros:
         return base_c, base_t
     from usuarios.services.agenda import (
         _aplicar_filtros_compromissos,
         _aplicar_filtros_tarefas,
     )
-    from usuarios.services.agenda_equipe import filtrar_compromissos_escopo
+    from usuarios.services.agenda_equipe import (
+        filtrar_compromissos_escopo,
+        filtrar_tarefas_escopo,
+    )
 
     base_c = filtrar_compromissos_escopo(
         _aplicar_filtros_compromissos(base_c, filtros),
         user,
         filtros.escopo,
+        organization=organization,
     )
-    base_t = _aplicar_filtros_tarefas(base_t, filtros)
+    base_t = filtrar_tarefas_escopo(
+        _aplicar_filtros_tarefas(base_t, filtros),
+        user,
+        filtros.escopo,
+        organization=organization,
+    )
     return base_c, base_t
 
 
 def montar_contexto_resumo_dia(
-    user,
+    organization,
     ref: date | None = None,
     filtros=None,
+    *,
+    user=None,
 ) -> dict:
     ref = ref or timezone.localdate()
     amanha = ref + timedelta(days=1)
-    kpis = calcular_kpis(user, ref)
+    kpis = calcular_kpis(organization, ref)
     base_c, base_t = _aplicar_filtros_resumo(
-        user, _base_compromissos(user), _base_tarefas(user), filtros
+        user,
+        _base_compromissos(organization),
+        _base_tarefas(organization),
+        filtros,
+        organization=organization,
     )
 
     compromissos_hoje = list(
@@ -161,7 +176,7 @@ def montar_contexto_resumo_dia(
             StatusConfirmacaoConsulta.PENDENTE,
         )
     ).count()
-    atencao = itens_atencao(user, ref, limit=6)
+    atencao = itens_atencao(organization, ref, limit=6)
     if filtros and filtros.processo:
         proc = filtros.processo.lower()
         atencao = [item for item in atencao if proc in (item.titulo or "").lower()]
@@ -335,11 +350,14 @@ def obter_resumo_dia(
     request=None,
     filtros=None,
     forcar_padrao: bool = False,
+    organization=None,
 ) -> ResumoDiaAgenda:
     ref = ref or timezone.localdate()
     if not forcar_padrao and request:
         cached = ler_resumo_ia_sessao(request, user.pk, ref)
         if cached:
             return cached
-    ctx = montar_contexto_resumo_dia(user, ref, filtros=filtros)
+    ctx = montar_contexto_resumo_dia(
+        organization, ref, filtros=filtros, user=user
+    )
     return gerar_resumo_padrao(ctx)

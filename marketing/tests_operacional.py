@@ -17,6 +17,8 @@ from marketing.services.resultados_operacional import (
     queryset_leads_sem_proxima_acao,
     url_lista_clientes_mkt,
 )
+from marketing.tests_helpers import grant_marketing_permissions
+from organizacoes.models import Membership, Organization
 from usuarios.choices import OrigemLead, StatusCompromisso, TipoCompromisso
 from usuarios.models import Cliente, Compromisso
 
@@ -33,12 +35,21 @@ def _dt_no_dia(d, hora=10):
 class ResultadosOperacionalFase10Tests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="mkt_f10", password="senha123")
+        self.org = Organization.objects.create(name="Mkt F10 Org")
+        Membership.objects.create(
+            user=self.user,
+            organization=self.org,
+            role=Membership.Role.MEMBER,
+            status=Membership.Status.ACTIVE,
+        )
+        grant_marketing_permissions(self.user)
         self.http = Client()
         self.http.login(username="mkt_f10", password="senha123")
         self.hoje = timezone.localdate()
         self.periodo = PeriodoMarketing.ultimos_dias(30, referencia=self.hoje)
 
     def _lead(self, nome, email, **kwargs):
+        kwargs.setdefault("organization", self.org)
         return Cliente.objects.create(
             user=self.user,
             nome=nome,
@@ -50,30 +61,44 @@ class ResultadosOperacionalFase10Tests(TestCase):
 
     def test_lead_sem_acao_sem_compromisso_nem_tarefa(self):
         lead = self._lead("Sem Acao", "sem@test.com")
-        self.assertEqual(queryset_leads_sem_proxima_acao(self.user, self.periodo).get(), lead)
+        self.assertEqual(
+            queryset_leads_sem_proxima_acao(
+                self.user, self.periodo, organization=self.org
+            ).get(),
+            lead,
+        )
 
     def test_lead_com_compromisso_futuro_nao_conta_sem_acao(self):
         lead = self._lead("Com Agenda", "agenda@test.com")
         Compromisso.objects.create(
             user=self.user,
+            organization=self.org,
             cliente=lead,
             titulo="Consulta",
             tipo=TipoCompromisso.CONSULTA,
             data_hora=_dt_no_dia(self.hoje + timedelta(days=2)),
         )
-        self.assertEqual(queryset_leads_sem_proxima_acao(self.user, self.periodo).count(), 0)
+        self.assertEqual(
+            queryset_leads_sem_proxima_acao(
+                self.user, self.periodo, organization=self.org
+            ).count(),
+            0,
+        )
 
     def test_followup_vencido_aparece_na_lista(self):
         lead = self._lead("Follow Atraso", "fu@test.com")
         Compromisso.objects.create(
             user=self.user,
+            organization=self.org,
             cliente=lead,
             titulo="Follow-up",
             tipo=TipoCompromisso.FOLLOWUP_COMERCIAL,
             data_hora=_dt_no_dia(self.hoje - timedelta(days=2)),
             status=StatusCompromisso.AGENDADO,
         )
-        qs = queryset_followups_atrasados(self.user, self.periodo)
+        qs = queryset_followups_atrasados(
+            self.user, self.periodo, organization=self.org
+        )
         self.assertEqual(qs.count(), 1)
         self.assertEqual(qs.get(), lead)
 
@@ -84,7 +109,12 @@ class ResultadosOperacionalFase10Tests(TestCase):
             fase_funil="proposta_enviada",
             status="em_prospeccao",
         )
-        self.assertIn(lead, queryset_followups_atrasados(self.user, self.periodo))
+        self.assertIn(
+            lead,
+            queryset_followups_atrasados(
+                self.user, self.periodo, organization=self.org
+            ),
+        )
 
     def test_links_somente_com_itens(self):
         sem_links = links_operacionais(
@@ -110,6 +140,7 @@ class ResultadosOperacionalFase10Tests(TestCase):
         outro = self._lead("Com Futuro", "fut@test.com")
         Compromisso.objects.create(
             user=self.user,
+            organization=self.org,
             cliente=outro,
             titulo="Call",
             tipo=TipoCompromisso.CONSULTA,
@@ -129,18 +160,32 @@ class ResultadosOperacionalFase10Tests(TestCase):
         self.assertContains(resp, "Ver na lista de clientes")
 
     def test_aplicar_filtro_mkt_tenant(self):
+        from usuarios.services.org_scope import clientes_da_organizacao
+
         user_b = User.objects.create_user(username="outro_t", password="senha123")
+        org_b = Organization.objects.create(name="Mkt F10 Org B")
+        Membership.objects.create(
+            user=user_b,
+            organization=org_b,
+            role=Membership.Role.MEMBER,
+            status=Membership.Status.ACTIVE,
+        )
         self._lead("Meu", "meu@test.com")
         Cliente.objects.create(
             user=user_b,
+            organization=org_b,
             nome="Outro tenant",
             email="outro@test.com",
             origem=OrigemLead.GOOGLE_ADS,
             atribuicao_confiavel=True,
         )
-        base = Cliente.objects.filter(user=self.user)
+        base = clientes_da_organizacao(self.org)
         filtrado = aplicar_filtro_mkt_clientes(
-            self.user, base, MKT_SEM_ACAO, self.periodo
+            self.user,
+            base,
+            MKT_SEM_ACAO,
+            self.periodo,
+            organization=self.org,
         )
         self.assertEqual(filtrado.count(), 1)
         self.assertEqual(filtrado.get().nome, "Meu")

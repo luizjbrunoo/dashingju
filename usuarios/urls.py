@@ -11,4 +11,9 @@ urlpatterns = [
     path("cliente", views.cliente_home, name="cliente_home_no_slash"),
     path("cliente/", views.cliente_home, name="cliente_home"),
     path("cliente/<int:id>", views.cliente, name='cliente'),
+    path(
+        "documentos/<int:documento_id>/download/",
+        views.documento_download,
+        name="documento_download",
+    ),
 ]

@@ -19,6 +19,11 @@
                         </button>
                     </form>
                     {% endif %}
+                    {% if pode_baixar_documentos and documento.arquivo %}
+                    <a href="{% url 'documento_download' documento.id %}" class="rounded-md border border-zinc-700 bg-zinc-900/60 px-4 py-2 text-sm font-semibold text-zinc-200 ring-1 ring-zinc-800 hover:border-bally/40 hover:text-bally-bright">
+                        Baixar arquivo
+                    </a>
+                    {% endif %}
                     <a href="{% url 'clientes' %}" class="rounded-md border border-zinc-700 bg-zinc-900/60 px-4 py-2 text-sm font-semibold text-zinc-200 ring-1 ring-zinc-800 hover:border-bally/40 hover:text-bally-bright">
                         Voltar
                     </a>

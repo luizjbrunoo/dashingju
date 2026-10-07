@@ -39,7 +39,7 @@
           <p class="text-sm font-medium text-red-300">Cobranças vencidas</p>
           <p class="mt-0.5 text-xs text-zinc-400">
             {{ hook_financeiro.mensagem }}
-            Valor vencido: R$ {{ hook_financeiro.vencido|floatformat:2 }}.
+            Valor vencido: R$ {{ hook_financeiro.vencido|brnum:2 }}.
           </p>
         </div>
         <div class="flex shrink-0 flex-wrap gap-2">

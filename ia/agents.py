@@ -1,5 +1,6 @@
 
 import json
+import os
 import requests
 from datetime import datetime, timedelta
 from agno.agent import Agent
@@ -156,8 +157,12 @@ def search_datajud_api(tribunal: TribunalLiteral, process_number: str):
             }
         }
     }
+    api_key = (os.environ.get("DATAJUD_API_KEY") or "").strip()
+    if not api_key:
+        return json.dumps({"error": "consulta_indisponivel"})
+
     headers = {
-        "Authorization": "APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==",
+        "Authorization": f"APIKey {api_key}",
         "Content-Type": "application/json"
     }
 
@@ -165,13 +170,12 @@ def search_datajud_api(tribunal: TribunalLiteral, process_number: str):
         response = requests.post(url, headers=headers, json=payload, timeout=30)
         response.raise_for_status()
         return response.text
-    except requests.RequestException as e:
-        return json.dumps({"error": str(e)})
+    except requests.RequestException:
+        return json.dumps({"error": "consulta_indisponivel"})
 
 class JuriAI:
 
     DATAJUD_BASE_URL = "https://api-publica.datajud.cnj.jus.br"
-    DATAJUD_API_KEY = "cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw=="
     VECTOR_DB_TABLE = "documentos"
     VECTOR_DB_URI = "lancedb"
     MEMORY_DB_FILE = "db.sqlite3"
@@ -196,19 +200,21 @@ class JuriAI:
     - Mantenha um tom profissional e objetivo em todas as respostas.
     """
 
-    knowledge = Knowledge(
-        vector_db=LanceDb(
-            table_name=VECTOR_DB_TABLE,
-            uri=VECTOR_DB_URI,
-            embedder=OpenAIEmbedder(),
-        ),
-    )
+    # Tabela legado global `documentos`. Retrieval tenant-specific usa
+    # knowledge_for_organization (namespace documentos_org_{id}).
 
     @classmethod
-    def build_agent(cls, knowledge_filters: dict = {}) -> Agent:
+    def build_agent(cls, organization, knowledge_filters: dict | None = None) -> Agent:
+        from ia.services.document_knowledge import knowledge_for_organization
+
+        if organization is None:
+            raise ValueError("MISSING_ORGANIZATION")
+        extra = dict(knowledge_filters or {})
+        extra.pop("organization_id", None)
+        knowledge = knowledge_for_organization(organization)
         db = SqliteDb(
             db_file=cls.MEMORY_DB_FILE,
-            memory_table=cls.MEMORY_TABLE,
+            memory_table=f"juri_memory_org_{organization.pk}",
         )
 
         return Agent(
@@ -218,9 +224,9 @@ class JuriAI:
             instructions=cls.INSTRUCTIONS,
             db=db,
             update_memory_on_run=True,
-            knowledge=cls.knowledge,
-            knowledge_filters=knowledge_filters,
-            search_knowledge=True,
+            knowledge=knowledge,
+            knowledge_filters=extra,
+            search_knowledge=knowledge is not None,
         )
 
 class SecretariaAI:
@@ -317,7 +323,7 @@ class SecretariaAI:
     )
 
     @classmethod
-    def build_agent(cls, knowledge_filters: dict = {}, session_id: int = 1, user_id: int = 1) -> Agent:
+    def build_agent(cls, knowledge_filters: dict = {}, session_id: int = 1, *, user_id: int) -> Agent:
         @tool
         def listar_compromissos_do_usuario(data: str):
             """

@@ -1,0 +1,24 @@
+<nav class="mb-8 flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-4 text-sm">
+    <div class="flex flex-wrap gap-2">
+        <a
+            href="{% url 'comercial_dashboard' %}"
+            class="rounded-md px-3 py-1.5 font-medium {% if aba == 'painel' %}bg-zinc-800 text-bally-bright ring-1 ring-bally/30{% else %}text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright{% endif %}"
+            >Painel</a
+        >
+        {% if com_perms.gerenciar_metas %}
+        <a
+            href="{% url 'comercial_meta' %}"
+            class="rounded-md px-3 py-1.5 font-medium {% if aba == 'meta' %}bg-zinc-800 text-bally-bright ring-1 ring-bally/30{% else %}text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright{% endif %}"
+            >Meta de faturamento</a
+        >
+        <a
+            href="{% url 'comercial_investimento' %}"
+            class="rounded-md px-3 py-1.5 font-medium {% if aba == 'investimento' %}bg-zinc-800 text-bally-bright ring-1 ring-bally/30{% else %}text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright{% endif %}"
+            >Investimento mídia</a
+        >
+        {% endif %}
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+        {% include '_modulos_nav.html' with current='comercial' %}
+    </div>
+</nav>

@@ -8,6 +8,7 @@
                 {% include 'agenda/_badge_confirmacao_consulta.html' %}
                 {% include 'agenda/_badge_prazo_compromisso.html' %}
                 {% include 'agenda/_badge_prioridade.html' with prioridade=compromisso.prioridade %}
+                {% include 'agenda/_badge_criticidade.html' with obj=compromisso %}
                 {% if compromisso.responsavel %}
                     <span class="rounded-md border border-bally/20 bg-bally-muted/20 px-2 py-0.5 text-[10px] text-bally-bright">{{ compromisso.responsavel.get_full_name|default:compromisso.responsavel.username }}</span>
                 {% endif %}

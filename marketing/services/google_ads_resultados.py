@@ -16,6 +16,7 @@ from django.db.models.functions import Coalesce
 
 from financeiro.choices import StatusContrato
 from financeiro.models import CobrancaRecebimento, Contrato
+from financeiro.services.contrato_crud import contratos_queryset
 from marketing.definitions import FASES_PROPOSTA
 from marketing.services import demo
 from marketing.services.atribuicao import (
@@ -141,29 +142,39 @@ def get_investimento(
     return None, False
 
 
-def get_leads(user, periodo: PeriodoMarketing) -> int:
+def get_leads(user, periodo: PeriodoMarketing, *, organization=None) -> int:
     return clientes_google_ads(
-        user, data_inicio=periodo.data_inicio, data_fim=periodo.data_fim
+        user,
+        data_inicio=periodo.data_inicio,
+        data_fim=periodo.data_fim,
+        organization=organization,
     ).count()
 
 
-def _leads_qs_periodo(user, periodo: PeriodoMarketing):
+def _leads_qs_periodo(user, periodo: PeriodoMarketing, *, organization=None):
     return clientes_google_ads(
-        user, data_inicio=periodo.data_inicio, data_fim=periodo.data_fim
+        user,
+        data_inicio=periodo.data_inicio,
+        data_fim=periodo.data_fim,
+        organization=organization,
     )
 
 
-def _ids_leads(user, periodo: PeriodoMarketing) -> list[int]:
+def _ids_leads(user, periodo: PeriodoMarketing, *, organization=None) -> list[int]:
     return ids_clientes_google_ads(
-        user, data_inicio=periodo.data_inicio, data_fim=periodo.data_fim
+        user,
+        data_inicio=periodo.data_inicio,
+        data_fim=periodo.data_fim,
+        organization=organization,
     )
 
 
-def _consultas_qs(user, ids_leads, periodo: PeriodoMarketing):
+def _consultas_qs(user, ids_leads, periodo: PeriodoMarketing, *, organization=None):
+    from usuarios.services.org_scope import compromissos_da_organizacao
+
     if ids_leads is not None and not hasattr(ids_leads, "query") and not ids_leads:
         return Compromisso.objects.none()
-    qs = Compromisso.objects.filter(
-        user=user,
+    qs = compromissos_da_organizacao(organization).filter(
         cliente_id__in=ids_leads,
         tipo=TipoCompromisso.CONSULTA,
     ).exclude(status=StatusCompromisso.CANCELADO)
@@ -172,16 +183,29 @@ def _consultas_qs(user, ids_leads, periodo: PeriodoMarketing):
     )
 
 
-def _contratos_qs(user, ids_leads, periodo: PeriodoMarketing):
+def _contratos_qs(organization, ids_leads, periodo: PeriodoMarketing):
     if ids_leads is not None and not hasattr(ids_leads, "query") and not ids_leads:
         return Contrato.objects.none()
-    qs = Contrato.objects.filter(
-        usuario=user,
+    qs = contratos_queryset(organization).filter(
         cliente_id__in=ids_leads,
         status__in=(StatusContrato.ACTIVE, StatusContrato.CLOSED),
     )
     return filtro_datetime_campo(
         qs, "criado_em", data_inicio=periodo.data_inicio, data_fim=periodo.data_fim
+    )
+
+
+def _recebimentos_qs(organization, ids_leads, periodo: PeriodoMarketing):
+    if organization is None:
+        return CobrancaRecebimento.objects.none()
+    if ids_leads is not None and not hasattr(ids_leads, "query") and not ids_leads:
+        return CobrancaRecebimento.objects.none()
+    return CobrancaRecebimento.objects.filter(
+        organization=organization,
+        cobranca__cliente_id__in=ids_leads,
+        cancelado_em__isnull=True,
+        data_recebimento__gte=periodo.data_inicio,
+        data_recebimento__lte=periodo.data_fim,
     )
 
 
@@ -199,38 +223,37 @@ def get_consultas_realizadas(user, periodo: PeriodoMarketing) -> int:
     )
 
 
-def get_propostas(user, periodo: PeriodoMarketing) -> int:
+def get_propostas(user, periodo: PeriodoMarketing, *, organization=None) -> int:
     """
     Leads Google Ads do período que estão (ou estiveram registrados) em fase de proposta.
     Sem histórico de transições, usa fase_funil atual entre leads do período.
     """
     return clientes_google_ads(
-        user, data_inicio=periodo.data_inicio, data_fim=periodo.data_fim
+        user,
+        data_inicio=periodo.data_inicio,
+        data_fim=periodo.data_fim,
+        organization=organization,
     ).filter(fase_funil__in=FASES_PROPOSTA).count()
 
 
-def get_contratos(user, periodo: PeriodoMarketing) -> int:
-    ids = _leads_qs_periodo(user, periodo).values("pk")
-    return _contratos_qs(user, ids, periodo).count()
+def get_contratos(user, periodo: PeriodoMarketing, *, organization=None) -> int:
+    ids = _leads_qs_periodo(user, periodo, organization=organization).values("pk")
+    return _contratos_qs(organization, ids, periodo).count()
 
 
-def get_receita_contratada(user, periodo: PeriodoMarketing) -> Decimal:
-    ids = _leads_qs_periodo(user, periodo).values("pk")
-    agg = _contratos_qs(user, ids, periodo).aggregate(
+def get_receita_contratada(user, periodo: PeriodoMarketing, *, organization=None) -> Decimal:
+    ids = _leads_qs_periodo(user, periodo, organization=organization).values("pk")
+    agg = _contratos_qs(organization, ids, periodo).aggregate(
         total=Coalesce(Sum("valor_total"), _ZERO)
     )
     return _dec(agg["total"]) or _ZERO
 
 
-def get_receita_recebida(user, periodo: PeriodoMarketing) -> Decimal:
-    ids = _leads_qs_periodo(user, periodo).values("pk")
-    agg = CobrancaRecebimento.objects.filter(
-        usuario=user,
-        cobranca__cliente_id__in=ids,
-        cancelado_em__isnull=True,
-        data_recebimento__gte=periodo.data_inicio,
-        data_recebimento__lte=periodo.data_fim,
-    ).aggregate(total=Coalesce(Sum("valor"), _ZERO))
+def get_receita_recebida(user, periodo: PeriodoMarketing, *, organization=None) -> Decimal:
+    ids = _leads_qs_periodo(user, periodo, organization=organization).values("pk")
+    agg = _recebimentos_qs(organization, ids, periodo).aggregate(
+        total=Coalesce(Sum("valor"), _ZERO)
+    )
     return _dec(agg["total"]) or _ZERO
 
 
@@ -283,18 +306,21 @@ def get_conversao_consulta_contrato(contratos: int, consultas_realizadas: int) -
     return _safe_pct(contratos, consultas_realizadas)
 
 
-def get_leads_sem_proxima_acao(user, periodo: PeriodoMarketing) -> int:
-    return queryset_leads_sem_proxima_acao(user, periodo).count()
+def get_leads_sem_proxima_acao(user, periodo: PeriodoMarketing, *, organization=None) -> int:
+    return queryset_leads_sem_proxima_acao(user, periodo, organization=organization).count()
 
 
-def get_followups_atrasados(user, periodo: PeriodoMarketing) -> int:
-    return queryset_followups_atrasados(user, periodo).count()
+def get_followups_atrasados(user, periodo: PeriodoMarketing, *, organization=None) -> int:
+    return queryset_followups_atrasados(user, periodo, organization=organization).count()
 
 
-def get_leads_por_fase(user, periodo: PeriodoMarketing) -> dict[str, int]:
+def get_leads_por_fase(user, periodo: PeriodoMarketing, *, organization=None) -> dict[str, int]:
     qs = (
         clientes_google_ads(
-            user, data_inicio=periodo.data_inicio, data_fim=periodo.data_fim
+            user,
+            data_inicio=periodo.data_inicio,
+            data_fim=periodo.data_fim,
+            organization=organization,
         )
         .values("fase_funil")
         .annotate(qtd=Count("pk"))
@@ -326,13 +352,14 @@ def calcular_funil(
     user,
     periodo: PeriodoMarketing,
     *,
+    organization=None,
     modo_demo: bool = False,
     nicho: str = "",
 ) -> FunilResultados:
     investimento, demo_flag = get_investimento(
         user, periodo, modo_demo=modo_demo, nicho=nicho
     )
-    leads_qs = _leads_qs_periodo(user, periodo)
+    leads_qs = _leads_qs_periodo(user, periodo, organization=organization)
     ids_subquery = leads_qs.values("pk")
 
     leads_agg = leads_qs.aggregate(
@@ -340,24 +367,22 @@ def calcular_funil(
         propostas=Count("pk", filter=Q(fase_funil__in=FASES_PROPOSTA)),
     )
 
-    consultas_agg = _consultas_qs(user, ids_subquery, periodo).aggregate(
+    consultas_agg = _consultas_qs(
+        user, ids_subquery, periodo, organization=organization
+    ).aggregate(
         agendadas=Count("pk"),
         realizadas=Count("pk", filter=Q(status=StatusCompromisso.REALIZADO)),
     )
 
-    contratos_agg = _contratos_qs(user, ids_subquery, periodo).aggregate(
+    contratos_agg = _contratos_qs(organization, ids_subquery, periodo).aggregate(
         qtd=Count("pk"),
         receita=Coalesce(Sum("valor_total"), _ZERO),
     )
 
     receita_rec = _ZERO
     if leads_agg["leads"]:
-        receita_rec_agg = CobrancaRecebimento.objects.filter(
-            usuario=user,
-            cobranca__cliente_id__in=ids_subquery,
-            cancelado_em__isnull=True,
-            data_recebimento__gte=periodo.data_inicio,
-            data_recebimento__lte=periodo.data_fim,
+        receita_rec_agg = _recebimentos_qs(
+            organization, ids_subquery, periodo
         ).aggregate(total=Coalesce(Sum("valor"), _ZERO))
         receita_rec = _dec(receita_rec_agg["total"]) or _ZERO
 
@@ -378,6 +403,7 @@ def calcular_resultados_negocio(
     user,
     periodo: PeriodoMarketing | None = None,
     *,
+    organization=None,
     modo_demo: bool = False,
     nicho: str = "",
 ) -> ResultadosNegocio:
@@ -385,10 +411,15 @@ def calcular_resultados_negocio(
     if periodo is None:
         periodo = PeriodoMarketing.ultimos_dias(30)
 
-    funil = calcular_funil(user, periodo, modo_demo=modo_demo, nicho=nicho)
+    funil = calcular_funil(
+        user, periodo, organization=organization, modo_demo=modo_demo, nicho=nicho
+    )
     eficiencia = calcular_eficiencia(funil)
     qualidade_raw = resumo_qualidade_atribuicao(
-        user, data_inicio=periodo.data_inicio, data_fim=periodo.data_fim
+        user,
+        data_inicio=periodo.data_inicio,
+        data_fim=periodo.data_fim,
+        organization=organization,
     )
     qualidade = QualidadeDados(
         total_clientes_periodo=qualidade_raw["total"],
@@ -398,9 +429,13 @@ def calcular_resultados_negocio(
         pct_nao_identificados=qualidade_raw["pct_nao_identificados"],
     )
     operacional = OperacionalResultados(
-        leads_sem_proxima_acao=get_leads_sem_proxima_acao(user, periodo),
-        followups_atrasados=get_followups_atrasados(user, periodo),
-        leads_por_fase=get_leads_por_fase(user, periodo),
+        leads_sem_proxima_acao=get_leads_sem_proxima_acao(
+            user, periodo, organization=organization
+        ),
+        followups_atrasados=get_followups_atrasados(
+            user, periodo, organization=organization
+        ),
+        leads_por_fase=get_leads_por_fase(user, periodo, organization=organization),
     )
     tem_dados = (
         funil.leads > 0
@@ -478,6 +513,7 @@ class ContextoResultadosDashboard:
     comparacao: tuple
     granularidade: str
     ranking_campanhas: object
+    marketing_pro: object
 
 
 def _contexto_resultados_oculto(periodo: PeriodoMarketing) -> ContextoResultadosDashboard:
@@ -564,6 +600,7 @@ def _contexto_resultados_oculto(periodo: PeriodoMarketing) -> ContextoResultados
         comparacao=(),
         granularidade="auto",
         ranking_campanhas=ranking_vazio,
+        marketing_pro=None,
     )
 
 
@@ -592,6 +629,7 @@ def contexto_dashboard_resultados(
     user,
     periodo: PeriodoMarketing,
     *,
+    organization=None,
     modo_demo: bool = True,
     nicho: str = "",
     granularidade: str = "auto",
@@ -612,11 +650,12 @@ def contexto_dashboard_resultados(
     ocultar_fin = not pode_ver_metricas_financeiras_marketing(user)
 
     atual = calcular_resultados_negocio(
-        user, periodo, modo_demo=modo_demo, nicho=nicho
+        user, periodo, organization=organization, modo_demo=modo_demo, nicho=nicho
     )
     anterior = calcular_resultados_negocio(
         user,
         periodo.periodo_anterior(),
+        organization=organization,
         modo_demo=modo_demo,
         nicho=nicho,
     )
@@ -663,7 +702,7 @@ def contexto_dashboard_resultados(
         {"key": "contratos", "label": "Contratos", "valor": f.contratos, "tipo": "int"},
         {
             "key": "receita",
-            "label": "Receita contratada",
+            "label": "Valor comercial atribuído",
             "valor": f.receita_contratada,
             "tipo": "money",
             "oculto": ocultar_fin,
@@ -689,6 +728,7 @@ def contexto_dashboard_resultados(
     evolucao = calcular_evolucao_resultados(
         user,
         periodo,
+        organization=organization,
         granularidade=granularidade,
         ocultar_financeiro=ocultar_fin,
     )
@@ -701,10 +741,22 @@ def contexto_dashboard_resultados(
     ranking_campanhas = calcular_ranking_campanhas(
         user,
         periodo,
+        organization=organization,
         ordenacao=orden_campanhas,
         modo_demo=modo_demo,
         nicho=nicho,
         ocultar_financeiro=ocultar_fin,
+    )
+
+    from marketing.services.marketing_pro import montar_marketing_pro
+
+    marketing_pro = montar_marketing_pro(
+        user,
+        periodo,
+        organization=organization,
+        ocultar_financeiro=ocultar_fin,
+        resultados=atual,
+        links=links,
     )
 
     return ContextoResultadosDashboard(
@@ -721,4 +773,5 @@ def contexto_dashboard_resultados(
         comparacao=comparacao,
         granularidade=evolucao.granularidade,
         ranking_campanhas=ranking_campanhas,
+        marketing_pro=marketing_pro,
     )

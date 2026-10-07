@@ -1,0 +1,322 @@
+{# Visão geral — 4 KPIs, barra, Advisor, funil, ações #}
+
+<div class="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+        <p class="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Meta do mês</p>
+        {% if ctx.ocultar_financeiro %}
+            {% if ctx.meta_vs.contratos_necessarios %}
+            <p class="mt-1 text-xl font-semibold tabular-nums text-zinc-100">{{ ctx.meta_vs.contratos_necessarios|brnum:0 }}</p>
+            <p class="text-[11px] text-zinc-500">contratos necessários</p>
+            {% else %}
+            <p class="mt-1 text-sm text-zinc-500">—</p>
+            {% endif %}
+        {% elif not ctx.meta %}
+            <p class="mt-1 text-sm text-zinc-500">Defina uma meta para acompanhar o crescimento.</p>
+            {% if ctx.pode_gerenciar_metas %}
+            <a href="{% url 'comercial_meta' %}" class="mt-1 inline-block text-xs text-bally-bright hover:underline">Definir meta</a>
+            {% endif %}
+        {% else %}
+            <p class="mt-1 text-xl font-semibold tabular-nums text-zinc-100">R$ {{ ctx.projecao_mes.meta|brnum:2 }}</p>
+        {% endif %}
+    </div>
+    <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+        <p class="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Realizado comercial</p>
+        {% if ctx.ocultar_financeiro %}
+            <p class="mt-1 text-xl font-semibold tabular-nums text-emerald-400">{{ ctx.meta_vs.contratos_realizados|brnum:0 }}</p>
+            <p class="text-[11px] text-zinc-500">contrato(s) fechados</p>
+        {% else %}
+            <p class="mt-1 text-xl font-semibold tabular-nums text-emerald-400">R$ {{ ctx.projecao_mes.realizado|brnum:2 }}</p>
+            {% if ctx.projecao_mes.pct_atingido is not None %}
+            <p class="text-[11px] text-zinc-500">{{ ctx.projecao_mes.pct_atingido|floatformat:0 }}% da meta · contratos fechados</p>
+            {% else %}
+            <p class="text-[11px] text-zinc-500">Contratos fechados no período · distinto de recebimentos</p>
+            {% endif %}
+        {% endif %}
+    </div>
+    <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+        <p class="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Projeção / estimativa</p>
+        {% if ctx.ocultar_financeiro %}
+            <p class="mt-1 text-sm text-zinc-500">—</p>
+        {% elif ctx.projecao_mes.projecao is not None %}
+            <p class="mt-1 text-xl font-semibold tabular-nums text-sky-400">R$ {{ ctx.projecao_mes.projecao|brnum:2 }}</p>
+            <p class="text-[11px] text-zinc-500">Estimativa, não garantia</p>
+            {% if ctx.projecao_mes.pipeline_total %}
+            <p class="text-[11px] text-zinc-600">Pipeline total R$ {{ ctx.projecao_mes.pipeline_total|brnum:2 }} ≠ projeção</p>
+            {% endif %}
+        {% else %}
+            <p class="mt-1 text-sm text-zinc-500">{{ ctx.projecao_mes.mensagem|default:"Dados insuficientes" }}</p>
+        {% endif %}
+    </div>
+    <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+        <p class="text-[11px] font-medium uppercase tracking-wide text-zinc-500">Gap projetado</p>
+        {% if ctx.ocultar_financeiro %}
+            {% if ctx.meta_vs.contratos_faltantes is not None %}
+            <p class="mt-1 text-xl font-semibold tabular-nums text-amber-300">{{ ctx.meta_vs.contratos_faltantes|brnum:0 }}</p>
+            <p class="text-[11px] text-zinc-500">contrato(s) faltantes</p>
+            {% else %}
+            <p class="mt-1 text-sm text-zinc-500">—</p>
+            {% endif %}
+        {% elif not ctx.meta %}
+            <p class="mt-1 text-sm text-zinc-500">—</p>
+        {% elif ctx.projecao_mes.meta_projetada_atingida %}
+            <p class="mt-1 text-sm font-medium text-emerald-400">Meta projetada como atingida</p>
+        {% elif ctx.projecao_mes.gap is not None %}
+            <p class="mt-1 text-xl font-semibold tabular-nums {% if ctx.projecao_mes.gap > 0 %}text-amber-300{% else %}text-emerald-400{% endif %}">R$ {{ ctx.projecao_mes.gap|brnum:2 }}</p>
+            <p class="text-[11px] text-zinc-500">Meta − projeção</p>
+        {% else %}
+            <p class="mt-1 text-sm text-zinc-500">—</p>
+        {% endif %}
+    </div>
+</div>
+
+{% if ctx.meta and not ctx.ocultar_financeiro and ctx.projecao_mes.pct_atingido is not None %}
+<div class="mt-5">
+    <div class="mb-1 flex justify-between text-[11px] text-zinc-500">
+        <span>Meta do mês</span>
+        <span>{{ ctx.projecao_mes.pct_atingido|floatformat:0 }}%</span>
+    </div>
+    <div class="h-2 overflow-hidden rounded-full bg-zinc-800">
+        <div class="h-full rounded-full bg-bally" style="width: {% if ctx.projecao_mes.pct_atingido > 100 %}100{% else %}{{ ctx.projecao_mes.pct_atingido|floatformat:0 }}{% endif %}%"></div>
+    </div>
+    {% if ctx.projecao_mes.restante_meta is not None and ctx.projecao_mes.restante_meta > 0 %}
+    <p class="mt-2 text-[12px] text-zinc-400">R$ {{ ctx.projecao_mes.restante_meta|brnum:2 }} restantes (meta − realizado).</p>
+    {% endif %}
+    {% if ctx.projecao_mes.projecao is not None and not ctx.projecao_mes.meta_projetada_atingida %}
+    <p class="mt-0.5 text-[12px] text-zinc-500">Com base no ritmo atual, a projeção é de R$ {{ ctx.projecao_mes.projecao|brnum:2 }}.</p>
+    {% elif ctx.projecao_mes.projecao is None %}
+    <p class="mt-2 text-[12px] text-zinc-500">{{ ctx.projecao_mes.mensagem }}</p>
+    {% endif %}
+</div>
+{% endif %}
+
+<section class="mt-8">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-200">Growth Advisor</h2>
+    <p class="mt-0.5 text-[12px] text-zinc-500">Prioridade recomendada para hoje</p>
+
+    {% if ctx.advisor.principal %}
+    {% with p=ctx.advisor.principal %}
+    <div class="mt-3 rounded-lg p-4
+        {% if p.prioridade == 'urgente' %}border border-red-900/40 bg-zinc-900/50
+        {% elif p.prioridade == 'alta' %}border border-amber-800/30 bg-zinc-900/50
+        {% else %}border border-zinc-800 bg-zinc-900/50{% endif %}">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Growth Advisor</p>
+            <span class="inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide
+                {% if p.prioridade == 'urgente' %}border-red-900/50 bg-red-950/40 text-red-300
+                {% elif p.prioridade == 'alta' %}border-amber-800/40 bg-amber-950/35 text-amber-100/90
+                {% else %}border-zinc-700 text-zinc-400{% endif %}">{{ p.prioridade }}</span>
+        </div>
+        <p class="mt-3 text-base font-semibold text-zinc-100">{{ p.titulo }}</p>
+        <p class="mt-2 text-[12px] text-zinc-400">{{ p.motivo }}</p>
+        <p class="mt-3 text-[11px] uppercase tracking-wide text-zinc-500">Por quê</p>
+        <p class="mt-1 text-[13px] text-zinc-200">
+            {{ p.quantidade|brnum:0 }} {{ p.titulo|lower }}
+            {% if not ctx.ocultar_financeiro and p.valor_potencial is not None %}
+            · R$ {{ p.valor_potencial|brnum:2 }} em valor potencial associado
+            {% endif %}
+        </p>
+        {% if not ctx.ocultar_financeiro and p.valor_potencial is not None %}
+        <p class="mt-3 text-[11px] uppercase tracking-wide text-zinc-500">Impacto observado</p>
+        <p class="mt-1 text-[13px] text-zinc-300">R$ {{ p.valor_potencial|brnum:2 }} em valor potencial está associado às oportunidades em atenção — não é receita perdida.</p>
+        {% endif %}
+        <p class="mt-3 text-[11px] uppercase tracking-wide text-zinc-500">Próxima ação</p>
+        <p class="mt-1 text-sm text-zinc-100">{{ p.acao }}</p>
+        <div class="mt-3 flex flex-wrap gap-2">
+            <a href="{{ p.url }}" class="rounded-md border border-bally/40 bg-bally-muted/30 px-3 py-1.5 text-xs font-medium text-bally-bright hover:bg-bally-muted/50">{{ p.cta_ver }}</a>
+            {% if p.pode_criar_followups %}
+            <form method="post" action="{% url 'comercial_advisor_followups' %}">
+                {% csrf_token %}
+                <input type="hidden" name="mes" value="{{ ctx.mes_slug }}" />
+                <button type="submit" class="rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800">Criar follow-ups</button>
+            </form>
+            {% endif %}
+        </div>
+        <details class="mt-3 text-[11px] text-zinc-500">
+            <summary class="cursor-pointer text-zinc-400 hover:text-zinc-200">Como a prioridade foi calculada</summary>
+            <ul class="mt-2 list-inside list-disc space-y-0.5">
+                <li>Estágio: {{ p.etapa }}</li>
+                <li>Quantidade: {{ p.quantidade|brnum:0 }}</li>
+                {% if not ctx.ocultar_financeiro and p.valor_potencial is not None %}<li>Valor potencial associado: R$ {{ p.valor_potencial|brnum:2 }}</li>{% endif %}
+                {% for f in p.fatores %}
+                <li>{{ f.0 }} (+{{ f.1 }})</li>
+                {% endfor %}
+            </ul>
+            <p class="mt-2 text-zinc-600">{{ ctx.advisor.criterios_doc }}</p>
+        </details>
+    </div>
+    {% endwith %}
+
+    {% if ctx.advisor.secundarias %}
+    <p class="mt-4 text-[11px] font-medium uppercase tracking-wide text-zinc-500">Outras prioridades</p>
+    <ul class="mt-2 divide-y divide-zinc-800 rounded-lg border border-zinc-800">
+        {% for s in ctx.advisor.secundarias %}
+        <li>
+            <a href="{{ s.url }}" class="flex items-center justify-between gap-3 px-3 py-2.5 text-sm hover:bg-zinc-900/80">
+                <span class="text-zinc-300">{{ s.quantidade|brnum:0 }} {{ s.titulo|lower }}</span>
+                <span class="flex items-center gap-2 tabular-nums text-zinc-400">
+                    {% if not ctx.ocultar_financeiro and s.valor_potencial is not None %}R$ {{ s.valor_potencial|brnum:2 }}{% endif %}
+                    <span class="text-zinc-600" aria-hidden="true">›</span>
+                </span>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    {% else %}
+    <div class="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-5">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Growth Advisor</p>
+            <span class="inline-flex rounded-full border border-zinc-700 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Dados insuficientes</span>
+        </div>
+        <p class="mt-3 text-sm text-zinc-400">{{ ctx.advisor.mensagem|default:"Nenhuma prioridade comercial no momento." }}</p>
+    </div>
+    {% endif %}
+
+    {% if ctx.advisor.insight %}
+    <div class="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/30 px-4 py-3">
+        <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Insight</p>
+        <p class="mt-1 text-[13px] text-zinc-200">{{ ctx.advisor.insight.texto }}</p>
+        <a href="{{ ctx.advisor.insight.url_analise }}&mes={{ ctx.mes_slug }}" class="mt-2 inline-block text-xs text-bally-bright hover:underline">Ver análise</a>
+    </div>
+    {% endif %}
+</section>
+
+<section class="mt-8">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-200">Funil comercial</h2>
+    {% if not ctx.funil.dados_suficientes %}
+    <p class="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-6 text-center text-sm text-zinc-500">
+        {{ ctx.funil.mensagem|default:"Ainda não existem dados suficientes no período." }}
+    </p>
+    {% else %}
+    <div class="mt-3 flex flex-wrap items-center gap-2">
+        {% for etapa in ctx.funil_etapas_home %}
+            {% if not forloop.first %}
+            <span class="text-zinc-600" aria-hidden="true">→</span>
+            {% endif %}
+            <a href="{{ etapa.url }}" class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3 hover:border-bally/40">
+                <p class="text-lg font-semibold tabular-nums text-zinc-100">{{ etapa.valor|brnum:0 }}</p>
+                <p class="text-[10px] uppercase tracking-wide text-zinc-500">{{ etapa.label }}</p>
+            </a>
+        {% endfor %}
+    </div>
+    <div class="mt-3 flex flex-wrap gap-4 text-[12px] text-zinc-400">
+        {% if ctx.funil.taxa_lead_contrato is not None %}
+        <span>Conversão geral: {{ ctx.funil.taxa_lead_contrato|floatformat:1 }}%</span>
+        {% endif %}
+        <span>Ganhos: {{ ctx.pipeline.ganhos|brnum:0 }}</span>
+        <span>Perdas: {{ ctx.pipeline.perdidos|brnum:0 }}</span>
+    </div>
+    {% if ctx.funil.mensagem %}
+    <p class="mt-3 text-[12px] text-zinc-500">{{ ctx.funil.mensagem }}</p>
+    {% endif %}
+    {% if ctx.funil.gargalo %}
+    <p class="mt-3 text-[12px] text-zinc-400">
+        <span class="font-medium text-amber-200/90">Principal gargalo:</span>
+        {{ ctx.funil.gargalo.label }}
+        {% if ctx.funil.gargalo.taxa_pct is not None %}
+        · Conversão: {{ ctx.funil.gargalo.taxa_pct|floatformat:1 }}%
+        {% endif %}
+        <span class="block mt-0.5 text-zinc-500">Maior queda observada nesta transição — não atribui causa.</span>
+    </p>
+    {% endif %}
+    {% endif %}
+</section>
+
+<section class="mt-8">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-200">Temperatura do pipeline</h2>
+    <p class="mt-0.5 text-[12px] text-zinc-500">Classificação complementar — não substitui o funil nem o Priority Score. Fervendo não é garantia de fechamento.</p>
+    <div class="mt-3 grid gap-2 sm:grid-cols-5">
+        {% for t in ctx.pipeline.temperaturas %}
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2.5">
+            <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{{ t.label }}</p>
+            <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-100">{{ t.quantidade|brnum:0 }}</p>
+            {% if not ctx.ocultar_financeiro and t.valor_potencial is not None %}
+            <p class="text-[11px] text-zinc-500">R$ {{ t.valor_potencial|brnum:2 }} potencial</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="mt-8">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-200">Ganhos e perdas</h2>
+    <p class="mt-0.5 text-[12px] text-zinc-500">Perdido exige desfecho real (inativo). Parado ou Frio não é perdido. Valor potencial associado às perdas ≠ receita financeira perdida.</p>
+    <div class="mt-3 flex flex-wrap gap-3 text-sm">
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2">
+            <p class="text-[10px] uppercase tracking-wide text-zinc-500">Ganhos</p>
+            <p class="mt-0.5 tabular-nums text-zinc-100">{{ ctx.pipeline.ganhos|brnum:0 }}
+                {% if not ctx.ocultar_financeiro %} · R$ {{ ctx.pipeline.valor_ganho|brnum:2 }}{% endif %}
+            </p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2">
+            <p class="text-[10px] uppercase tracking-wide text-zinc-500">Perdas</p>
+            <p class="mt-0.5 tabular-nums text-zinc-100">{{ ctx.pipeline.perdidos|brnum:0 }}
+                {% if not ctx.ocultar_financeiro and ctx.pipeline.valor_potencial_perdido is not None %} · R$ {{ ctx.pipeline.valor_potencial_perdido|brnum:2 }} potencial associado{% endif %}
+            </p>
+        </div>
+        {% if ctx.pipeline.taxa_ganho_pct is not None %}
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2">
+            <p class="text-[10px] uppercase tracking-wide text-zinc-500">Taxa de ganho</p>
+            <p class="mt-0.5 tabular-nums text-zinc-100">{{ ctx.pipeline.taxa_ganho_pct|floatformat:1 }}%</p>
+        </div>
+        {% endif %}
+    </div>
+    {% if ctx.pipeline.amostra_perdas_suficiente %}
+        {% if ctx.pipeline.perdas_por_etapa %}
+        <p class="mt-3 text-[11px] uppercase tracking-wide text-zinc-500">Perdas por etapa observada</p>
+        <ul class="mt-1 space-y-0.5 text-[13px] text-zinc-300">
+            {% for e in ctx.pipeline.perdas_por_etapa %}
+            <li>{{ e.label }} · {{ e.quantidade|brnum:0 }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% if ctx.pipeline.perdas_por_motivo %}
+        <p class="mt-3 text-[11px] uppercase tracking-wide text-zinc-500">Motivos registrados</p>
+        <ul class="mt-1 space-y-0.5 text-[13px] text-zinc-300">
+            {% for m in ctx.pipeline.perdas_por_motivo %}
+            <li>{{ m.label }} · {{ m.quantidade|brnum:0 }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    {% elif ctx.pipeline.perdidos %}
+        <p class="mt-3 text-[12px] text-zinc-500">Dado insuficiente para diagnóstico confiável da distribuição de perdas.</p>
+    {% endif %}
+</section>
+
+<section class="mt-8">
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-zinc-200">Ações de hoje</h2>
+    {% if ctx.advisor.acoes_hoje %}
+    <ul class="mt-3 divide-y divide-zinc-800 rounded-lg border border-zinc-800">
+        {% for acao in ctx.advisor.acoes_hoje %}
+        <li class="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
+            <div class="min-w-0">
+                <p class="text-sm text-zinc-100">{{ acao.cliente_nome|default:acao.titulo }}</p>
+                <p class="text-[11px] text-zinc-500">{{ acao.titulo }}{% if acao.prazo_label %} · {{ acao.prazo_label }}{% endif %}</p>
+            </div>
+            <div class="flex gap-2">
+                <a href="{{ acao.url_agendar }}" class="rounded-md border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800">Agendar</a>
+                <form method="post" action="{% url 'comercial_acao_criar_tarefa' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="mes" value="{{ ctx.mes_slug }}" />
+                    <input type="hidden" name="chave" value="{{ acao.chave }}" />
+                    <input type="hidden" name="cliente_id" value="{{ acao.cliente_id|default:'' }}" />
+                    <input type="hidden" name="titulo" value="{{ acao.titulo }}" />
+                    <input type="hidden" name="motivo" value="{{ acao.motivo }}" />
+                    <button type="submit" class="rounded-md border border-bally/40 bg-bally-muted/30 px-2.5 py-1 text-xs text-bally-bright hover:bg-bally-muted/50">Criar tarefa</button>
+                </form>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    <a href="{% url 'comercial_dashboard' %}?mes={{ ctx.mes_slug }}&aba=oportunidades" class="mt-3 inline-block text-xs text-bally-bright hover:underline">Ver todas as ações</a>
+    {% else %}
+    <p class="mt-3 text-sm text-zinc-500">{{ ctx.advisor.mensagem|default:"Nenhuma ação prioritária no momento." }}</p>
+    {% endif %}
+</section>
+
+<p class="mt-8 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-zinc-500">
+    <a href="{% url 'comercial_dashboard' %}?mes={{ ctx.mes_slug }}&aba=oportunidades" class="hover:text-bally-bright">Ver todas as oportunidades</a>
+    <a href="{% url 'comercial_dashboard' %}?mes={{ ctx.mes_slug }}&aba=origens" class="hover:text-bally-bright">Ver desempenho por origem</a>
+    <a href="{% url 'comercial_dashboard' %}?mes={{ ctx.mes_slug }}&aba=score" class="hover:text-bally-bright">Ver Growth Score</a>
+    <a href="{% url 'comercial_dashboard' %}?mes={{ ctx.mes_slug }}&aba=simulador" class="hover:text-bally-bright">Ver simulador</a>
+</p>

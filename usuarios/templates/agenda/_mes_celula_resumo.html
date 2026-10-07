@@ -12,5 +12,8 @@
         {% if celula.resumo.prazos %}
             <span class="rounded bg-amber-950/40 px-1 py-0.5 text-[9px] font-medium text-amber-300" title="Prazos">{{ celula.resumo.prazos }} praz.</span>
         {% endif %}
+        {% if celula.resumo.atencao %}
+            <span class="rounded bg-red-950/40 px-1 py-0.5 text-[9px] font-medium text-red-300" title="Atenção operacional">{{ celula.resumo.atencao }} at.</span>
+        {% endif %}
     </div>
 {% endif %}

@@ -10,9 +10,19 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+from .database import databases_from_env
+from .runtime_env import (
+    env_bool,
+    env_int,
+    parse_csrf_trusted_origins,
+    resolve_allowed_hosts,
+    resolve_secret_key,
+)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,13 +33,20 @@ load_dotenv(BASE_DIR / ".env")
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-jq&o389#*bm(#$iw=f@2c86o=1j(+228)uqifq3qxx&hcbe7sj"
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = []
+# DEV: DJANGO_DEBUG ausente → True. Valor malformado falha (não cai em True).
+# STAGING/PROD: DJANGO_DEBUG=false. SECRET_KEY e ALLOWED_HOSTS obrigatórios.
+DEBUG = env_bool(os.environ.get("DJANGO_DEBUG"), default=True, name="DJANGO_DEBUG")
+SECRET_KEY = resolve_secret_key(
+    debug=DEBUG,
+    raw=os.environ.get("DJANGO_SECRET_KEY"),
+)
+ALLOWED_HOSTS = resolve_allowed_hosts(
+    debug=DEBUG,
+    raw=os.environ.get("DJANGO_ALLOWED_HOSTS"),
+)
+CSRF_TRUSTED_ORIGINS = parse_csrf_trusted_origins(
+    os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS"),
+)
 
 
 # Application definition
@@ -42,21 +59,26 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "usuarios",
+    "organizacoes",
     "ia",
     "financeiro",
     "marketing",
+    "comercial",
     "django_q",
     "martor",
 ]
 
 LOGIN_URL = "/usuarios/login/"
+LOGIN_REDIRECT_URL = "/"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "organizacoes.middleware.TenantContextMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -69,12 +91,14 @@ TEMPLATES = [
         "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
+            "builtins": ["usuarios.templatetags.brnum"],
             "context_processors": [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "financeiro.context_processors.financeiro_permissoes",
                 "marketing.context_processors.marketing_permissoes",
+                "comercial.context_processors.comercial_permissoes",
             ],
         },
     },
@@ -85,13 +109,23 @@ WSGI_APPLICATION = "core.wsgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+# DEV: DATABASE_URL vazio → SQLite local (db.sqlite3).
+# STAGING/PROD: injetar DATABASE_URL (postgres/postgresql) externamente.
+# Não hardcodar host/user/password. Não commitar .env.
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
-}
+def _db_conn_max_age() -> int:
+    raw = (os.environ.get("DB_CONN_MAX_AGE") or "0").strip()
+    try:
+        return int(raw)
+    except ValueError:
+        return 0
+
+
+DATABASES = databases_from_env(
+    database_url=os.environ.get("DATABASE_URL", ""),
+    sqlite_path=BASE_DIR / "db.sqlite3",
+    conn_max_age=_db_conn_max_age(),
+)
 
 
 # Password validation
@@ -128,14 +162,33 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-import os
-
 STATIC_URL = 'static/'
 STATICFILES_DIRS = (os.path.join(BASE_DIR, 'templates/static'),)
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
+
+# PREPROD-PRIVATE-STORAGE-01
+# DEV: FileSystemStorage + MEDIA_ROOT local. NÃO é evidência de segurança.
+# PROD: DJANGO_DEFAULT_FILE_STORAGE deve apontar para backend privado.
+# Arquivos tenant-owned (upload_to=documentos/) NÃO podem ser servidos via MEDIA_URL.
+# Entrega somente pelo endpoint autorizado usuarios:documento_download.
+# Não assumir filesystem persistente de container (Railway).
+_file_storage = os.environ.get(
+    "DJANGO_DEFAULT_FILE_STORAGE",
+    "django.core.files.storage.FileSystemStorage",
+)
+_static_storage = (
+    "django.contrib.staticfiles.storage.StaticFilesStorage"
+    if DEBUG
+    else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+)
+STORAGES = {
+    "default": {"BACKEND": _file_storage},
+    "staticfiles": {"BACKEND": _static_storage},
+}
+SERVE_TENANT_MEDIA = False
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -152,11 +205,52 @@ MESSAGE_TAGS = {
 }
 
 Q_CLUSTER = {
-    "name": "pythonando",
-    "workers": 1,
-    "retry": 200,
-    "timeout": 180,
-    "queue_limit": 50,
+    "name": os.environ.get("Q_CLUSTER_NAME") or "pythonando",
+    "workers": env_int(
+        os.environ.get("Q_CLUSTER_WORKERS"), default=1, name="Q_CLUSTER_WORKERS"
+    ),
+    "retry": env_int(os.environ.get("Q_CLUSTER_RETRY"), default=200, name="Q_CLUSTER_RETRY"),
+    "timeout": env_int(
+        os.environ.get("Q_CLUSTER_TIMEOUT"), default=180, name="Q_CLUSTER_TIMEOUT"
+    ),
+    "queue_limit": env_int(
+        os.environ.get("Q_CLUSTER_QUEUE_LIMIT"), default=50, name="Q_CLUSTER_QUEUE_LIMIT"
+    ),
     "orm": "default",
+}
+
+# Railway termina TLS no proxy. HSTS fica para o gate de produção (domínio final).
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+SECURE_SSL_REDIRECT = False
+SECURE_HSTS_SECONDS = 0
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "console": {
+            "format": "{levelname} {name} {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "console",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+    "loggers": {
+        "django.security.DisallowedHost": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+    },
 }
 

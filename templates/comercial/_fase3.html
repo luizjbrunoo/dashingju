@@ -1,0 +1,109 @@
+{# Seções Fase 3 #}
+
+{% if ctx.insights.alertas %}
+<section class="mt-10 border-t border-zinc-800 pt-8">
+    <h2 class="text-lg font-semibold text-zinc-200">Alertas comerciais</h2>
+    <p class="mt-1 text-sm text-zinc-500">Somente quando relevantes — sem excesso de notificações.</p>
+    <ul class="mt-4 flex flex-wrap gap-2">
+        {% for a in ctx.insights.alertas %}
+        <li class="rounded-md border px-3 py-2 text-xs
+            {% if a.severidade == 'risco' %}border-red-800/60 bg-red-950/40 text-red-300
+            {% elif a.severidade == 'atencao' %}border-amber-800/50 bg-amber-950/30 text-amber-200
+            {% else %}border-zinc-700 bg-zinc-900/60 text-zinc-300{% endif %}">
+            <span class="font-semibold">{{ a.titulo }}</span>
+            <span class="ml-1 opacity-80">{{ a.detalhe }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}
+
+<section class="mt-10 border-t border-zinc-800 pt-8">
+    <h2 class="text-lg font-semibold text-zinc-200">ADV Growth Score</h2>
+    <p class="mt-1 text-sm text-zinc-500">{{ ctx.adv_score.criterios_doc }}</p>
+    <div class="mt-4 grid gap-4 lg:grid-cols-3">
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs uppercase tracking-wide text-zinc-500">Score atual</p>
+            <p class="mt-1 text-4xl font-semibold tabular-nums text-bally-bright">{{ ctx.adv_score.score }}<span class="text-lg text-zinc-500">/100</span></p>
+            <p class="mt-3 text-xs text-zinc-400">
+                Evolução
+                {% if ctx.adv_score.delta_30 is not None %}
+                    <span class="{% if ctx.adv_score.delta_30 >= 0 %}text-emerald-400{% else %}text-red-300{% endif %}">{% if ctx.adv_score.delta_30 >= 0 %}+{% endif %}{{ ctx.adv_score.delta_30 }} pontos</span>
+                    <span class="text-zinc-600">(30 dias)</span>
+                {% else %}—{% endif %}
+            </p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 lg:col-span-2">
+            <p class="text-xs uppercase tracking-wide text-zinc-500">Dimensões</p>
+            <ul class="mt-3 grid gap-2 sm:grid-cols-2">
+                {% for d in ctx.adv_score.dimensoes %}
+                <li class="rounded-md border border-zinc-800 bg-zinc-950/40 px-3 py-2">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-zinc-200">{{ d.label }}</span>
+                        <span class="tabular-nums text-zinc-100">{{ d.pontos }}</span>
+                    </div>
+                    <p class="mt-0.5 text-[11px] text-zinc-500">{{ d.criterio }}</p>
+                    <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-800">
+                        <div class="h-full rounded-full bg-bally" style="width: {{ d.pontos }}%"></div>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+</section>
+
+<section class="mt-10 border-t border-zinc-800 pt-8">
+    <h2 class="text-lg font-semibold text-zinc-200">Insights comerciais</h2>
+    <p class="mt-1 text-sm text-zinc-500">Regras determinísticas — o que aconteceu, impacto e ação.</p>
+    {% if ctx.insights.insights %}
+    <ul class="mt-4 space-y-3">
+        {% for i in ctx.insights.insights %}
+        <li class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+            <p class="text-sm font-medium text-zinc-100">{{ i.o_que }}</p>
+            <p class="mt-1 text-xs text-zinc-500"><span class="text-zinc-400">Impacto:</span> {{ i.impacto }}</p>
+            <p class="mt-0.5 text-xs text-bally-bright"><span class="text-zinc-400">Ação:</span> {{ i.acao }}</p>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="mt-4 text-sm text-zinc-500">Sem insights relevantes com o histórico atual.</p>
+    {% endif %}
+</section>
+
+<section class="mt-10 border-t border-zinc-800 pt-8">
+    <h2 class="text-lg font-semibold text-zinc-200">ROI / CAC / CPL</h2>
+    <p class="mt-1 text-sm text-zinc-500">Somente com investimento real registrado (nunca estimativa artificial).</p>
+    {% if not ctx.midia.disponivel or ctx.ocultar_financeiro %}
+    <p class="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-6 text-center text-sm text-zinc-500">
+        {{ ctx.midia.mensagem|default:"ROI indisponível — registre investimento e origem dos contratos." }}
+        {% if com_perms.gerenciar_metas %}
+        <a href="{% url 'comercial_investimento' %}" class="mt-2 block text-bally-bright hover:underline">Registrar investimento</a>
+        {% endif %}
+    </p>
+    {% else %}
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+            <p class="text-xs text-zinc-500">Investimento</p>
+            <p class="mt-1 font-semibold text-zinc-100">R$ {{ ctx.midia.investimento|brnum:2 }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+            <p class="text-xs text-zinc-500">Receita atribuída</p>
+            <p class="mt-1 font-semibold text-zinc-100">R$ {{ ctx.midia.receita_atribuida|brnum:2 }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+            <p class="text-xs text-zinc-500">ROI</p>
+            <p class="mt-1 font-semibold {% if ctx.midia.roi_pct >= 0 %}text-emerald-400{% else %}text-red-300{% endif %}">{{ ctx.midia.roi_pct|floatformat:1 }}%</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+            <p class="text-xs text-zinc-500">CAC</p>
+            <p class="mt-1 font-semibold text-zinc-100">{% if ctx.midia.cac %}R$ {{ ctx.midia.cac|brnum:2 }}{% else %}—{% endif %}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+            <p class="text-xs text-zinc-500">CPL</p>
+            <p class="mt-1 font-semibold text-zinc-100">{% if ctx.midia.cpl %}R$ {{ ctx.midia.cpl|brnum:2 }}{% else %}—{% endif %}</p>
+        </div>
+    </div>
+    {% endif %}
+</section>
+

@@ -17,6 +17,8 @@ from marketing.services.google_ads_resultados import (
     get_receita_recebida,
 )
 from marketing.services.periodo import PeriodoMarketing
+from marketing.tests_helpers import grant_marketing_permissions
+from organizacoes.models import Membership, Organization
 from usuarios.choices import OrigemLead, StatusCompromisso, TipoCompromisso
 from usuarios.models import Cliente, Compromisso
 
@@ -34,10 +36,18 @@ class GoogleAdsResultadosFase2Tests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="mkt_res", password="senha123")
         self.user_b = User.objects.create_user(username="mkt_b", password="senha123")
+        self.org = Organization.objects.create(name="Mkt Res Org")
+        Membership.objects.create(
+            user=self.user,
+            organization=self.org,
+            role=Membership.Role.MEMBER,
+            status=Membership.Status.ACTIVE,
+        )
         self.hoje = timezone.localdate()
         self.periodo = PeriodoMarketing.ultimos_dias(30, referencia=self.hoje)
         self.cliente_ads = Cliente.objects.create(
             user=self.user,
+            organization=self.org,
             nome="Lead Ads",
             email="ads@mkt.com",
             origem=OrigemLead.GOOGLE_ADS,
@@ -46,6 +56,7 @@ class GoogleAdsResultadosFase2Tests(TestCase):
         )
         self.cliente_ind = Cliente.objects.create(
             user=self.user,
+            organization=self.org,
             nome="Indicado",
             email="ind@mkt.com",
             origem=OrigemLead.INDICACAO,
@@ -53,12 +64,15 @@ class GoogleAdsResultadosFase2Tests(TestCase):
         )
 
     def test_leads_somente_google_ads_confiavel(self):
-        res = calcular_resultados_negocio(self.user, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user, self.periodo, organization=self.org
+        )
         self.assertEqual(res.funil.leads, 1)
 
     def test_consulta_realizada_e_agendada(self):
         Compromisso.objects.create(
             user=self.user,
+            organization=self.org,
             cliente=self.cliente_ads,
             titulo="Consulta ok",
             tipo=TipoCompromisso.CONSULTA,
@@ -67,6 +81,7 @@ class GoogleAdsResultadosFase2Tests(TestCase):
         )
         Compromisso.objects.create(
             user=self.user,
+            organization=self.org,
             cliente=self.cliente_ads,
             titulo="Consulta cancelada",
             tipo=TipoCompromisso.CONSULTA,
@@ -75,19 +90,23 @@ class GoogleAdsResultadosFase2Tests(TestCase):
         )
         Compromisso.objects.create(
             user=self.user,
+            organization=self.org,
             cliente=self.cliente_ads,
             titulo="Consulta tarde",
             tipo=TipoCompromisso.CONSULTA,
             status=StatusCompromisso.CONFIRMADO,
             data_hora=_dt_no_dia(self.hoje, hora=15),
         )
-        res = calcular_resultados_negocio(self.user, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user, self.periodo, organization=self.org
+        )
         self.assertEqual(res.funil.consultas_agendadas, 2)
         self.assertEqual(res.funil.consultas_realizadas, 1)
 
     def test_proposta_e_contrato(self):
         Contrato.objects.create(
             usuario=self.user,
+            organization=self.org,
             cliente=self.cliente_ads,
             referencia="CTR-01",
             descricao="Honorários",
@@ -95,7 +114,9 @@ class GoogleAdsResultadosFase2Tests(TestCase):
             status=StatusContrato.ACTIVE,
             criado_por=self.user,
         )
-        res = calcular_resultados_negocio(self.user, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user, self.periodo, organization=self.org
+        )
         self.assertEqual(res.funil.propostas, 1)
         self.assertEqual(res.funil.contratos, 1)
         self.assertEqual(res.funil.receita_contratada, Decimal("10000.00"))
@@ -103,6 +124,7 @@ class GoogleAdsResultadosFase2Tests(TestCase):
     def test_receita_recebida_exclui_estorno(self):
         cob = Cobranca.objects.create(
             usuario=self.user,
+            organization=self.org,
             cliente=self.cliente_ads,
             descricao="Honorários",
             valor_original=Decimal("5000.00"),
@@ -112,6 +134,7 @@ class GoogleAdsResultadosFase2Tests(TestCase):
         CobrancaRecebimento.objects.create(
             cobranca=cob,
             usuario=self.user,
+            organization=self.org,
             valor=Decimal("3000.00"),
             data_recebimento=self.hoje,
             registrado_por=self.user,
@@ -119,17 +142,21 @@ class GoogleAdsResultadosFase2Tests(TestCase):
         CobrancaRecebimento.objects.create(
             cobranca=cob,
             usuario=self.user,
+            organization=self.org,
             valor=Decimal("500.00"),
             data_recebimento=self.hoje,
             registrado_por=self.user,
             cancelado_em=timezone.now(),
         )
-        receita = get_receita_recebida(self.user, self.periodo)
+        receita = get_receita_recebida(
+            self.user, self.periodo, organization=self.org
+        )
         self.assertEqual(receita, Decimal("3000.00"))
 
     def test_cpl_e_conversoes(self):
         Contrato.objects.create(
             usuario=self.user,
+            organization=self.org,
             cliente=self.cliente_ads,
             referencia="CTR-02",
             descricao="X",
@@ -139,6 +166,7 @@ class GoogleAdsResultadosFase2Tests(TestCase):
         )
         Compromisso.objects.create(
             user=self.user,
+            organization=self.org,
             cliente=self.cliente_ads,
             titulo="Consulta",
             tipo=TipoCompromisso.CONSULTA,
@@ -146,7 +174,7 @@ class GoogleAdsResultadosFase2Tests(TestCase):
             data_hora=_dt_no_dia(self.hoje),
         )
         res = calcular_resultados_negocio(
-            self.user, self.periodo, modo_demo=True, nicho="trabalhista"
+            self.user, self.periodo, organization=self.org, modo_demo=True, nicho="trabalhista"
         )
         self.assertIsNotNone(res.funil.investimento)
         self.assertTrue(res.funil.investimento_demo)
@@ -169,21 +197,34 @@ class GoogleAdsResultadosFase2Tests(TestCase):
         self.assertGreater(inv, Decimal("0"))
 
     def test_tenant_isolado(self):
+        org_b = Organization.objects.create(name="Mkt Res Org B")
+        Membership.objects.create(
+            user=self.user_b,
+            organization=org_b,
+            role=Membership.Role.MEMBER,
+            status=Membership.Status.ACTIVE,
+        )
         Cliente.objects.create(
             user=self.user_b,
+            organization=org_b,
             nome="Outro tenant",
             email="b@mkt.com",
             origem=OrigemLead.GOOGLE_ADS,
             atribuicao_confiavel=True,
         )
-        res_a = calcular_resultados_negocio(self.user, self.periodo)
-        res_b = calcular_resultados_negocio(self.user_b, self.periodo)
+        res_a = calcular_resultados_negocio(
+            self.user, self.periodo, organization=self.org
+        )
+        res_b = calcular_resultados_negocio(
+            self.user_b, self.periodo, organization=org_b
+        )
         self.assertEqual(res_a.funil.leads, 1)
         self.assertEqual(res_b.funil.leads, 1)
 
     def test_periodo_filtra_lead_fora_intervalo(self):
         cliente_antigo = Cliente.objects.create(
             user=self.user,
+            organization=self.org,
             nome="Antigo",
             email="old@mkt.com",
             origem=OrigemLead.GOOGLE_ADS,
@@ -192,7 +233,9 @@ class GoogleAdsResultadosFase2Tests(TestCase):
         Cliente.objects.filter(pk=cliente_antigo.pk).update(
             criado_em=timezone.now() - timedelta(days=60)
         )
-        res = calcular_resultados_negocio(self.user, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user, self.periodo, organization=self.org
+        )
         self.assertEqual(res.funil.leads, 1)
 
     def test_sem_dados_suficientes(self):
@@ -210,13 +253,27 @@ class GoogleAdsResultadosFase2Tests(TestCase):
 class DashboardResultadosIntegracaoTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="dash_mkt", password="senha123")
+        self.org = Organization.objects.create(name="Dash Mkt Org")
+        Membership.objects.create(
+            user=self.user,
+            organization=self.org,
+            role=Membership.Role.MEMBER,
+            status=Membership.Status.ACTIVE,
+        )
+        grant_marketing_permissions(self.user)
         self.http = Client()
         self.http.login(username="dash_mkt", password="senha123")
         self.hoje = timezone.localdate()
 
     def test_dashboard_exibe_resultados_negocio(self):
+        from financeiro.tests_helpers import grant_finance_permissions
+
+        grant_finance_permissions(self.user, "view_cobrancas", "view_recebimentos")
+        self.http.logout()
+        self.http.login(username="dash_mkt", password="senha123")
         Cliente.objects.create(
             user=self.user,
+            organization=self.org,
             nome="Lead Dash",
             email="dash@test.com",
             origem=OrigemLead.GOOGLE_ADS,
@@ -250,6 +307,14 @@ class ResultadosNegocioFase9Tests(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(username="fase9_mkt", password="senha123")
+        self.org = Organization.objects.create(name="Fase9 Mkt Org")
+        Membership.objects.create(
+            user=self.user,
+            organization=self.org,
+            role=Membership.Role.MEMBER,
+            status=Membership.Status.ACTIVE,
+        )
+        grant_marketing_permissions(self.user)
         self.http = Client()
         self.http.login(username="fase9_mkt", password="senha123")
 
@@ -272,6 +337,7 @@ class ResultadosNegocioFase9Tests(TestCase):
     def test_comparacao_periodo_anterior(self):
         Cliente.objects.create(
             user=self.user,
+            organization=self.org,
             nome="Lead F9",
             email="f9@test.com",
             origem=OrigemLead.GOOGLE_ADS,
@@ -283,6 +349,7 @@ class ResultadosNegocioFase9Tests(TestCase):
     def test_funil_etapas_com_lead(self):
         Cliente.objects.create(
             user=self.user,
+            organization=self.org,
             nome="Lead Funil",
             email="funil@test.com",
             origem=OrigemLead.GOOGLE_ADS,
@@ -307,9 +374,16 @@ class ResultadosNegocioFase9Tests(TestCase):
             perm = Permission.objects.get(content_type=ct, codename=codename)
             grupo.permissions.add(perm)
         restrito.groups.add(grupo)
+        Membership.objects.create(
+            user=restrito,
+            organization=self.org,
+            role=Membership.Role.MEMBER,
+            status=Membership.Status.ACTIVE,
+        )
 
         Cliente.objects.create(
             user=restrito,
+            organization=self.org,
             nome="Lead Fin",
             email="fin@test.com",
             origem=OrigemLead.GOOGLE_ADS,
@@ -328,6 +402,7 @@ class ResultadosNegocioFase9Tests(TestCase):
 
         Cliente.objects.create(
             user=self.user,
+            organization=self.org,
             nome="A",
             email="a@test.com",
             origem=OrigemLead.GOOGLE_ADS,
@@ -336,6 +411,7 @@ class ResultadosNegocioFase9Tests(TestCase):
         )
         Cliente.objects.create(
             user=self.user,
+            organization=self.org,
             nome="B",
             email="b@test.com",
             origem=OrigemLead.GOOGLE_ADS,
@@ -343,7 +419,10 @@ class ResultadosNegocioFase9Tests(TestCase):
             fase_funil="aguardando_decisao",
         )
         ctx = contexto_dashboard_resultados(
-            self.user, PeriodoMarketing.ultimos_dias(30), modo_demo=True
+            self.user,
+            PeriodoMarketing.ultimos_dias(30),
+            organization=self.org,
+            modo_demo=True,
         )
         self.assertEqual(len(ctx.leads_por_fase), 2)
         labels = {x["label"] for x in ctx.leads_por_fase}

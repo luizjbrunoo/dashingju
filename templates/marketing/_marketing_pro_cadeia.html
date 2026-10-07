@@ -1,0 +1,72 @@
+{% if mkt_pro %}
+<section class="mt-10 border-t border-zinc-800 pt-8" aria-labelledby="mkt-cadeia-titulo">
+    <h2 id="mkt-cadeia-titulo" class="text-lg font-semibold text-zinc-200">Cadeia marketing → resultado</h2>
+    <p class="mt-1 text-sm text-zinc-500">Origem registrada no período. Atribuição não prova causalidade. Contratado ≠ recebido.</p>
+
+    {% include 'marketing/_marketing_pro_advisor.html' %}
+
+    <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Investimento</p>
+            {% if mkt_pro.cadeia.investimento is not None %}
+            <p class="mt-2 text-xl font-semibold tabular-nums text-zinc-100">R$ {{ mkt_pro.cadeia.investimento|brnum:2 }}{% if mkt_pro.cadeia.investimento_demo %} <span class="text-[10px] font-normal text-amber-300/90">demo</span>{% endif %}</p>
+            {% else %}
+            <p class="mt-2 text-sm font-medium text-zinc-500">Não disponível</p>
+            <p class="mt-1 text-[10px] text-zinc-600">Conecte o Google Ads para calcular.</p>
+            {% endif %}
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Leads atribuídos</p>
+            <p class="mt-2 text-xl font-semibold tabular-nums text-zinc-100">{{ mkt_pro.cadeia.leads }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Oportunidades</p>
+            <p class="mt-2 text-xl font-semibold tabular-nums text-zinc-100">{{ mkt_pro.cadeia.oportunidades }}</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Contratos atribuídos</p>
+            <p class="mt-2 text-xl font-semibold tabular-nums text-zinc-100">{{ mkt_pro.cadeia.contratos }}</p>
+        </div>
+        {% if not mkt_pro.ocultar_financeiro %}
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Valor comercial atribuído</p>
+            {% if mkt_pro.cadeia.valor_comercial is not None %}
+            <p class="mt-2 text-xl font-semibold tabular-nums text-zinc-100">R$ {{ mkt_pro.cadeia.valor_comercial|brnum:2 }}</p>
+            {% else %}
+            <p class="mt-2 text-sm font-medium text-zinc-500">Não disponível</p>
+            {% endif %}
+        </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Recebido relacionado</p>
+            {% if mkt_pro.cadeia.recebido is not None %}
+            <p class="mt-2 text-xl font-semibold tabular-nums text-emerald-400">R$ {{ mkt_pro.cadeia.recebido|brnum:2 }}</p>
+            {% else %}
+            <p class="mt-2 text-sm font-medium text-zinc-500">Não disponível</p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="mt-3 grid gap-3 sm:grid-cols-3">
+        <div class="rounded-lg border border-zinc-800/80 bg-zinc-950/40 px-4 py-3">
+            <p class="text-[10px] uppercase tracking-wide text-zinc-500">CPL</p>
+            <p class="mt-1 text-base font-semibold tabular-nums text-zinc-100">{% if mkt_pro.cadeia.cpl is not None %}R$ {{ mkt_pro.cadeia.cpl|brnum:2 }}{% else %}não disponível{% endif %}</p>
+            <p class="mt-0.5 text-[10px] text-zinc-600">Investimento / leads atribuídos · ambos válidos</p>
+        </div>
+        <div class="rounded-lg border border-zinc-800/80 bg-zinc-950/40 px-4 py-3">
+            <p class="text-[10px] uppercase tracking-wide text-zinc-500">CAC de mídia</p>
+            <p class="mt-1 text-base font-semibold tabular-nums text-zinc-100">{% if mkt_pro.cadeia.cac_midia is not None %}R$ {{ mkt_pro.cadeia.cac_midia|brnum:2 }}{% else %}não disponível{% endif %}</p>
+            <p class="mt-0.5 text-[10px] text-zinc-600">Investimento / contratos atribuídos</p>
+        </div>
+        {% if not mkt_pro.ocultar_financeiro %}
+        <div class="rounded-lg border border-zinc-800/80 bg-zinc-950/40 px-4 py-3">
+            <p class="text-[10px] uppercase tracking-wide text-zinc-500">ROAS comercial</p>
+            <p class="mt-1 text-base font-semibold tabular-nums text-zinc-100">{% if mkt_pro.cadeia.roas_comercial is not None %}{{ mkt_pro.cadeia.roas_comercial|floatformat:2 }}x{% else %}não disponível{% endif %}</p>
+            <p class="mt-0.5 text-[10px] text-zinc-600">{{ mkt_pro.cadeia.roas_definicao }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {% include 'marketing/_marketing_pro_origens.html' %}
+</section>
+{% endif %}

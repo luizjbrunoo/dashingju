@@ -9,7 +9,9 @@
             <h1 class="text-xl font-semibold text-zinc-100">Contratos</h1>
             <p class="mt-1 text-sm text-zinc-500">Honorários e acordos formalizados com clientes.</p>
         </div>
+        {% if fin_perms.criar_cobrancas %}
         <a href="{% url 'financeiro_contrato_novo' %}{% if cliente_id %}?cliente={{ cliente_id }}{% endif %}" class="rounded-md bg-bally px-4 py-2 text-sm font-semibold text-white shadow-md shadow-bally/20 hover:bg-bally-bright">+ Novo contrato</a>
+        {% endif %}
     </div>
 
     <div class="mt-8 overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/30">
@@ -30,7 +32,7 @@
                         <td class="px-4 py-3 font-mono text-zinc-200">{{ contrato.referencia }}</td>
                         <td class="px-4 py-3 text-zinc-300">{{ contrato.cliente.nome }}</td>
                         <td class="px-4 py-3 text-zinc-300">{{ contrato.descricao }}</td>
-                        <td class="px-4 py-3 font-mono text-zinc-100">R$ {{ contrato.valor_total|floatformat:2 }}</td>
+                        <td class="px-4 py-3 font-mono text-zinc-100">R$ {{ contrato.valor_total|brnum:2 }}</td>
                         <td class="px-4 py-3 text-zinc-400">{{ contrato.get_status_display }}</td>
                         <td class="px-4 py-3"><a href="{% url 'financeiro_contrato_detalhe' contrato.pk %}" class="text-bally-bright hover:underline">Ver</a></td>
                     </tr>

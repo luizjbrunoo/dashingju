@@ -88,30 +88,37 @@ class MovimentoForm(forms.ModelForm):
         widget=forms.Select(attrs={"class": _SELECT_CLASS}),
     )
 
-    def __init__(self, *args, usuario=None, **kwargs):
+    def __init__(self, *args, usuario=None, organization=None, **kwargs):
         self._usuario = usuario
+        self._organization = organization
         super().__init__(*args, **kwargs)
         if usuario is not None:
             self.instance.usuario = usuario
-            self.fields["banco"].queryset = Banco.objects.filter(usuario=usuario)
 
-            tipo_efetivo = None
-            if self.data:
-                tipo_efetivo = self.data.get("tipo")
-            elif getattr(self.instance, "pk", None) and self.instance.categoria_id:
-                tipo_efetivo = self.instance.categoria.tipo
-            else:
-                tipo_efetivo = Categoria.Tipo.RECEITA
+        tipo_efetivo = None
+        if self.data:
+            tipo_efetivo = self.data.get("tipo")
+        elif getattr(self.instance, "pk", None) and self.instance.categoria_id:
+            tipo_efetivo = self.instance.categoria.tipo
+        else:
+            tipo_efetivo = Categoria.Tipo.RECEITA
 
+        if organization is not None:
+            self.fields["banco"].queryset = Banco.objects.filter(organization=organization)
             if tipo_efetivo in (Categoria.Tipo.RECEITA, Categoria.Tipo.DESPESA):
-                self.fields["categoria"].queryset = Categoria.objects.filter(usuario=usuario, tipo=tipo_efetivo)
+                self.fields["categoria"].queryset = Categoria.objects.filter(
+                    organization=organization, tipo=tipo_efetivo
+                )
             else:
                 self.fields["categoria"].queryset = Categoria.objects.none()
+        else:
+            self.fields["banco"].queryset = Banco.objects.none()
+            self.fields["categoria"].queryset = Categoria.objects.none()
 
-            if not self.data and not getattr(self.instance, "pk", None):
-                self.fields["tipo"].initial = Categoria.Tipo.RECEITA
-            elif getattr(self.instance, "pk", None) and self.instance.categoria_id:
-                self.fields["tipo"].initial = self.instance.categoria.tipo
+        if not self.data and not getattr(self.instance, "pk", None):
+            self.fields["tipo"].initial = Categoria.Tipo.RECEITA
+        elif getattr(self.instance, "pk", None) and self.instance.categoria_id:
+            self.fields["tipo"].initial = self.instance.categoria.tipo
 
     class Meta:
         model = Movimento
@@ -147,17 +154,20 @@ class MovimentoForm(forms.ModelForm):
     def clean(self):
         if self._usuario is not None:
             self.instance.usuario = self._usuario
+        if self._organization is not None:
+            self.instance.organization = self._organization
         cleaned = super().clean()
         tipo = cleaned.get("tipo")
         categoria = cleaned.get("categoria")
         banco = cleaned.get("banco")
-        if self._usuario is not None:
-            if banco and banco.usuario_id != self._usuario.pk:
-                raise ValidationError({"banco": "Selecione um banco da sua conta."})
-            if categoria and categoria.usuario_id != self._usuario.pk:
-                raise ValidationError({"categoria": "Selecione uma categoria da sua conta."})
         if tipo and categoria and categoria.tipo != tipo:
             raise ValidationError("Escolha uma categoria compatível com o tipo selecionado.")
+        from financeiro.tenancy_write import MSG_PARENT_TENANT, parent_in_organization
+
+        if banco and not parent_in_organization(banco, self._organization):
+            raise ValidationError({"banco": MSG_PARENT_TENANT})
+        if categoria and not parent_in_organization(categoria, self._organization):
+            raise ValidationError({"categoria": MSG_PARENT_TENANT})
         return cleaned
 
 
@@ -243,8 +253,9 @@ class CobrancaForm(forms.ModelForm):
             ),
         }
 
-    def __init__(self, *args, usuario=None, **kwargs):
+    def __init__(self, *args, usuario=None, organization=None, **kwargs):
         self.usuario = usuario
+        self._organization = organization
         super().__init__(*args, **kwargs)
         self.fields["contrato"].required = False
         self.fields["forma_prevista_pagamento"].required = False
@@ -253,18 +264,33 @@ class CobrancaForm(forms.ModelForm):
         self.fields["forma_prevista_pagamento"].choices = [
             ("", "Não informada")
         ] + list(FormaPagamento.choices)
-        if usuario:
+        if organization is not None:
             from usuarios.models import Cliente
 
-            self.fields["cliente"].queryset = Cliente.objects.filter(user=usuario).order_by(
-                "nome"
+            self.fields["cliente"].queryset = Cliente.objects.filter(
+                organization=organization
+            ).order_by("nome")
+            self.fields["contrato"].queryset = (
+                Contrato.objects.filter(organization=organization)
+                .select_related("cliente")
+                .order_by("-criado_em")
             )
-            self.fields["contrato"].queryset = Contrato.objects.filter(
-                usuario=usuario
-            ).select_related("cliente").order_by("-criado_em")
-            self.fields["responsavel"].queryset = User.objects.filter(pk=usuario.pk)
+        else:
+            from usuarios.models import Cliente
+
+            self.fields["cliente"].queryset = Cliente.objects.none()
+            self.fields["contrato"].queryset = Contrato.objects.none()
+        resp_ids = []
+        if usuario:
+            resp_ids.append(usuario.pk)
             self.fields["responsavel"].initial = usuario.pk
+        if self.instance.pk and self.instance.responsavel_id:
+            resp_ids.append(self.instance.responsavel_id)
+        if resp_ids:
+            self.fields["responsavel"].queryset = User.objects.filter(pk__in=resp_ids)
             self.fields["responsavel"].empty_label = None
+        else:
+            self.fields["responsavel"].queryset = User.objects.none()
         if self.instance.pk and self.instance.valor_original is not None:
             self.initial["valor"] = str(self.instance.valor_original).replace(".", ",")
         if not self.instance.pk:
@@ -309,21 +335,25 @@ class CobrancaForm(forms.ModelForm):
 
     def clean_cliente(self):
         cliente = self.cleaned_data.get("cliente")
-        if cliente and self.usuario and cliente.user_id != self.usuario.pk:
-            raise ValidationError("Cliente não pertence ao seu cadastro.")
+        from financeiro.tenancy_write import MSG_PARENT_TENANT, parent_in_organization
+
+        if cliente and not parent_in_organization(cliente, self._organization):
+            raise ValidationError(MSG_PARENT_TENANT)
         return cliente
 
     def clean_contrato(self):
         contrato = self.cleaned_data.get("contrato")
         cliente = self.cleaned_data.get("cliente")
-        if contrato and self.usuario and contrato.usuario_id != self.usuario.pk:
-            raise ValidationError("Contrato não pertence ao seu cadastro.")
         if contrato and cliente and contrato.cliente_id != cliente.pk:
             raise ValidationError("Contrato não pertence ao cliente selecionado.")
+        from financeiro.tenancy_write import MSG_PARENT_TENANT, parent_in_organization
+
+        if contrato and not parent_in_organization(contrato, self._organization):
+            raise ValidationError(MSG_PARENT_TENANT)
         return contrato
 
     def _post_clean(self):
-        if self.usuario:
+        if self.usuario and not self.instance.pk:
             self.instance.usuario = self.usuario
         super()._post_clean()
 
@@ -336,7 +366,7 @@ class CobrancaForm(forms.ModelForm):
             instance.contrato_referencia = contrato.referencia
         elif not instance.contrato_id:
             instance.contrato_referencia = ""
-        if self.usuario:
+        if self.usuario and not instance.pk:
             instance.usuario = self.usuario
             if not instance.responsavel_id:
                 instance.responsavel = self.usuario
@@ -454,19 +484,32 @@ class ContratoForm(forms.ModelForm):
             "observacoes": forms.Textarea(attrs={"class": _INPUT_CLASS, "rows": 3}),
         }
 
-    def __init__(self, *args, usuario=None, **kwargs):
+    def __init__(self, *args, usuario=None, organization=None, **kwargs):
         self.usuario = usuario
+        self._organization = organization
         super().__init__(*args, **kwargs)
         self.fields["observacoes"].required = False
-        if usuario:
+        if organization is not None:
             from usuarios.models import Cliente
 
-            self.fields["cliente"].queryset = Cliente.objects.filter(user=usuario).order_by(
-                "nome"
-            )
-            self.fields["responsavel"].queryset = User.objects.filter(pk=usuario.pk)
+            self.fields["cliente"].queryset = Cliente.objects.filter(
+                organization=organization
+            ).order_by("nome")
+        else:
+            from usuarios.models import Cliente
+
+            self.fields["cliente"].queryset = Cliente.objects.none()
+        resp_ids = []
+        if usuario:
+            resp_ids.append(usuario.pk)
             self.fields["responsavel"].initial = usuario.pk
+        if self.instance.pk and self.instance.responsavel_id:
+            resp_ids.append(self.instance.responsavel_id)
+        if resp_ids:
+            self.fields["responsavel"].queryset = User.objects.filter(pk__in=resp_ids)
             self.fields["responsavel"].empty_label = None
+        else:
+            self.fields["responsavel"].queryset = User.objects.none()
         if self.instance.pk and self.instance.valor_total is not None:
             self.initial["valor_total"] = str(self.instance.valor_total).replace(".", ",")
 
@@ -478,19 +521,21 @@ class ContratoForm(forms.ModelForm):
 
     def clean_cliente(self):
         cliente = self.cleaned_data.get("cliente")
-        if cliente and self.usuario and cliente.user_id != self.usuario.pk:
-            raise ValidationError("Cliente não pertence ao seu cadastro.")
+        from financeiro.tenancy_write import MSG_PARENT_TENANT, parent_in_organization
+
+        if cliente and not parent_in_organization(cliente, self._organization):
+            raise ValidationError(MSG_PARENT_TENANT)
         return cliente
 
     def _post_clean(self):
-        if self.usuario:
+        if self.usuario and not self.instance.pk:
             self.instance.usuario = self.usuario
         super()._post_clean()
 
     def save(self, commit=True):
         instance = super().save(commit=False)
         instance.valor_total = self.cleaned_data["valor_total"]
-        if self.usuario:
+        if self.usuario and not instance.pk:
             instance.usuario = self.usuario
             if not instance.responsavel_id:
                 instance.responsavel = self.usuario

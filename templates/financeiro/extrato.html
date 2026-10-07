@@ -56,15 +56,15 @@
     <div class="mt-8 grid gap-4 sm:grid-cols-3">
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <p class="text-xs uppercase text-zinc-500">Receitas</p>
-            <p class="mt-1 font-mono text-lg text-emerald-400">R$ {{ total_receitas|floatformat:2 }}</p>
+            <p class="mt-1 font-mono text-lg text-emerald-400">R$ {{ total_receitas|brnum:2 }}</p>
         </div>
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <p class="text-xs uppercase text-zinc-500">Despesas</p>
-            <p class="mt-1 font-mono text-lg text-red-400">R$ {{ total_despesas|floatformat:2 }}</p>
+            <p class="mt-1 font-mono text-lg text-red-400">R$ {{ total_despesas|brnum:2 }}</p>
         </div>
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <p class="text-xs uppercase text-zinc-500">Saldo no período</p>
-            <p class="mt-1 font-mono text-lg text-zinc-100">R$ {{ saldo_periodo|floatformat:2 }}</p>
+            <p class="mt-1 font-mono text-lg text-zinc-100">R$ {{ saldo_periodo|brnum:2 }}</p>
         </div>
     </div>
 
@@ -95,13 +95,15 @@
                                 {% endif %}
                             </td>
                             <td class="whitespace-nowrap px-4 py-3 font-mono {% if m.categoria.tipo == 'receita' %}text-emerald-400{% else %}text-red-400{% endif %}">
-                                {% if m.categoria.tipo == 'despesa' %}−{% endif %}R$ {{ m.valor|floatformat:2 }}
+                                {% if m.categoria.tipo == 'despesa' %}−{% endif %}R$ {{ m.valor|brnum:2 }}
                             </td>
                             <td class="max-w-xs truncate px-4 py-3 text-zinc-500">{{ m.descricao|default:"—" }}</td>
                             <td class="whitespace-nowrap px-4 py-3 text-right">
+                                {% if fin_perms.gerir_caixa %}
                                 <a href="{% url 'financeiro_movimento_editar' m.pk %}" class="text-bally-bright hover:underline">Editar</a>
                                 <span class="text-zinc-600">·</span>
                                 <a href="{% url 'financeiro_movimento_excluir' m.pk %}" class="text-red-400 hover:underline">Excluir</a>
+                                {% endif %}
                             </td>
                         </tr>
                     {% endfor %}

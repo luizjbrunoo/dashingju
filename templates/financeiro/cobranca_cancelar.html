@@ -7,7 +7,7 @@
 
     <h1 class="text-xl font-semibold text-zinc-100">Cancelar cobrança</h1>
     <p class="mt-2 text-sm text-zinc-400">
-        {{ cobranca.descricao }} — {{ cobranca.cliente.nome }} — R$ {{ cobranca.valor_original|floatformat:2 }}
+        {{ cobranca.descricao }} — {{ cobranca.cliente.nome }} — R$ {{ cobranca.valor_original|brnum:2 }}
     </p>
 
     <form method="post" class="mt-8 space-y-5">

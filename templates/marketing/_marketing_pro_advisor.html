@@ -1,0 +1,62 @@
+{% if mkt_pro %}
+<section class="mt-6" aria-labelledby="mkt-advisor-titulo">
+    <h2 id="mkt-advisor-titulo" class="text-sm font-semibold uppercase tracking-wide text-zinc-200">Growth Advisor</h2>
+    <p class="mt-0.5 text-[12px] text-zinc-500">Prioridade recomendada de marketing</p>
+
+    {% if mkt_pro.advisor.principal %}
+    {% with p=mkt_pro.advisor.principal %}
+    <div class="mt-3 rounded-lg p-4
+        {% if p.prioridade == 'urgente' %}border border-red-900/40 bg-zinc-900/50
+        {% elif p.prioridade == 'alta' %}border border-amber-800/30 bg-zinc-900/50
+        {% else %}border border-zinc-800 bg-zinc-900/50{% endif %}">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Growth Advisor</p>
+            <span class="inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide
+                {% if p.prioridade == 'urgente' %}border-red-900/50 bg-red-950/40 text-red-300
+                {% elif p.prioridade == 'alta' %}border-amber-800/40 bg-amber-950/35 text-amber-100/90
+                {% else %}border-zinc-700 text-zinc-400{% endif %}">{{ p.prioridade }}</span>
+        </div>
+        <p class="mt-3 text-base font-semibold text-zinc-100">{{ p.titulo }}</p>
+        <p class="mt-3 text-[11px] uppercase tracking-wide text-zinc-500">Por quê</p>
+        <p class="mt-1 text-[13px] text-zinc-200">{{ p.evidence }}</p>
+        {% if p.impacto %}
+        <p class="mt-3 text-[11px] uppercase tracking-wide text-zinc-500">Impacto observado</p>
+        <p class="mt-1 text-[13px] text-zinc-300">{{ p.impacto }}</p>
+        {% endif %}
+        <p class="mt-3 text-[11px] uppercase tracking-wide text-zinc-500">Próxima ação</p>
+        <p class="mt-1 text-sm text-zinc-100">{{ p.acao }}</p>
+        <div class="mt-3">
+            <a href="{{ p.url }}" class="rounded-md border border-bally/40 bg-bally-muted/30 px-3 py-1.5 text-xs font-medium text-bally-bright hover:bg-bally-muted/50">{{ p.cta }}</a>
+        </div>
+    </div>
+    {% endwith %}
+    {% else %}
+    <div class="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+        <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Growth Advisor</p>
+        {% if mkt_pro.advisor.status == 'saudavel' %}
+        <p class="mt-2 text-sm text-zinc-200">Sem prioridade urgente de marketing no período.</p>
+        <p class="mt-1 text-[13px] text-zinc-500">Não há alerta artificial de baixa performance.</p>
+        {% else %}
+        <p class="mt-2 text-sm text-zinc-200">Não há dados suficientes para priorizar.</p>
+        <p class="mt-1 text-[13px] text-zinc-500">Ausência de integração ou de origem registrada não é desempenho ruim.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if mkt_pro.advisor.alertas %}
+    <ul class="mt-3 space-y-1.5">
+        {% for alerta in mkt_pro.advisor.alertas %}
+        <li class="rounded-md border border-zinc-800 bg-zinc-950/40 px-3 py-2 text-[12px] text-zinc-400">
+            <span class="font-medium uppercase tracking-wide text-zinc-500">{{ alerta.categoria }}</span>
+            <span class="text-zinc-600">·</span>
+            <span class="uppercase tracking-wide text-zinc-500">{{ alerta.severity }}</span>
+            — {{ alerta.titulo }}
+            {% if alerta.url %}
+            <a href="{{ alerta.url }}" class="ml-1 text-bally-bright hover:underline">abrir</a>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</section>
+{% endif %}

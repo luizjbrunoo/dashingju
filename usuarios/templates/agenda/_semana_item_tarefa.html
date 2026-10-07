@@ -3,6 +3,7 @@
     <div class="flex items-center justify-between gap-1">
         <span class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Tarefa</span>
         {% include 'agenda/_badge_status_tarefa.html' %}
+        {% include 'agenda/_badge_criticidade.html' with obj=tarefa %}
     </div>
     <p class="mt-1 truncate text-xs {% if tarefa.status == 'concluida' %}text-zinc-500 line-through{% else %}text-zinc-200{% endif %}">{{ tarefa.titulo }}</p>
     {% if tarefa.cliente or tarefa.responsavel %}

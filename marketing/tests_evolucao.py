@@ -21,6 +21,8 @@ from marketing.services.resultados_evolucao import (
     tendencias_completas,
 )
 from marketing.services.google_ads_resultados import calcular_resultados_negocio
+from marketing.tests_helpers import grant_marketing_permissions
+from organizacoes.models import Membership, Organization
 from usuarios.choices import OrigemLead, StatusCompromisso, TipoCompromisso
 from usuarios.models import Cliente, Compromisso
 
@@ -37,6 +39,14 @@ def _dt_no_dia(d, hora=10):
 class ResultadosEvolucaoFase11Tests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="mkt_f11", password="senha123")
+        self.org = Organization.objects.create(name="Mkt F11 Org")
+        Membership.objects.create(
+            user=self.user,
+            organization=self.org,
+            role=Membership.Role.MEMBER,
+            status=Membership.Status.ACTIVE,
+        )
+        grant_marketing_permissions(self.user)
         self.http = Client()
         self.http.login(username="mkt_f11", password="senha123")
         self.hoje = timezone.localdate()
@@ -45,6 +55,7 @@ class ResultadosEvolucaoFase11Tests(TestCase):
     def _lead(self, nome, email, dia=None):
         c = Cliente(
             user=self.user,
+            organization=self.org,
             nome=nome,
             email=email,
             origem=OrigemLead.GOOGLE_ADS,
@@ -74,7 +85,9 @@ class ResultadosEvolucaoFase11Tests(TestCase):
         d2 = d1 + timedelta(days=1)
         self._lead("L1", "l1@test.com", d1)
         self._lead("L2", "l2@test.com", d2)
-        evo = calcular_evolucao_resultados(self.user, self.periodo, granularidade=GRAN_DIA)
+        evo = calcular_evolucao_resultados(
+            self.user, self.periodo, organization=self.org, granularidade=GRAN_DIA
+        )
         self.assertEqual(len(evo.labels), self.periodo.dias)
         self.assertEqual(sum(evo.leads), 2)
         self.assertTrue(evo.tem_dados())
@@ -83,6 +96,7 @@ class ResultadosEvolucaoFase11Tests(TestCase):
         lead = self._lead("Full", "full@test.com", self.periodo.data_inicio)
         Compromisso.objects.create(
             user=self.user,
+            organization=self.org,
             cliente=lead,
             titulo="Consulta",
             tipo=TipoCompromisso.CONSULTA,
@@ -91,6 +105,7 @@ class ResultadosEvolucaoFase11Tests(TestCase):
         )
         Contrato.objects.create(
             usuario=self.user,
+            organization=self.org,
             cliente=lead,
             referencia="CTR-001",
             descricao="Contrato teste",
@@ -98,24 +113,36 @@ class ResultadosEvolucaoFase11Tests(TestCase):
             status=StatusContrato.ACTIVE,
         )
         Contrato.objects.filter(cliente=lead).update(criado_em=_dt_no_dia(self.periodo.data_inicio))
-        evo = calcular_evolucao_resultados(self.user, self.periodo, granularidade=GRAN_DIA)
+        evo = calcular_evolucao_resultados(
+            self.user, self.periodo, organization=self.org, granularidade=GRAN_DIA
+        )
         self.assertEqual(sum(evo.consultas), 1)
         self.assertEqual(sum(evo.contratos), 1)
         self.assertAlmostEqual(sum(evo.receita), 5000.0)
 
     def test_tendencias_completas_inclui_propostas(self):
-        atual = calcular_resultados_negocio(self.user, self.periodo, modo_demo=True)
+        atual = calcular_resultados_negocio(
+            self.user, self.periodo, organization=self.org, modo_demo=True
+        )
         anterior = calcular_resultados_negocio(
-            self.user, self.periodo.periodo_anterior(), modo_demo=True
+            self.user,
+            self.periodo.periodo_anterior(),
+            organization=self.org,
+            modo_demo=True,
         )
         t = tendencias_completas(atual, anterior)
         self.assertIn("propostas", t)
         self.assertIn("consultas_agendadas", t)
 
     def test_linhas_comparacao(self):
-        atual = calcular_resultados_negocio(self.user, self.periodo, modo_demo=True)
+        atual = calcular_resultados_negocio(
+            self.user, self.periodo, organization=self.org, modo_demo=True
+        )
         anterior = calcular_resultados_negocio(
-            self.user, self.periodo.periodo_anterior(), modo_demo=True
+            self.user,
+            self.periodo.periodo_anterior(),
+            organization=self.org,
+            modo_demo=True,
         )
         t = tendencias_completas(atual, anterior)
         linhas = linhas_comparacao_periodo(atual, anterior, t, ocultar_financeiro=False)

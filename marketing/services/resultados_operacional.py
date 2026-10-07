@@ -14,22 +14,27 @@ from marketing.services.atribuicao import clientes_google_ads
 from marketing.services.periodo import PeriodoMarketing, datetime_inicio
 from usuarios.choices import StatusCompromisso, StatusTarefa, TipoCompromisso
 from usuarios.models import Cliente, Compromisso, Tarefa
+from usuarios.services.org_scope import compromissos_da_organizacao, tarefas_da_organizacao
 MKT_SEM_ACAO = "sem_acao"
 MKT_FOLLOWUP_ATRASADO = "followup_atrasado"
 
 _FILTROS_MKT = frozenset({MKT_SEM_ACAO, MKT_FOLLOWUP_ATRASADO})
 
 
-def queryset_leads_sem_proxima_acao(user, periodo: PeriodoMarketing) -> QuerySet[Cliente]:
+def queryset_leads_sem_proxima_acao(
+    user, periodo: PeriodoMarketing, *, organization=None
+) -> QuerySet[Cliente]:
     """Leads Google Ads do período sem compromisso futuro nem tarefa pendente."""
     agora = timezone.now()
     hoje = timezone.localdate()
     qs = clientes_google_ads(
-        user, data_inicio=periodo.data_inicio, data_fim=periodo.data_fim
+        user,
+        data_inicio=periodo.data_inicio,
+        data_fim=periodo.data_fim,
+        organization=organization,
     )
     sem_compromisso = qs.exclude(
-        id__in=Compromisso.objects.filter(
-            user=user,
+        id__in=compromissos_da_organizacao(organization).filter(
             cliente_id__in=qs.values("pk"),
             data_hora__gte=agora,
         )
@@ -38,8 +43,7 @@ def queryset_leads_sem_proxima_acao(user, periodo: PeriodoMarketing) -> QuerySet
     )
     return (
         sem_compromisso.exclude(
-            id__in=Tarefa.objects.filter(
-                user=user,
+            id__in=tarefas_da_organizacao(organization).filter(
                 cliente_id__in=sem_compromisso.values("pk"),
                 status__in=(StatusTarefa.PENDENTE, StatusTarefa.EM_ANDAMENTO),
                 prazo__gte=hoje,
@@ -49,17 +53,22 @@ def queryset_leads_sem_proxima_acao(user, periodo: PeriodoMarketing) -> QuerySet
     )
 
 
-def queryset_followups_atrasados(user, periodo: PeriodoMarketing) -> QuerySet[Cliente]:
+def queryset_followups_atrasados(
+    user, periodo: PeriodoMarketing, *, organization=None
+) -> QuerySet[Cliente]:
     """Follow-ups vencidos ou leads em proposta sem follow-up futuro (Google Ads)."""
     hoje = timezone.localdate()
     hoje_inicio = datetime_inicio(hoje)
     leads_qs = clientes_google_ads(
-        user, data_inicio=periodo.data_inicio, data_fim=periodo.data_fim
+        user,
+        data_inicio=periodo.data_inicio,
+        data_fim=periodo.data_fim,
+        organization=organization,
     )
     ids_sub = leads_qs.values("pk")
+    comps = compromissos_da_organizacao(organization)
 
-    com_followup_vencido = Compromisso.objects.filter(
-        user=user,
+    com_followup_vencido = comps.filter(
         cliente_id__in=ids_sub,
         tipo=TipoCompromisso.FOLLOWUP_COMERCIAL,
         data_hora__lt=hoje_inicio,
@@ -67,12 +76,10 @@ def queryset_followups_atrasados(user, periodo: PeriodoMarketing) -> QuerySet[Cl
         status__in=(StatusCompromisso.REALIZADO, StatusCompromisso.CANCELADO)
     )
 
-    proposta_sem_followup = Cliente.objects.filter(
-        pk__in=ids_sub,
+    proposta_sem_followup = leads_qs.filter(
         fase_funil__in=FASES_PROPOSTA,
     ).exclude(
-        id__in=Compromisso.objects.filter(
-            user=user,
+        id__in=comps.filter(
             cliente_id__in=ids_sub,
             tipo=TipoCompromisso.FOLLOWUP_COMERCIAL,
             data_hora__gte=hoje_inicio,
@@ -82,8 +89,7 @@ def queryset_followups_atrasados(user, periodo: PeriodoMarketing) -> QuerySet[Cl
     )
 
     return (
-        Cliente.objects.filter(user=user)
-        .filter(
+        leads_qs.filter(
             Q(pk__in=com_followup_vencido.values("cliente_id"))
             | Q(pk__in=proposta_sem_followup)
         )
@@ -96,13 +102,19 @@ def aplicar_filtro_mkt_clientes(
     qs: QuerySet[Cliente],
     mkt: str,
     periodo: PeriodoMarketing,
+    *,
+    organization=None,
 ) -> QuerySet[Cliente]:
     """Restringe queryset de clientes ao filtro operacional de marketing."""
     if mkt == MKT_SEM_ACAO:
-        ids = queryset_leads_sem_proxima_acao(user, periodo).values_list("pk", flat=True)
+        ids = queryset_leads_sem_proxima_acao(
+            user, periodo, organization=organization
+        ).values_list("pk", flat=True)
         return qs.filter(pk__in=ids)
     if mkt == MKT_FOLLOWUP_ATRASADO:
-        ids = queryset_followups_atrasados(user, periodo).values_list("pk", flat=True)
+        ids = queryset_followups_atrasados(
+            user, periodo, organization=organization
+        ).values_list("pk", flat=True)
         return qs.filter(pk__in=ids)
     return qs
 

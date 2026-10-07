@@ -12,6 +12,7 @@ from marketing.definitions import ORIGEM_GOOGLE_ADS
 from marketing.services.periodo import filtro_datetime_campo
 from usuarios.choices import OrigemLead
 from usuarios.models import Cliente
+from usuarios.services.org_scope import clientes_da_organizacao
 SESSION_KEY = "lead_atribuicao"
 
 # Sinais objetivos de tráfego pago Google (não inventar além disso).
@@ -228,10 +229,11 @@ def clientes_google_ads(
     *,
     data_inicio=None,
     data_fim=None,
+    organization=None,
 ) -> QuerySet[Cliente]:
-    """Leads atribuíveis ao Google Ads (origem confiável, tenant-scoped)."""
-    qs = Cliente.objects.filter(
-        user=user,
+    """Leads atribuíveis ao Google Ads (origem confiável, Organization-scoped)."""
+    del user
+    qs = clientes_da_organizacao(organization).filter(
         origem=ORIGEM_GOOGLE_ADS,
         atribuicao_confiavel=True,
     )
@@ -239,17 +241,21 @@ def clientes_google_ads(
         qs, "criado_em", data_inicio=data_inicio, data_fim=data_fim
     )
 
-def ids_clientes_google_ads(user, *, data_inicio=None, data_fim=None) -> list[int]:
+def ids_clientes_google_ads(user, *, data_inicio=None, data_fim=None, organization=None) -> list[int]:
     return list(
-        clientes_google_ads(user, data_inicio=data_inicio, data_fim=data_fim).values_list(
-            "pk", flat=True
-        )
+        clientes_google_ads(
+            user,
+            data_inicio=data_inicio,
+            data_fim=data_fim,
+            organization=organization,
+        ).values_list("pk", flat=True)
     )
 
 
-def resumo_qualidade_atribuicao(user, *, data_inicio=None, data_fim=None) -> dict:
+def resumo_qualidade_atribuicao(user, *, data_inicio=None, data_fim=None, organization=None) -> dict:
     """Percentual de clientes no período com origem identificada vs. não."""
-    qs = Cliente.objects.filter(user=user)
+    del user
+    qs = clientes_da_organizacao(organization)
     qs = filtro_datetime_campo(
         qs, "criado_em", data_inicio=data_inicio, data_fim=data_fim
     )

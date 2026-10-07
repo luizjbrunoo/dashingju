@@ -1,4 +1,9 @@
-"""Integração de cobranças com a Agenda (tarefas, compromissos e lembretes)."""
+"""Integração de cobranças com a Agenda (tarefas, compromissos e lembretes).
+
+Tenant da Agenda: Cobranca.organization.
+cobranca.usuario NÃO é tenant.
+Job global: discovery em todas as cobranças; side effect só com Organization válida.
+"""
 
 from __future__ import annotations
 
@@ -20,6 +25,7 @@ from usuarios.choices import (
     TipoCompromisso,
 )
 from usuarios.models import Compromisso, Tarefa
+from usuarios.services.agenda_equipe import membership_ativa
 from usuarios.services.compromisso_lembrete import (
     cancelar_lembrete_compromisso,
     sincronizar_lembrete_compromisso,
@@ -30,6 +36,28 @@ logger = logging.getLogger(__name__)
 META_COBRANCA_ID = "cobranca_id"
 META_LEMBRETE_AUTO = "lembrete_cobranca_automatico"
 META_ORIGEM = "origem_financeiro"
+MSG_ORG_COBRANCA = "Não foi possível determinar o escritório da cobrança para a agenda."
+REASON_MISSING_ORGANIZATION = "MISSING_ORGANIZATION"
+REASON_ORGANIZATION_CONFLICT = "ORGANIZATION_CONFLICT"
+
+
+def _organization_cobranca(cobranca):
+    return getattr(cobranca, "organization", None)
+
+
+def _assert_organization_cobranca(cobranca):
+    organization = _organization_cobranca(cobranca)
+    if organization is None:
+        raise ValidationError(MSG_ORG_COBRANCA)
+    return organization
+
+
+def _responsavel_na_org(cobranca, autor, organization):
+    candidatos = [cobranca.responsavel, autor]
+    for cand in candidatos:
+        if cand is not None and membership_ativa(cand, organization):
+            return cand
+    return None
 
 
 def _cobranca_ativa_para_lembrete(cobranca) -> bool:
@@ -46,22 +74,35 @@ def _titulo_cobranca(cobranca) -> str:
     return f"Cobrança: {base}"
 
 
+def _log_skip_cobranca(cobranca, reason: str) -> None:
+    logger.info("skip model=Cobranca pk=%s reason=%s", cobranca.pk, reason)
+
+
+def _compromissos_auto_globais(cobranca):
+    return Compromisso.objects.filter(
+        metadados__cobranca_id=cobranca.pk,
+        metadados__lembrete_cobranca_automatico=True,
+    ).exclude(status=StatusCompromisso.CANCELADO)
+
+
 def compromisso_lembrete_automatico(cobranca):
+    organization = _organization_cobranca(cobranca)
+    if organization is None:
+        return None
     return (
-        Compromisso.objects.filter(
-            user=cobranca.usuario,
-            metadados__cobranca_id=cobranca.pk,
-            metadados__lembrete_cobranca_automatico=True,
-        )
-        .exclude(status=StatusCompromisso.CANCELADO)
+        _compromissos_auto_globais(cobranca)
+        .filter(organization=organization)
         .first()
     )
 
 
 def tarefas_vinculadas_cobranca(cobranca):
+    organization = _organization_cobranca(cobranca)
+    if organization is None:
+        return Tarefa.objects.none()
     return (
         Tarefa.objects.filter(
-            user=cobranca.usuario,
+            organization=organization,
             metadados__cobranca_id=cobranca.pk,
         )
         .exclude(status=StatusTarefa.CANCELADA)
@@ -71,9 +112,12 @@ def tarefas_vinculadas_cobranca(cobranca):
 
 
 def compromissos_vinculados_cobranca(cobranca):
+    organization = _organization_cobranca(cobranca)
+    if organization is None:
+        return Compromisso.objects.none()
     return (
         Compromisso.objects.filter(
-            user=cobranca.usuario,
+            organization=organization,
             metadados__cobranca_id=cobranca.pk,
         )
         .exclude(status=StatusCompromisso.CANCELADO)
@@ -86,6 +130,7 @@ def compromissos_vinculados_cobranca(cobranca):
 def criar_tarefa_cobranca(cobranca, *, autor) -> Tarefa:
     if not _cobranca_ativa_para_lembrete(cobranca):
         raise ValidationError("Esta cobrança não aceita tarefa na agenda.")
+    organization = _assert_organization_cobranca(cobranca)
     saldo = saldo_cobranca(cobranca)
     hoje = timezone.localdate()
     prazo = cobranca.data_vencimento
@@ -93,7 +138,8 @@ def criar_tarefa_cobranca(cobranca, *, autor) -> Tarefa:
         prazo = hoje
     prioridade = Prioridade.URGENTE if cobranca.status == StatusCobranca.OVERDUE else Prioridade.ALTA
     tarefa = Tarefa.objects.create(
-        user=cobranca.usuario,
+        user=autor,
+        organization=organization,
         titulo=f"Follow-up: {_titulo_cobranca(cobranca)}",
         descricao=(
             f"Cliente: {cobranca.cliente.nome}. "
@@ -102,7 +148,7 @@ def criar_tarefa_cobranca(cobranca, *, autor) -> Tarefa:
         ),
         prazo=prazo,
         cliente=cobranca.cliente,
-        responsavel=cobranca.responsavel or autor,
+        responsavel=_responsavel_na_org(cobranca, autor, organization),
         prioridade=prioridade,
         metadados={
             META_COBRANCA_ID: cobranca.pk,
@@ -127,12 +173,14 @@ def criar_compromisso_cobranca(
 ) -> Compromisso:
     if not _cobranca_ativa_para_lembrete(cobranca):
         raise ValidationError("Esta cobrança não aceita compromisso na agenda.")
+    organization = _assert_organization_cobranca(cobranca)
     saldo = saldo_cobranca(cobranca)
     dt = timezone.make_aware(
         datetime.combine(cobranca.data_vencimento, time(hour=9, minute=0))
     )
     compromisso = Compromisso.objects.create(
-        user=cobranca.usuario,
+        user=autor,
+        organization=organization,
         titulo=_titulo_cobranca(cobranca),
         descricao=(
             f"Retorno de cobrança — {cobranca.cliente.nome}. "
@@ -141,7 +189,7 @@ def criar_compromisso_cobranca(
         tipo=TipoCompromisso.COBRANCA,
         data_hora=dt,
         cliente=cobranca.cliente,
-        responsavel=cobranca.responsavel or autor,
+        responsavel=_responsavel_na_org(cobranca, autor, organization),
         prioridade=Prioridade.ALTA,
         lembrete_minutos=lembrete_minutos,
         metadados={
@@ -173,11 +221,21 @@ def sincronizar_lembrete_cobranca(cobranca) -> None:
         cancelar_lembrete_cobranca(cobranca)
         return
 
+    organization = _organization_cobranca(cobranca)
+    if organization is None:
+        _log_skip_cobranca(cobranca, REASON_MISSING_ORGANIZATION)
+        return
+
+    existentes = list(_compromissos_auto_globais(cobranca))
+    if any(item.organization_id != organization.pk for item in existentes):
+        _log_skip_cobranca(cobranca, REASON_ORGANIZATION_CONFLICT)
+        return
+
     saldo = saldo_cobranca(cobranca)
     dt = timezone.make_aware(
         datetime.combine(cobranca.data_vencimento, time(hour=9, minute=0))
     )
-    compromisso = compromisso_lembrete_automatico(cobranca)
+    compromisso = existentes[0] if existentes else None
     if compromisso:
         compromisso.titulo = _titulo_cobranca(cobranca)
         compromisso.descricao = (
@@ -199,6 +257,7 @@ def sincronizar_lembrete_cobranca(cobranca) -> None:
     else:
         compromisso = Compromisso.objects.create(
             user=cobranca.usuario,
+            organization=organization,
             titulo=_titulo_cobranca(cobranca),
             descricao=(
                 f"Lembrete automático — {cobranca.cliente.nome}. Saldo: R$ {saldo:.2f}."
@@ -206,7 +265,7 @@ def sincronizar_lembrete_cobranca(cobranca) -> None:
             tipo=TipoCompromisso.COBRANCA,
             data_hora=dt,
             cliente=cobranca.cliente,
-            responsavel=cobranca.responsavel,
+            responsavel=_responsavel_na_org(cobranca, cobranca.usuario, organization),
             prioridade=Prioridade.NORMAL,
             lembrete_minutos=LembreteMinutos.DIA_1,
             metadados={
@@ -218,15 +277,17 @@ def sincronizar_lembrete_cobranca(cobranca) -> None:
     sincronizar_lembrete_compromisso(compromisso)
 
 
-def cobrancas_itens_atencao(user, ref=None, limit: int = 4):
+def cobrancas_itens_atencao(organization, ref=None, limit: int = 4):
     from usuarios.services.agenda import ItemAtencao
 
     from financeiro.models import Cobranca
 
+    if organization is None:
+        return []
     ref = ref or timezone.localdate()
     resultado = []
     qs = (
-        Cobranca.objects.filter(usuario=user)
+        Cobranca.objects.filter(organization=organization)
         .exclude(status__in=(StatusCobranca.CANCELED, StatusCobranca.DRAFT, StatusCobranca.PAID))
         .select_related("cliente")
         .order_by("data_vencimento", "id")

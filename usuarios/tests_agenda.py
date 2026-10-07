@@ -13,6 +13,7 @@ from usuarios.choices import (
     TipoCompromisso,
 )
 from usuarios.models import Cliente, Compromisso, CompromissoParticipante, Tarefa
+from organizacoes.models import Membership, Organization
 from usuarios.services.agenda import (
     VIEW_HOJE,
     VIEW_LISTA,
@@ -42,7 +43,95 @@ def _dt_no_dia(d, hora=10):
     return timezone.make_aware(naive)
 
 
-class AgendaQueryTests(TestCase):
+def _provision_agenda_org(user, *clientes, name=None):
+    org = Organization.objects.create(name=name or f"Org {user.username}-{user.pk}")
+    Membership.objects.create(
+        user=user,
+        organization=org,
+        role=Membership.Role.OWNER,
+        status=Membership.Status.ACTIVE,
+    )
+    for cli in clientes:
+        if cli is None:
+            continue
+        cli.organization = org
+        cli.save(update_fields=["organization"])
+    return org
+
+
+class _AgendaOrgMixin:
+    """Estampa Organization nos creates e resolve tenant para a suíte legada."""
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        orig_setup = cls.setUp
+
+        def setUp(self, *args, **inner):
+            orig_setup(self, *args, **inner)
+            self._attach_agenda_org()
+
+        cls.setUp = setUp
+
+    def _attach_agenda_org(self):
+        if getattr(self, "_agenda_org_attached", False):
+            return
+        self._agenda_org_attached = True
+        owner = getattr(self, "user_a", None) or getattr(self, "user", None)
+        if owner and not getattr(self, "org", None) and not getattr(self, "org_a", None):
+            self.org = _provision_agenda_org(
+                owner,
+                getattr(self, "cliente_a", None),
+                getattr(self, "cliente", None),
+            )
+        if getattr(self, "org_a", None) and not getattr(self, "org", None):
+            self.org = self.org_a
+        if getattr(self, "user_b", None) and not getattr(self, "org_b", None):
+            self.org_b = _provision_agenda_org(
+                self.user_b,
+                getattr(self, "cliente_b", None),
+                name=f"Org B {self.user_b.pk}",
+            )
+        self._orig_compromisso_create = Compromisso.objects.create
+        self._orig_tarefa_create = Tarefa.objects.create
+
+        def _create_compromisso(*args, **kwargs):
+            if "organization" not in kwargs and "organization_id" not in kwargs:
+                kwargs["organization"] = self._org_for_user(kwargs.get("user"))
+            return self._orig_compromisso_create(*args, **kwargs)
+
+        def _create_tarefa(*args, **kwargs):
+            if "organization" not in kwargs and "organization_id" not in kwargs:
+                kwargs["organization"] = self._org_for_user(kwargs.get("user"))
+            return self._orig_tarefa_create(*args, **kwargs)
+
+        Compromisso.objects.create = _create_compromisso
+        Tarefa.objects.create = _create_tarefa
+        self.addCleanup(self._restore_agenda_creates)
+        from usuarios.tests_helpers import grant_agenda_permissions
+
+        for attr in ("user_a", "user", "user_b"):
+            u = getattr(self, attr, None)
+            if u is not None:
+                grant_agenda_permissions(u)
+
+    def _org_for_user(self, user):
+        if user is not None and user == getattr(self, "user_b", None):
+            return getattr(self, "org_b", None) or getattr(self, "org", None)
+        if user is not None and user in (
+            getattr(self, "user_a", None),
+            getattr(self, "user", None),
+        ):
+            return getattr(self, "org", None) or getattr(self, "org_a", None)
+        if user is None:
+            return getattr(self, "org", None) or getattr(self, "org_a", None)
+        return None
+
+    def _restore_agenda_creates(self):
+        Compromisso.objects.create = self._orig_compromisso_create
+        Tarefa.objects.create = self._orig_tarefa_create
+
+
+class AgendaQueryTests(_AgendaOrgMixin, TestCase):
     def setUp(self):
         self.user_a = User.objects.create_user(username="adv_a", password="senha123")
         self.cliente_a = Cliente.objects.create(
@@ -62,7 +151,7 @@ class AgendaQueryTests(TestCase):
             data_hora=_dt_no_dia(self.hoje + timedelta(days=1)),
         )
         filtros = AgendaFiltros(view=VIEW_HOJE)
-        ids = set(compromissos_para_agenda(self.user_a, filtros).values_list("pk", flat=True))
+        ids = set(compromissos_para_agenda(self.org, filtros).values_list("pk", flat=True))
         self.assertIn(c_hoje.pk, ids)
         self.assertNotIn(c_amanha.pk, ids)
 
@@ -76,7 +165,7 @@ class AgendaQueryTests(TestCase):
             data_hora=_dt_no_dia(self.hoje + timedelta(days=3)),
         )
         filtros = AgendaFiltros(view=VIEW_LISTA)
-        ids = set(compromissos_para_agenda(self.user_a, filtros).values_list("pk", flat=True))
+        ids = set(compromissos_para_agenda(self.org, filtros).values_list("pk", flat=True))
         self.assertEqual(ids, {c1.pk, c2.pk})
 
     def test_filtro_cliente_compromissos(self):
@@ -93,7 +182,7 @@ class AgendaQueryTests(TestCase):
         )
         filtros = AgendaFiltros(view=VIEW_LISTA, cliente_id=self.cliente_a.pk)
         self.assertEqual(
-            list(compromissos_para_agenda(self.user_a, filtros).values_list("pk", flat=True)),
+            list(compromissos_para_agenda(self.org, filtros).values_list("pk", flat=True)),
             [c1.pk],
         )
 
@@ -117,7 +206,7 @@ class AgendaQueryTests(TestCase):
             status=StatusTarefa.PENDENTE,
         )
         filtros = AgendaFiltros(view=VIEW_HOJE)
-        ids = set(tarefas_para_agenda(self.user_a, filtros).values_list("pk", flat=True))
+        ids = set(tarefas_para_agenda(self.org, filtros).values_list("pk", flat=True))
         self.assertIn(t_hoje.pk, ids)
         self.assertIn(t_atrasada.pk, ids)
         self.assertNotIn(t_futura.pk, ids)
@@ -136,7 +225,7 @@ class AgendaQueryTests(TestCase):
             data_hora=_dt_no_dia(fim_semana(ref) + timedelta(days=3)),
         )
         filtros = AgendaFiltros(view=VIEW_SEMANA, data=ref)
-        ids = set(compromissos_para_agenda(self.user_a, filtros).values_list("pk", flat=True))
+        ids = set(compromissos_para_agenda(self.org, filtros).values_list("pk", flat=True))
         self.assertIn(c_semana.pk, ids)
         self.assertNotIn(c_fora.pk, ids)
 
@@ -153,7 +242,7 @@ class AgendaQueryTests(TestCase):
             data_hora=_dt_no_dia(ref + timedelta(days=40)),
         )
         filtros = AgendaFiltros(view=VIEW_MES, data=ref)
-        ids = set(compromissos_para_agenda(self.user_a, filtros).values_list("pk", flat=True))
+        ids = set(compromissos_para_agenda(self.org, filtros).values_list("pk", flat=True))
         self.assertIn(c_mes.pk, ids)
         self.assertNotIn(c_fora.pk, ids)
 
@@ -166,7 +255,7 @@ class AgendaQueryTests(TestCase):
             data_hora=_dt_no_dia(ini),
         )
         filtros = AgendaFiltros(view=VIEW_SEMANA, data=ref)
-        qs = compromissos_para_agenda(self.user_a, filtros)
+        qs = compromissos_para_agenda(self.org, filtros)
         dias, atrasadas = montar_semana(qs, [], filtros)
         self.assertEqual(len(dias), 7)
         self.assertEqual(len(dias[0].compromissos), 1)
@@ -199,7 +288,7 @@ class AgendaQueryTests(TestCase):
             titulo="Feita",
             status=StatusTarefa.CONCLUIDA,
         )
-        kpis = calcular_kpis(self.user_a, ref)
+        kpis = calcular_kpis(self.org, ref)
         self.assertEqual(kpis.compromissos_hoje, 1)
         self.assertEqual(kpis.tarefas_atrasadas, 1)
         self.assertGreaterEqual(kpis.prazos_proximos, 0)
@@ -212,7 +301,7 @@ class AgendaQueryTests(TestCase):
             titulo="Outro",
             data_hora=_dt_no_dia(ref),
         )
-        kpis = calcular_kpis(self.user_a, ref)
+        kpis = calcular_kpis(self.org, ref)
         self.assertEqual(kpis.compromissos_hoje, 0)
 
     def test_itens_atencao_inclui_tarefa_atrasada(self):
@@ -223,12 +312,12 @@ class AgendaQueryTests(TestCase):
             prazo=ref - timedelta(days=3),
             status=StatusTarefa.PENDENTE,
         )
-        items = itens_atencao(self.user_a, ref)
+        items = itens_atencao(self.org, ref)
         self.assertTrue(any(i.item_id == t.pk for i in items))
         self.assertTrue(any("Atrasada" in i.motivo for i in items))
 
 
-class AgendaModelsTests(TestCase):
+class AgendaModelsTests(_AgendaOrgMixin, TestCase):
     def setUp(self):
         self.user_a = User.objects.create_user(username="adv_a", password="senha123")
         self.user_b = User.objects.create_user(username="adv_b", password="senha123")
@@ -256,6 +345,7 @@ class AgendaModelsTests(TestCase):
     def test_cliente_outro_tenant_invalido(self):
         c = Compromisso(
             user=self.user_a,
+            organization=self.org,
             titulo="X",
             data_hora=timezone.now(),
             cliente=self.cliente_b,
@@ -637,21 +727,37 @@ class AgendaModelsTests(TestCase):
         )
 
 
-class ClienteAgendaFase9Tests(TestCase):
+class ClienteAgendaFase9Tests(_AgendaOrgMixin, TestCase):
     def setUp(self):
         self.user_a = User.objects.create_user(username="adv_a", password="senha123")
         self.user_b = User.objects.create_user(username="adv_b", password="senha123")
+        self.org_a = Organization.objects.create(name="Org Agenda A")
+        self.org_b = Organization.objects.create(name="Org Agenda B")
+        Membership.objects.create(
+            user=self.user_a,
+            organization=self.org_a,
+            role=Membership.Role.OWNER,
+            status=Membership.Status.ACTIVE,
+        )
+        Membership.objects.create(
+            user=self.user_b,
+            organization=self.org_b,
+            role=Membership.Role.OWNER,
+            status=Membership.Status.ACTIVE,
+        )
         self.cliente_a = Cliente.objects.create(
             user=self.user_a,
             nome="Maria",
             email="maria@test.com",
             status="em_prospeccao",
             fase_funil="aguardando_decisao",
+            organization=self.org_a,
         )
         self.cliente_b = Cliente.objects.create(
             user=self.user_b,
             nome="Outro",
             email="outro@test.com",
+            organization=self.org_b,
         )
         self.http = Client()
 
@@ -694,11 +800,15 @@ class ClienteAgendaFase9Tests(TestCase):
 
         Cobranca.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_a,
             descricao="Honorários",
             valor_original=Decimal("1500.00"),
             data_vencimento=timezone.localdate() + timedelta(days=10),
         )
+        from financeiro.tests_helpers import grant_finance_permissions
+
+        grant_finance_permissions(self.user_a, "view_cobrancas")
         self.http.login(username="adv_a", password="senha123")
         response = self.http.get(reverse("cliente", kwargs={"id": self.cliente_a.pk}))
         self.assertContains(response, "Financeiro")
@@ -739,8 +849,11 @@ class ClienteAgendaFase9Tests(TestCase):
         )
         self.http.login(username="adv_a", password="senha123")
         response = self.http.get(reverse("cliente", kwargs={"id": self.cliente_a.pk}))
-        self.assertNotContains(response, "Reunião antiga")
+        html = response.content.decode()
         self.assertContains(response, "Reunião futura")
+        bloco_agenda = html.split("Linha do tempo")[0]
+        self.assertNotIn("Reunião antiga", bloco_agenda)
+        self.assertIn("Reunião antiga", html.split("Linha do tempo", 1)[-1])
 
     def test_sugestao_cobranca_vencida(self):
         from decimal import Decimal
@@ -750,6 +863,7 @@ class ClienteAgendaFase9Tests(TestCase):
 
         Cobranca.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_a,
             descricao="Parcela vencida",
             valor_original=Decimal("800.00"),
@@ -769,6 +883,7 @@ class ClienteAgendaFase9Tests(TestCase):
 
         Cobranca.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=self.cliente_a,
             descricao="Honorários vencidos",
             valor_original=Decimal("1200.00"),
@@ -806,7 +921,7 @@ class ClienteAgendaFase9Tests(TestCase):
         self.assertContains(response, "Abrir")
 
 
-class RecorrenciaLembreteFase10Tests(TestCase):
+class RecorrenciaLembreteFase10Tests(_AgendaOrgMixin, TestCase):
     def setUp(self):
         self.user_a = User.objects.create_user(username="adv_a", password="senha123")
         self.http = Client()
@@ -1046,7 +1161,7 @@ class RecorrenciaLembreteFase10Tests(TestCase):
         self.assertEqual(proximo.day, 15)
 
 
-class AgendaIaFase11Tests(TestCase):
+class AgendaIaFase11Tests(_AgendaOrgMixin, TestCase):
     def setUp(self):
         self.user_a = User.objects.create_user(username="adv_a", password="senha123")
         self.http = Client()
@@ -1066,7 +1181,7 @@ class AgendaIaFase11Tests(TestCase):
             titulo="Petição atrasada",
             prazo=self.hoje - timedelta(days=2),
         )
-        ctx = montar_contexto_resumo_dia(self.user_a, self.hoje)
+        ctx = montar_contexto_resumo_dia(self.org, self.hoje)
         resumo = gerar_resumo_padrao(ctx)
         self.assertEqual(resumo.origem, "padrao")
         self.assertIn("compromisso agendado", resumo.texto)
@@ -1098,7 +1213,7 @@ class AgendaIaFase11Tests(TestCase):
 
         from usuarios.services.agenda_ia import AgendaIaError, gerar_resumo_ia, montar_contexto_resumo_dia
 
-        ctx = montar_contexto_resumo_dia(self.user_a, self.hoje)
+        ctx = montar_contexto_resumo_dia(self.org, self.hoje)
         with patch.dict(os.environ, {"OPENAI_API_KEY": ""}, clear=False):
             os.environ.pop("OPENAI_API_KEY", None)
             with self.assertRaises(AgendaIaError):
@@ -1119,7 +1234,7 @@ class AgendaIaFase11Tests(TestCase):
         self.assertContains(response, "OPENAI_API_KEY")
 
 
-class AgendaRbacFase12Tests(TestCase):
+class AgendaRbacFase12Tests(_AgendaOrgMixin, TestCase):
     GRUPO_RESTRITO = "Assistente — sem agenda"
     GRUPO_COMPLETO = "Agenda — acesso completo"
 
@@ -1152,10 +1267,24 @@ class AgendaRbacFase12Tests(TestCase):
         self.grupo_restrito.permissions.clear()
         self.user_restrito.groups.add(self.grupo_restrito)
 
-    def test_usuario_sem_grupo_mantem_acesso_legado(self):
-        self.http.login(username="adv_a12", password="senha123")
+    def test_usuario_sem_grupo_sem_perm_fail_closed(self):
+        sem_perm = User.objects.create_user(
+            username="agenda_sem_perm_fo", password="senha123"
+        )
+        Membership.objects.get_or_create(
+            user=sem_perm,
+            organization=self.org,
+            defaults={
+                "role": Membership.Role.MEMBER,
+                "status": Membership.Status.ACTIVE,
+            },
+        )
+        self.assertFalse(sem_perm.groups.exists())
+        self.assertFalse(sem_perm.user_permissions.exists())
+        self.http.login(username="agenda_sem_perm_fo", password="senha123")
         response = self.http.get(reverse("agenda"))
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("clientes"))
 
     def test_usuario_grupo_sem_perm_bloqueado(self):
         self.http.login(username="assist12", password="senha123")
@@ -1163,9 +1292,21 @@ class AgendaRbacFase12Tests(TestCase):
         self.assertEqual(response.status_code, 302)
 
     def test_usuario_grupo_com_perm_acessa(self):
+        from usuarios.tests_helpers import grant_agenda_permissions
+
         self.user_restrito.groups.remove(self.grupo_restrito)
         self.user_restrito.groups.add(self.grupo_completo)
-        self.http.login(username="assist12", password="senha123")
+        grant_agenda_permissions(self.user_restrito)
+        Membership.objects.get_or_create(
+            user=self.user_restrito,
+            organization=self.org,
+            defaults={
+                "role": Membership.Role.MEMBER,
+                "status": Membership.Status.ACTIVE,
+            },
+        )
+        self.user_restrito = User.objects.get(pk=self.user_restrito.pk)
+        self.http.force_login(self.user_restrito)
         response = self.http.get(reverse("agenda"))
         self.assertEqual(response.status_code, 200)
 
@@ -1195,15 +1336,18 @@ class AgendaRbacFase12Tests(TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_escopo_equipe_membros_grupo(self):
-        from django.contrib.auth.models import Group
-
         from usuarios.choices import EscopoAgenda
         from usuarios.services.agenda_equipe import filtrar_compromissos_escopo, membros_agenda
 
-        grupo = Group.objects.create(name="Escritório Alfa")
-        self.user_a.groups.add(grupo)
-        self.user_b.groups.add(grupo)
-        self.assertEqual(membros_agenda(self.user_a).count(), 2)
+        Membership.objects.get_or_create(
+            user=self.user_b,
+            organization=self.org,
+            defaults={
+                "role": Membership.Role.MEMBER,
+                "status": Membership.Status.ACTIVE,
+            },
+        )
+        self.assertGreaterEqual(membros_agenda(self.org).count(), 2)
         Compromisso.objects.create(
             user=self.user_a,
             titulo="Do colega",
@@ -1216,14 +1360,18 @@ class AgendaRbacFase12Tests(TestCase):
             data_hora=_dt_no_dia(self.hoje, hora=15),
             responsavel=self.user_a,
         )
-        qs = Compromisso.objects.filter(user=self.user_a)
-        equipe = filtrar_compromissos_escopo(qs, self.user_a, EscopoAgenda.EQUIPE)
+        qs = Compromisso.objects.filter(organization=self.org)
+        equipe = filtrar_compromissos_escopo(
+            qs, self.user_a, EscopoAgenda.EQUIPE, organization=self.org
+        )
         self.assertEqual(equipe.count(), 2)
-        minha = filtrar_compromissos_escopo(qs, self.user_a, EscopoAgenda.MINHA)
+        minha = filtrar_compromissos_escopo(
+            qs, self.user_a, EscopoAgenda.MINHA, organization=self.org
+        )
         self.assertEqual(minha.count(), 1)
 
 
-class AgendaFase1CamposTests(TestCase):
+class AgendaFase1CamposTests(_AgendaOrgMixin, TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="fase1", password="senha123")
         self.cliente = Cliente.objects.create(
@@ -1355,7 +1503,7 @@ class AgendaFase1CamposTests(TestCase):
         self.assertIn("compromisso_tribunal_audiencia", html)
 
 
-class AgendaFase2EdicaoTests(TestCase):
+class AgendaFase2EdicaoTests(_AgendaOrgMixin, TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="fase2", password="senha123")
         self.http = Client()
@@ -1490,7 +1638,7 @@ class AgendaFase2EdicaoTests(TestCase):
         )
 
 
-class AgendaFase3StatusTests(TestCase):
+class AgendaFase3StatusTests(_AgendaOrgMixin, TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="fase3", password="senha123")
         self.http = Client()
@@ -1562,7 +1710,7 @@ class AgendaFase3StatusTests(TestCase):
             data_hora=_dt_no_dia(self.hoje + timedelta(days=1)),
             confirmacao_consulta=StatusConfirmacaoConsulta.PENDENTE,
         )
-        itens = itens_atencao(self.user, self.hoje)
+        itens = itens_atencao(self.org, self.hoje)
         ids = [i.item_id for i in itens if i.item_tipo == "compromisso"]
         self.assertIn(c.pk, ids)
 
@@ -1596,7 +1744,7 @@ class AgendaFase3StatusTests(TestCase):
         self.assertNotIn(">Ativa<", html)
 
 
-class AgendaFase4VinculosTests(TestCase):
+class AgendaFase4VinculosTests(_AgendaOrgMixin, TestCase):
     def setUp(self):
         self.user_a = User.objects.create_user(username="adv_a4", password="senha123")
         self.user_b = User.objects.create_user(username="adv_b4", password="senha123")
@@ -1638,7 +1786,7 @@ class AgendaFase4VinculosTests(TestCase):
             data_hora=_dt_no_dia(self.hoje),
             processo_referencia="1111111-11.2024.8.26.0100",
         )
-        refs = processos_distintos(self.user_a, cliente_id=self.cliente_a.pk)
+        refs = processos_distintos(self.org, cliente_id=self.cliente_a.pk)
         self.assertIn("1111111-11.2024.8.26.0100", refs)
 
     def test_responsavel_outro_tenant_rejeitado(self):
@@ -1695,7 +1843,7 @@ class AgendaFase4VinculosTests(TestCase):
         self.assertFalse(Tarefa.objects.filter(titulo="Tarefa inválida").exists())
 
 
-class AgendaFase5TimelineTests(TestCase):
+class AgendaFase5TimelineTests(_AgendaOrgMixin, TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="adv_f5", password="senha123")
         self.cliente = Cliente.objects.create(
@@ -1723,8 +1871,8 @@ class AgendaFase5TimelineTests(TestCase):
             status=StatusTarefa.PENDENTE,
         )
         filtros = AgendaFiltros(view=VIEW_HOJE)
-        compromissos = list(compromissos_para_agenda(self.user, filtros))
-        tarefas = list(tarefas_para_agenda(self.user, filtros))
+        compromissos = list(compromissos_para_agenda(self.org, filtros))
+        tarefas = list(tarefas_para_agenda(self.org, filtros))
         timeline = montar_timeline_hoje(compromissos, tarefas, self.hoje)
         titulos = [
             (item.compromisso or item.tarefa).titulo
@@ -1746,8 +1894,8 @@ class AgendaFase5TimelineTests(TestCase):
         )
         filtros = AgendaFiltros(view=VIEW_HOJE)
         timeline = montar_timeline_hoje(
-            list(compromissos_para_agenda(self.user, filtros)),
-            list(tarefas_para_agenda(self.user, filtros)),
+            list(compromissos_para_agenda(self.org, filtros)),
+            list(tarefas_para_agenda(self.org, filtros)),
             self.hoje,
         )
         self.assertEqual(len(timeline.atrasadas), 1)
@@ -1781,8 +1929,8 @@ class AgendaFase5TimelineTests(TestCase):
         )
         filtros = AgendaFiltros(view=VIEW_LISTA)
         itens = montar_lista_unificada(
-            list(compromissos_para_agenda(self.user, filtros)),
-            list(tarefas_para_agenda(self.user, filtros)),
+            list(compromissos_para_agenda(self.org, filtros)),
+            list(tarefas_para_agenda(self.org, filtros)),
         )
         tipos = {item.item_tipo for item in itens}
         self.assertEqual(tipos, {"compromisso", "tarefa"})
@@ -1796,7 +1944,7 @@ class AgendaFase5TimelineTests(TestCase):
         self.assertNotIn("Compromissos de hoje", html)
 
 
-class AgendaFase6SemanaMesTests(TestCase):
+class AgendaFase6SemanaMesTests(_AgendaOrgMixin, TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="adv_f6", password="senha123")
         self.hoje = timezone.localdate()
@@ -1826,8 +1974,8 @@ class AgendaFase6SemanaMesTests(TestCase):
         )
         filtros = AgendaFiltros(view=VIEW_MES, data=ref)
         grade = montar_grade_mes(
-            list(compromissos_para_agenda(self.user, filtros)),
-            list(tarefas_para_agenda(self.user, filtros)),
+            list(compromissos_para_agenda(self.org, filtros)),
+            list(tarefas_para_agenda(self.org, filtros)),
             filtros,
         )
         celula = next(
@@ -1855,8 +2003,8 @@ class AgendaFase6SemanaMesTests(TestCase):
         )
         filtros = AgendaFiltros(view=VIEW_SEMANA, data=ref)
         dias, atrasadas = montar_semana(
-            list(compromissos_para_agenda(self.user, filtros)),
-            list(tarefas_para_agenda(self.user, filtros)),
+            list(compromissos_para_agenda(self.org, filtros)),
+            list(tarefas_para_agenda(self.org, filtros)),
             filtros,
         )
         resumo = calcular_resumo_semana(dias, atrasadas)
@@ -1879,7 +2027,7 @@ class AgendaFase6SemanaMesTests(TestCase):
         )
         filtros = AgendaFiltros(view=VIEW_SEMANA, data=ref)
         dias, _ = montar_semana(
-            list(compromissos_para_agenda(self.user, filtros)),
+            list(compromissos_para_agenda(self.org, filtros)),
             [],
             filtros,
         )
@@ -1909,7 +2057,7 @@ class AgendaFase6SemanaMesTests(TestCase):
         self.assertIn(self.hoje.strftime("%d/%m"), html)
 
 
-class AgendaFase7KpisAtencaoTests(TestCase):
+class AgendaFase7KpisAtencaoTests(_AgendaOrgMixin, TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="adv_f7", password="senha123")
         self.hoje = timezone.localdate()
@@ -1950,7 +2098,7 @@ class AgendaFase7KpisAtencaoTests(TestCase):
             prazo=ref - timedelta(days=1),
             status=StatusTarefa.PENDENTE,
         )
-        kpis = calcular_kpis(self.user, ref)
+        kpis = calcular_kpis(self.org, ref)
         self.assertEqual(kpis.audiencias_semana, 2)
         self.assertEqual(kpis.tarefas_atrasadas, 1)
         self.assertGreaterEqual(kpis.prazos_proximos, 2)
@@ -1963,7 +2111,7 @@ class AgendaFase7KpisAtencaoTests(TestCase):
             data_hora=_dt_no_dia(self.hoje + timedelta(days=10)),
             prazo_interno=self.hoje + timedelta(days=1),
         )
-        itens = itens_atencao(self.user, self.hoje)
+        itens = itens_atencao(self.org, self.hoje)
         ids = [i.item_id for i in itens if i.motivo == "Prazo interno próximo"]
         self.assertIn(c.pk, ids)
 
@@ -1974,7 +2122,7 @@ class AgendaFase7KpisAtencaoTests(TestCase):
             prazo=self.hoje - timedelta(days=1),
             status=StatusTarefa.PENDENTE,
         )
-        itens = itens_atencao(self.user, self.hoje)
+        itens = itens_atencao(self.org, self.hoje)
         item = next(i for i in itens if i.item_id == t.pk)
         self.assertIn(f"tarefa_id={t.pk}", item.url)
         self.assertEqual(item.acao, "Concluir")
@@ -2003,7 +2151,7 @@ class AgendaFase7KpisAtencaoTests(TestCase):
         self.assertIn(f"compromisso_id={c.pk}", html)
 
 
-class AgendaFase8PrazosAudienciaTests(TestCase):
+class AgendaFase8PrazosAudienciaTests(_AgendaOrgMixin, TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="adv_f8", password="senha123")
         self.hoje = timezone.localdate()
@@ -2039,6 +2187,7 @@ class AgendaFase8PrazosAudienciaTests(TestCase):
 
         form = CompromissoForm(
             user=self.user,
+            organization=self.org,
             data={
                 "titulo": "Sem prazo",
                 "tipo": TipoCompromisso.PRAZO,
@@ -2062,7 +2211,7 @@ class AgendaFase8PrazosAudienciaTests(TestCase):
             prazo_interno=self.hoje - timedelta(days=2),
             prazo_oficial=self.hoje + timedelta(days=3),
         )
-        itens = itens_atencao(self.user, self.hoje)
+        itens = itens_atencao(self.org, self.hoje)
         motivos = [i.motivo for i in itens if i.item_id == c.pk]
         self.assertTrue(any("interno vencido" in m.lower() for m in motivos))
 
@@ -2093,7 +2242,7 @@ class AgendaFase8PrazosAudienciaTests(TestCase):
         self.assertContains(resp, "Presencial")
 
 
-class AgendaSpecFase13Tests(TestCase):
+class AgendaSpecFase13Tests(_AgendaOrgMixin, TestCase):
     """
     Suite dos 18 testes de aceitação do módulo Agenda (spec §40).
     Cada método corresponde a um TESTE numerado do prompt original.
@@ -2244,6 +2393,8 @@ class AgendaSpecFase13Tests(TestCase):
         from django.contrib.auth.models import Group, Permission
         from django.contrib.contenttypes.models import ContentType
 
+        from usuarios.tests_helpers import grant_agenda_permissions
+
         ct = ContentType.objects.get(app_label="usuarios", model="compromisso")
         perms = Permission.objects.filter(
             content_type=ct,
@@ -2258,6 +2409,16 @@ class AgendaSpecFase13Tests(TestCase):
         grupo.permissions.set(perms)
         self.user_a.groups.add(grupo)
         self.user_b.groups.add(grupo)
+        grant_agenda_permissions(self.user_a)
+        self.user_a = User.objects.get(pk=self.user_a.pk)
+        Membership.objects.get_or_create(
+            user=self.user_b,
+            organization=self.org,
+            defaults={
+                "role": Membership.Role.MEMBER,
+                "status": Membership.Status.ACTIVE,
+            },
+        )
         Compromisso.objects.create(
             user=self.user_a,
             titulo="Equipe visível",
@@ -2267,7 +2428,7 @@ class AgendaSpecFase13Tests(TestCase):
         self.http.login(username="spec_ag_r", password="senha123")
         self.assertEqual(self.http.get(reverse("agenda")).status_code, 302)
 
-        self.http.login(username="spec_ag_a", password="senha123")
+        self.http.force_login(self.user_a)
         resp = self.http.get(
             reverse("agenda"), {"view": "lista", "escopo": "equipe"}
         )
@@ -2293,7 +2454,7 @@ class AgendaSpecFase13Tests(TestCase):
             status=StatusTarefa.CONCLUIDA,
         )
         self.assertFalse(t.atrasada)
-        itens = itens_atencao(self.user_a, self.hoje)
+        itens = itens_atencao(self.org, self.hoje)
         ids = [i.item_id for i in itens if i.item_tipo == "tarefa"]
         self.assertNotIn(t.pk, ids)
 
@@ -2507,8 +2668,8 @@ class AgendaSpecFase13Tests(TestCase):
             prazo=self.hoje - timedelta(days=5),
             status=StatusTarefa.PENDENTE,
         )
-        kpis_a = calcular_kpis(self.user_a, self.hoje)
-        kpis_b = calcular_kpis(self.user_b, self.hoje)
+        kpis_a = calcular_kpis(self.org, self.hoje)
+        kpis_b = calcular_kpis(self.org_b, self.hoje)
         self.assertEqual(kpis_a.compromissos_hoje, 1)
         self.assertEqual(kpis_a.tarefas_atrasadas, 1)
         self.assertEqual(kpis_b.compromissos_hoje, 1)

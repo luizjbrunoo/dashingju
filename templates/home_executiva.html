@@ -1,0 +1,127 @@
+<header class="mt-8">
+    <p class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Dashboard executivo</p>
+    <h1 class="mt-1 text-xl font-semibold text-zinc-100">{{ executiva.organization_nome }}</h1>
+    <p class="mt-1 text-sm text-zinc-500">{{ executiva.period_label }} · visão de comando, não um sexto módulo operacional</p>
+</header>
+
+{% if executiva.snapshot %}
+{% with n=executiva.snapshot|length %}
+<section aria-labelledby="exec-snapshot-titulo">
+    <h2 id="exec-snapshot-titulo" class="sr-only">Como estamos</h2>
+    <div class="mt-6 grid items-stretch gap-3 grid-cols-1 sm:grid-cols-2
+        {% if n >= 5 %}lg:grid-cols-6 xl:grid-cols-5 [&>article]:lg:col-span-2 [&>article]:xl:col-span-1 [&>article:nth-child(4)]:lg:col-start-2 [&>article:nth-child(4)]:xl:col-start-auto [&>article:nth-child(5):last-child]:sm:col-span-2 [&>article:nth-child(5):last-child]:sm:max-w-[calc(50%-0.375rem)] [&>article:nth-child(5):last-child]:sm:justify-self-center [&>article:nth-child(5):last-child]:lg:col-span-2 [&>article:nth-child(5):last-child]:lg:max-w-none [&>article:nth-child(5):last-child]:lg:justify-self-stretch [&>article:nth-child(5):last-child]:xl:col-span-1
+        {% elif n == 4 %}lg:grid-cols-4
+        {% elif n == 3 %}lg:grid-cols-3 [&>article:last-child]:sm:col-span-2 [&>article:last-child]:sm:max-w-[calc(50%-0.375rem)] [&>article:last-child]:sm:justify-self-center [&>article:last-child]:lg:col-span-1 [&>article:last-child]:lg:max-w-none [&>article:last-child]:lg:justify-self-stretch
+        {% elif n == 2 %}lg:grid-cols-2
+        {% endif %}">
+    {% for card in executiva.snapshot %}
+    <article class="flex h-full min-w-0 flex-col rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+        <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{{ card.title }}</p>
+        <p class="mt-0.5 text-[11px] leading-snug text-zinc-600">{{ card.period_label }}</p>
+        <p class="mt-3 text-[11px] uppercase tracking-wide text-zinc-500">{{ card.primary_label }}</p>
+        <p class="mt-1 text-xl font-semibold leading-tight break-words tabular-nums text-zinc-100">{{ card.primary_value }}</p>
+        <p class="mt-3 text-[11px] uppercase tracking-wide text-zinc-500">{{ card.secondary_label }}</p>
+        <p class="mt-1 text-sm leading-snug break-words text-zinc-300">{{ card.secondary_value }}</p>
+        <p class="mt-2 text-[11px] leading-snug text-zinc-600">{{ card.hint }}</p>
+    </article>
+    {% endfor %}
+    </div>
+</section>
+{% endwith %}
+{% endif %}
+
+<section class="mt-6" aria-labelledby="exec-advisor-titulo">
+    <h2 id="exec-advisor-titulo" class="text-sm font-semibold uppercase tracking-wide text-zinc-200">Growth Advisor</h2>
+    <p class="mt-0.5 text-[12px] text-zinc-500">Principal prioridade executiva agora</p>
+
+    {% if executiva.advisor %}
+    {% with p=executiva.advisor %}
+    <div class="mt-3 rounded-lg border p-4
+        {% if p.severity == 'critica' %}border-red-900/40 bg-zinc-900/50
+        {% elif p.severity == 'alta' %}border-amber-800/30 bg-zinc-900/50
+        {% else %}border-zinc-800 bg-zinc-900/50{% endif %}">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Growth Advisor · {{ p.domain }}</p>
+            <span class="inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide
+                {% if p.severity == 'critica' %}border-red-900/50 bg-red-950/40 text-red-300
+                {% elif p.severity == 'alta' %}border-amber-800/40 bg-amber-950/35 text-amber-100/90
+                {% else %}border-zinc-700 text-zinc-400{% endif %}">{{ p.severity }}</span>
+        </div>
+        <p class="mt-3 text-[11px] uppercase tracking-wide text-zinc-500">Sua principal prioridade</p>
+        <p class="mt-1 text-base font-semibold text-zinc-100">{{ p.title }}</p>
+        <p class="mt-3 text-[11px] uppercase tracking-wide text-zinc-500">Por quê</p>
+        <p class="mt-1 text-[13px] text-zinc-200">{{ p.evidence }}</p>
+        {% if p.business_context %}
+        <p class="mt-3 text-[11px] uppercase tracking-wide text-zinc-500">Contexto</p>
+        <p class="mt-1 text-[13px] text-zinc-300">{{ p.business_context }}</p>
+        {% endif %}
+        <p class="mt-3 text-[11px] uppercase tracking-wide text-zinc-500">Próxima ação</p>
+        <p class="mt-1 text-sm text-zinc-100">{{ p.recommended_action }}</p>
+        {% if p.cta_url %}
+        <div class="mt-3">
+            <a href="{{ p.cta_url }}" class="rounded-md border border-bally/40 bg-bally-muted/30 px-3 py-1.5 text-xs font-medium text-bally-bright hover:bg-bally-muted/50">{{ p.cta_label }}</a>
+        </div>
+        {% endif %}
+    </div>
+    {% endwith %}
+    {% else %}
+    <div class="mt-3 rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+        <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Growth Advisor</p>
+        <p class="mt-2 text-sm text-zinc-200">Nenhuma prioridade crítica identificada neste momento.</p>
+        <p class="mt-1 text-[13px] text-zinc-500">Continue acompanhando os indicadores do período. Nenhuma urgência artificial.</p>
+    </div>
+    {% endif %}
+
+    {% if executiva.secundarios %}
+    <ul class="mt-3 space-y-1.5">
+        {% for s in executiva.secundarios %}
+        <li class="rounded-md border border-zinc-800 bg-zinc-950/40 px-3 py-2 text-[12px] text-zinc-400">
+            <span class="font-medium uppercase tracking-wide text-zinc-500">{{ s.domain }}</span>
+            <span class="text-zinc-600">·</span>
+            {{ s.title }}
+            {% if s.cta_url %}
+            <a href="{{ s.cta_url }}" class="ml-1 text-bally-bright hover:underline">{{ s.cta_label }}</a>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</section>
+
+{% if executiva.trajectory %}
+<section class="mt-8" aria-labelledby="exec-traj-titulo">
+    <h2 id="exec-traj-titulo" class="text-sm font-semibold uppercase tracking-wide text-zinc-200">Trajetória do negócio</h2>
+    <p class="mt-0.5 text-[12px] text-zinc-500">Cadeia executiva. Atribuição ≠ causalidade. Contrato ≠ recebimento. Ausência ≠ zero.</p>
+    <ol class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {% for step in executiva.trajectory %}
+        <li class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+            <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{{ step.label }}</p>
+            {% if step.disponivel and step.value != None %}
+            <p class="mt-2 text-lg font-semibold tabular-nums text-zinc-100">{{ step.value }}</p>
+            {% else %}
+            <p class="mt-2 text-sm font-medium text-zinc-500">Não disponível</p>
+            {% endif %}
+            <p class="mt-1 text-[11px] text-zinc-600">{{ step.nota }}</p>
+        </li>
+        {% endfor %}
+    </ol>
+</section>
+{% endif %}
+
+{% if executiva.pulse %}
+<section class="mt-8" aria-labelledby="exec-pulso-titulo">
+    <h2 id="exec-pulso-titulo" class="text-sm font-semibold uppercase tracking-wide text-zinc-200">Pulso do escritório</h2>
+    <p class="mt-0.5 text-[12px] text-zinc-500">Estados textuais dos módulos autorizados. Sem score geral do escritório.</p>
+    <ul class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {% for item in executiva.pulse %}
+        <li class="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3">
+            <p class="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">{{ item.label }}</p>
+            <p class="mt-1 text-sm font-medium text-zinc-100">{{ item.estado }}</p>
+            {% if item.detalhe %}
+            <p class="mt-1 text-[12px] text-zinc-500">{{ item.detalhe }}</p>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}

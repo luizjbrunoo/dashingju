@@ -47,20 +47,23 @@ _ORDENS = frozenset(
 )
 
 
-def _leads_campanha_identificada(user, periodo: PeriodoMarketing):
+def _leads_campanha_identificada(user, periodo: PeriodoMarketing, *, organization=None):
     """Leads Google Ads confiáveis no período com utm_campaign preenchido."""
     return (
         clientes_google_ads(
-            user, data_inicio=periodo.data_inicio, data_fim=periodo.data_fim
+            user,
+            data_inicio=periodo.data_inicio,
+            data_fim=periodo.data_fim,
+            organization=organization,
         )
         .exclude(utm_campaign="")
         .exclude(utm_campaign__isnull=True)
     )
 
 
-def campanhas_distintas(user, periodo: PeriodoMarketing) -> list[str]:
+def campanhas_distintas(user, periodo: PeriodoMarketing, *, organization=None) -> list[str]:
     qs = (
-        _leads_campanha_identificada(user, periodo)
+        _leads_campanha_identificada(user, periodo, organization=organization)
         .values("utm_campaign")
         .annotate(qtd=Count("pk"))
         .order_by("-qtd", "utm_campaign")
@@ -76,9 +79,11 @@ def _mapa_leads_por_campanha(leads_qs) -> dict[str, int]:
     }
 
 
-def _mapa_consultas_por_campanha(user, ids_subquery, periodo: PeriodoMarketing) -> dict[str, int]:
+def _mapa_consultas_por_campanha(
+    user, ids_subquery, periodo: PeriodoMarketing, *, organization=None
+) -> dict[str, int]:
     rows = (
-        _consultas_qs(user, ids_subquery, periodo)
+        _consultas_qs(user, ids_subquery, periodo, organization=organization)
         .filter(status=StatusCompromisso.REALIZADO)
         .values("cliente__utm_campaign")
         .annotate(qtd=Count("pk"))
@@ -91,10 +96,10 @@ def _mapa_consultas_por_campanha(user, ids_subquery, periodo: PeriodoMarketing) 
 
 
 def _mapa_contratos_por_campanha(
-    user, ids_subquery, periodo: PeriodoMarketing
+    organization, ids_subquery, periodo: PeriodoMarketing
 ) -> dict[str, tuple[int, Decimal]]:
     rows = (
-        _contratos_qs(user, ids_subquery, periodo)
+        _contratos_qs(organization, ids_subquery, periodo)
         .values("cliente__utm_campaign")
         .annotate(qtd=Count("pk"), receita=Coalesce(Sum("valor_total"), _ZERO))
     )
@@ -214,13 +219,14 @@ def calcular_ranking_campanhas(
     user,
     periodo: PeriodoMarketing,
     *,
+    organization=None,
     ordenacao: str = ORDEN_CONTRATOS,
     modo_demo: bool = False,
     nicho: str = "",
     ocultar_financeiro: bool = False,
 ) -> RankingCampanhas:
     orden = ordenacao if ordenacao in _ORDENS else ORDEN_CONTRATOS
-    leads_qs = _leads_campanha_identificada(user, periodo)
+    leads_qs = _leads_campanha_identificada(user, periodo, organization=organization)
     leads_por_camp = _mapa_leads_por_campanha(leads_qs)
     leads_com_utm = sum(leads_por_camp.values())
     nomes = sorted(
@@ -241,8 +247,12 @@ def calcular_ranking_campanhas(
         )
 
     ids_subquery = leads_qs.values("pk")
-    consultas_map = _mapa_consultas_por_campanha(user, ids_subquery, periodo)
-    contratos_map = _mapa_contratos_por_campanha(user, ids_subquery, periodo)
+    consultas_map = _mapa_consultas_por_campanha(
+        user, ids_subquery, periodo, organization=organization
+    )
+    contratos_map = _mapa_contratos_por_campanha(
+        organization, ids_subquery, periodo
+    )
 
     inv_total, inv_demo = get_investimento(
         user, periodo, modo_demo=modo_demo, nicho=nicho

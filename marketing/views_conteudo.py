@@ -4,14 +4,22 @@ from datetime import timedelta
 
 from django.contrib import messages
 from django.db.models import Q
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
+from financeiro.tenancy_write import organization_for_finance_write
 from marketing.decorators import (
     login_e_perm_conteudo,
     login_e_perm_edit_conteudo,
 )
-from marketing.permissions import pode_editar_conteudo_marketing
+from marketing.permissions import (
+    pode_editar_conteudo_marketing,
+    pode_ver_metricas_financeiras_marketing,
+    pode_ver_resultados_marketing,
+)
+from marketing.services.marketing_pro import montar_marketing_pro
+from marketing.services.periodo import PeriodoMarketing
 
 from .choices import AREAS_JURIDICAS_PADRAO, PlataformaMarketing, StatusConteudo, StatusIdeia
 from .forms import (
@@ -51,29 +59,43 @@ MENSAGENS_ACAO = {
 }
 
 
-def _itens_usuario(user):
-    return ContentItem.objects.filter(usuario=user)
+def _org(request):
+    return organization_for_finance_write(request)
 
 
-def _ideias_usuario(user):
-    return ContentIdea.objects.filter(usuario=user)
+def _itens_org(organization):
+    if organization is None:
+        return ContentItem.objects.none()
+    return ContentItem.objects.filter(organization=organization)
 
 
-def _perfil_usuario(user) -> ContentProfile:
-    profile, _ = ContentProfile.objects.get_or_create(usuario=user)
-    return profile
+def _ideias_org(organization):
+    if organization is None:
+        return ContentIdea.objects.none()
+    return ContentIdea.objects.filter(organization=organization)
 
 
-def _areas_do_perfil(user) -> list[str]:
-    profile = _perfil_usuario(user)
+def _perfil_org(organization, user) -> ContentProfile | None:
+    if organization is None:
+        return None
+    profile = ContentProfile.objects.filter(organization=organization).first()
+    if profile is not None:
+        return profile
+    return ContentProfile.objects.create(organization=organization, usuario=user)
+
+
+def _areas_do_perfil(user, organization=None) -> list[str]:
+    profile = _perfil_org(organization, user)
+    if profile is None:
+        return AREAS_JURIDICAS_PADRAO
     areas = profile.areas_lista()
     return areas if areas else AREAS_JURIDICAS_PADRAO
 
 
-def _kpis_conteudo(user) -> dict[str, int]:
+def _kpis_conteudo(organization) -> dict[str, int]:
     hoje = timezone.localdate()
     inicio_mes = hoje.replace(day=1)
-    base = _itens_usuario(user)
+    base = _itens_org(organization)
     return {
         "criados_mes": base.filter(criado_em__date__gte=inicio_mes).count(),
         "em_planejamento": base.filter(
@@ -89,27 +111,49 @@ def _kpis_conteudo(user) -> dict[str, int]:
     }
 
 
-def _calendario_itens(user, dias: int = 42):
+def _calendario_itens(organization, dias: int = 42):
     hoje = timezone.localdate()
     fim = hoje + timedelta(days=dias)
     return list(
-        _itens_usuario(user)
+        _itens_org(organization)
         .filter(data_planejada__gte=hoje, data_planejada__lte=fim)
         .order_by("data_planejada", "titulo")
     )
 
 
+def _item_or_404(request, pk):
+    organization = _org(request)
+    if organization is None:
+        raise Http404()
+    return get_object_or_404(ContentItem, pk=pk, organization=organization)
+
+
+def _ideia_or_404(request, pk):
+    organization = _org(request)
+    if organization is None:
+        raise Http404()
+    return get_object_or_404(ContentIdea, pk=pk, organization=organization)
+
+
 def _processar_form_conteudo(request, form, *, item=None):
     acao = request.POST.get("acao", "salvar")
-    profile = _perfil_usuario(request.user)
+    organization = _org(request)
+    profile = _perfil_org(organization, request.user)
     service = ContentGenerationService(profile=profile)
 
     if acao in ContentGenerationService.ACOES_IA:
         if not form.is_valid():
             return None
+        if organization is None:
+            messages.error(
+                request,
+                "Não foi possível determinar o escritório ativo para esta operação.",
+            )
+            return redirect("marketing_conteudo_dashboard")
         if item is None:
             item = form.save(commit=False)
             item.usuario = request.user
+            item.organization = organization
             item.responsavel = request.user
             item.save()
         else:
@@ -168,7 +212,15 @@ def _processar_form_conteudo(request, form, *, item=None):
     if form.is_valid():
         saved = form.save(commit=False)
         if item is None:
+            organization = _org(request)
+            if organization is None:
+                messages.error(
+                    request,
+                    "Não foi possível determinar o escritório ativo para esta operação.",
+                )
+                return redirect("marketing_conteudo_dashboard")
             saved.usuario = request.user
+            saved.organization = organization
             saved.responsavel = request.user
         saved.save()
         messages.success(request, "Conteúdo salvo.")
@@ -182,9 +234,9 @@ def dashboard(request):
         request,
         "marketing/conteudo/dashboard.html",
         {
-            "kpis": _kpis_conteudo(request.user),
-            "calendario_itens": _calendario_itens(request.user),
-            "ideias_pendentes": _ideias_usuario(request.user)
+            "kpis": _kpis_conteudo(_org(request)),
+            "calendario_itens": _calendario_itens(_org(request)),
+            "ideias_pendentes": _ideias_org(_org(request))
             .filter(status=StatusIdeia.PENDENTE)
             .count(),
             "subnav_section": "conteudo",
@@ -194,12 +246,19 @@ def dashboard(request):
 
 @login_e_perm_edit_conteudo
 def perfil(request):
-    profile = _perfil_usuario(request.user)
+    profile = _perfil_org(_org(request), request.user)
     if request.method == "POST":
+        if profile is None:
+            messages.error(
+                request,
+                "Não foi possível determinar o escritório ativo para esta operação.",
+            )
+            return redirect("marketing_conteudo_dashboard")
         form = ContentProfileForm(request.POST, instance=profile)
         if form.is_valid():
             inst = form.save(commit=False)
             inst.usuario = request.user
+            inst.organization = _org(request)
             inst.save()
             messages.success(request, "Perfil de conteúdo salvo.")
             return redirect("marketing_conteudo_perfil")
@@ -215,7 +274,7 @@ def perfil(request):
 @login_e_perm_conteudo
 def biblioteca(request):
     form = BibliotecaFiltroForm(request.GET or None)
-    qs = _itens_usuario(request.user).select_related("responsavel")
+    qs = _itens_org(_org(request)).select_related("responsavel")
     if form.is_valid():
         if form.cleaned_data.get("canal"):
             qs = qs.filter(canal=form.cleaned_data["canal"])
@@ -241,14 +300,23 @@ def biblioteca(request):
 
 @login_e_perm_edit_conteudo
 def criar(request):
-    areas = _areas_do_perfil(request.user)
+    areas = _areas_do_perfil(request.user, _org(request))
     if request.method == "POST":
-        form = ContentItemForm(request.POST, areas_juridicas=areas, usuario=request.user)
+        form = ContentItemForm(
+            request.POST,
+            areas_juridicas=areas,
+            usuario=request.user,
+            organization=_org(request),
+        )
         redirect_resp = _processar_form_conteudo(request, form)
         if redirect_resp:
             return redirect_resp
     else:
-        form = ContentItemForm(areas_juridicas=areas, usuario=request.user)
+        form = ContentItemForm(
+            areas_juridicas=areas,
+            usuario=request.user,
+            organization=_org(request),
+        )
     return render(
         request,
         "marketing/conteudo/form.html",
@@ -262,17 +330,26 @@ def criar(request):
 
 @login_e_perm_edit_conteudo
 def editar(request, pk: int):
-    item = get_object_or_404(ContentItem, pk=pk, usuario=request.user)
-    areas = _areas_do_perfil(request.user)
+    item = _item_or_404(request, pk)
+    areas = _areas_do_perfil(request.user, _org(request))
     if request.method == "POST":
         form = ContentItemForm(
-            request.POST, instance=item, areas_juridicas=areas, usuario=request.user
+            request.POST,
+            instance=item,
+            areas_juridicas=areas,
+            usuario=request.user,
+            organization=_org(request),
         )
         redirect_resp = _processar_form_conteudo(request, form, item=item)
         if redirect_resp:
             return redirect_resp
     else:
-        form = ContentItemForm(instance=item, areas_juridicas=areas, usuario=request.user)
+        form = ContentItemForm(
+            instance=item,
+            areas_juridicas=areas,
+            usuario=request.user,
+            organization=_org(request),
+        )
     ultima_versao = item.versoes.order_by("-numero").first()
     ultima_verificacao = item.aprovacoes.order_by("-revisado_em").first()
     return render(
@@ -292,19 +369,29 @@ def editar(request, pk: int):
 @login_e_perm_conteudo
 def analytics(request):
     user = request.user
-    metricas = metricas_agregadas(user)
-    tem_dados = tem_dados_reais(user)
-    tem_integracao = tem_integracao_ativa(user)
+    organization = _org(request)
+    metricas = metricas_agregadas(user, organization=organization)
+    tem_dados = tem_dados_reais(user, organization=organization)
+    tem_integracao = tem_integracao_ativa(user, organization=organization)
+    mkt_pro = None
+    if pode_ver_resultados_marketing(user):
+        mkt_pro = montar_marketing_pro(
+            user,
+            PeriodoMarketing.ultimos_dias(30),
+            organization=organization_for_finance_write(request),
+            ocultar_financeiro=not pode_ver_metricas_financeiras_marketing(user),
+        )
     return render(
         request,
         "marketing/conteudo/analytics.html",
         {
             "metricas": metricas,
-            "top_conteudos": top_conteudos(user) if tem_dados else [],
+            "top_conteudos": top_conteudos(user, organization=organization) if tem_dados else [],
             "tem_dados": tem_dados,
             "tem_integracao": tem_integracao,
-            "plataformas": plataformas_com_status(user),
+            "plataformas": plataformas_com_status(user, organization=organization),
             "subnav_section": "conteudo",
+            "mkt_pro": mkt_pro,
         },
     )
 
@@ -313,8 +400,15 @@ def analytics(request):
 def integracoes(request):
     if request.method == "POST":
         plataforma = request.POST.get("plataforma")
+        organization = _org(request)
         if plataforma in dict(PlataformaMarketing.choices):
-            solicitar_integracao(request.user, plataforma)
+            if organization is None:
+                messages.error(
+                    request,
+                    "Não foi possível determinar o escritório ativo para esta operação.",
+                )
+                return redirect("marketing_conteudo_integracoes")
+            solicitar_integracao(request.user, plataforma, organization=organization)
             messages.info(
                 request,
                 "Solicitação registrada. A sincronização com plataformas estará disponível em breve.",
@@ -324,7 +418,7 @@ def integracoes(request):
         request,
         "marketing/conteudo/integracoes.html",
         {
-            "plataformas": plataformas_com_status(request.user),
+            "plataformas": plataformas_com_status(request.user, organization=_org(request)),
             "subnav_section": "conteudo",
         },
     )
@@ -332,8 +426,8 @@ def integracoes(request):
 
 @login_e_perm_edit_conteudo
 def calendario_plano(request):
-    areas = _areas_do_perfil(request.user)
-    profile = _perfil_usuario(request.user)
+    areas = _areas_do_perfil(request.user, _org(request))
+    profile = _perfil_org(_org(request), request.user)
     if request.method == "POST":
         form = PlanoEditorialForm(request.POST)
         if form.is_valid():
@@ -341,6 +435,7 @@ def calendario_plano(request):
             try:
                 calendario = service.gerar_plano(
                     user=request.user,
+                    organization=_org(request),
                     parametros=form.cleaned_data,
                 )
             except ContentGenerationError as exc:
@@ -353,12 +448,16 @@ def calendario_plano(request):
                 return redirect("marketing_conteudo_dashboard")
     else:
         initial = {}
-        if profile.publico:
+        if profile and profile.publico:
             initial["publico"] = profile.publico
         if areas:
             initial["area_juridica"] = areas[0]
         form = PlanoEditorialForm(initial=initial)
-    planos = EditorialCalendar.objects.filter(usuario=request.user)[:10]
+    planos = (
+        EditorialCalendar.objects.filter(organization=_org(request))[:10]
+        if _org(request) is not None
+        else EditorialCalendar.objects.none()
+    )
     return render(
         request,
         "marketing/conteudo/calendario_plano.html",
@@ -372,8 +471,8 @@ def calendario_plano(request):
 
 @login_e_perm_conteudo
 def ideias(request):
-    areas = _areas_do_perfil(request.user)
-    profile = _perfil_usuario(request.user)
+    areas = _areas_do_perfil(request.user, _org(request))
+    profile = _perfil_org(_org(request), request.user)
     if request.method == "POST" and request.POST.get("acao") == "sugerir":
         if not pode_editar_conteudo_marketing(request.user):
             messages.error(request, "Sem permissão para gerar ideias com IA.")
@@ -382,7 +481,11 @@ def ideias(request):
         if form.is_valid():
             service = BancoIdeiasService(profile=profile)
             try:
-                criadas = service.sugerir(user=request.user, parametros=form.cleaned_data)
+                criadas = service.sugerir(
+                    user=request.user,
+                    organization=_org(request),
+                    parametros=form.cleaned_data,
+                )
             except ContentGenerationError as exc:
                 messages.error(request, str(exc))
             else:
@@ -390,11 +493,11 @@ def ideias(request):
                 return redirect("marketing_conteudo_ideias")
     else:
         initial = {}
-        if profile.publico:
+        if profile and profile.publico:
             initial["publico"] = profile.publico
         form = BancoIdeiasForm(initial=initial, areas_juridicas=areas)
 
-    ideias_lista = _ideias_usuario(request.user).filter(status=StatusIdeia.PENDENTE)[:50]
+    ideias_lista = _ideias_org(_org(request)).filter(status=StatusIdeia.PENDENTE)[:50]
     return render(
         request,
         "marketing/conteudo/ideias.html",
@@ -410,9 +513,11 @@ def ideias(request):
 def ideia_criar_conteudo(request, pk: int):
     if request.method != "POST":
         return redirect("marketing_conteudo_ideias")
-    ideia = get_object_or_404(ContentIdea, pk=pk, usuario=request.user)
+    ideia = _ideia_or_404(request, pk)
+    organization = _org(request)
     item = ContentItem.objects.create(
         usuario=request.user,
+        organization=organization,
         titulo=ideia.titulo,
         tema=ideia.descricao[:255] if ideia.descricao else ideia.titulo,
         area_juridica=ideia.area_juridica,
@@ -429,12 +534,13 @@ def ideia_criar_conteudo(request, pk: int):
 
 @login_e_perm_edit_conteudo
 def ideia_agendar(request, pk: int):
-    ideia = get_object_or_404(ContentIdea, pk=pk, usuario=request.user)
+    ideia = _ideia_or_404(request, pk)
     if request.method == "POST":
         form = IdeiaAgendarForm(request.POST)
         if form.is_valid():
             item = ContentItem.objects.create(
                 usuario=request.user,
+                organization=_org(request),
                 titulo=ideia.titulo,
                 tema=ideia.descricao[:255] if ideia.descricao else ideia.titulo,
                 area_juridica=ideia.area_juridica,
@@ -463,7 +569,7 @@ def ideia_agendar(request, pk: int):
 def ideia_descartar(request, pk: int):
     if request.method != "POST":
         return redirect("marketing_conteudo_ideias")
-    ideia = get_object_or_404(ContentIdea, pk=pk, usuario=request.user)
+    ideia = _ideia_or_404(request, pk)
     ideia.status = StatusIdeia.DESCARTADA
     ideia.save(update_fields=["status"])
     messages.success(request, "Ideia descartada.")
@@ -472,12 +578,12 @@ def ideia_descartar(request, pk: int):
 
 @login_e_perm_edit_conteudo
 def reaproveitar(request, pk: int):
-    origem = get_object_or_404(ContentItem, pk=pk, usuario=request.user)
+    origem = _item_or_404(request, pk)
     derivados = origem.derivados.order_by("-criado_em")[:20]
     if request.method == "POST":
         form = ReaproveitarForm(request.POST)
         if form.is_valid():
-            profile = _perfil_usuario(request.user)
+            profile = _perfil_org(_org(request), request.user)
             service = ReaproveitamentoService(profile=profile)
             try:
                 criados = service.reaproveitar(

@@ -6,7 +6,7 @@
 
         <p class="mt-1 text-sm text-zinc-500">
 
-            Do investimento em mídia aos contratos e à receita · {{ ctx_resultados.resultados.periodo.label }}
+            Do investimento em mídia aos contratos atribuídos · {{ ctx_resultados.resultados.periodo.label }}
 
         </p>
 
@@ -36,7 +36,11 @@
 
         {% endif %}
 
+        <p class="mt-2 text-xs text-zinc-600">Valores associados à origem registrada no período — atribuição ≠ causalidade. Contratado ≠ recebido.</p>
+
     </div>
+
+    {% include 'marketing/_marketing_pro_advisor.html' with mkt_pro=ctx_resultados.marketing_pro %}
 
 
 
@@ -70,7 +74,7 @@
 
                                 <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-100">
 
-                                    R$ {{ etapa.valor|floatformat:2 }}
+                                    R$ {{ etapa.valor|brnum:2 }}
 
                                     {% if etapa.demo %}<span class="text-[10px] font-normal text-amber-300/90"> demo</span>{% endif %}
 
@@ -84,7 +88,7 @@
 
                         {% else %}
 
-                            <p class="mt-1 text-lg font-semibold tabular-nums text-bally-bright">{{ etapa.valor|floatformat:0 }}</p>
+                            <p class="mt-1 text-lg font-semibold tabular-nums text-bally-bright">{{ etapa.valor|brnum:0 }}</p>
 
                         {% endif %}
 
@@ -164,7 +168,8 @@
 
             <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">CPL</p>
 
-            <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-100">{% if e.cpl is not None %}R$ {{ e.cpl|floatformat:2 }}{% else %}—{% endif %}</p>
+            <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-100">{% if e.cpl is not None %}R$ {{ e.cpl|brnum:2 }}{% else %}—{% endif %}</p>
+            <p class="mt-0.5 text-[10px] text-zinc-600">Investimento / leads atribuídos</p>
 
         </div>
 
@@ -172,7 +177,7 @@
 
             <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Custo / consulta</p>
 
-            <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-100">{% if e.custo_por_consulta is not None %}R$ {{ e.custo_por_consulta|floatformat:2 }}{% else %}—{% endif %}</p>
+            <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-100">{% if e.custo_por_consulta is not None %}R$ {{ e.custo_por_consulta|brnum:2 }}{% else %}—{% endif %}</p>
 
             <p class="mt-0.5 text-[10px] text-zinc-600">Consultas realizadas</p>
 
@@ -182,7 +187,8 @@
 
             <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">CAC de mídia</p>
 
-            <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-100">{% if e.cac_midia is not None %}R$ {{ e.cac_midia|floatformat:2 }}{% else %}—{% endif %}</p>
+            <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-100">{% if e.cac_midia is not None %}R$ {{ e.cac_midia|brnum:2 }}{% else %}—{% endif %}</p>
+            <p class="mt-0.5 text-[10px] text-zinc-600">Investimento / contratos atribuídos</p>
 
         </div>
 
@@ -216,7 +222,7 @@
 
             <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Ticket médio</p>
 
-            <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-100">{% if e.ticket_medio is not None %}R$ {{ e.ticket_medio|floatformat:2 }}{% else %}—{% endif %}</p>
+            <p class="mt-1 text-lg font-semibold tabular-nums text-zinc-100">{% if e.ticket_medio is not None %}R$ {{ e.ticket_medio|brnum:2 }}{% else %}—{% endif %}</p>
 
         </div>
 
@@ -226,7 +232,7 @@
 
             <p class="mt-1 text-lg font-semibold tabular-nums text-emerald-400">{% if e.receita_midia_ratio is not None %}{{ e.receita_midia_ratio|floatformat:2 }}x{% else %}—{% endif %}</p>
 
-            <p class="mt-0.5 text-[10px] text-zinc-600">Não é ROI</p>
+            <p class="mt-0.5 text-[10px] text-zinc-600">Não é ROI · ROAS sobre valor comercial atribuído · não é lucro</p>
 
         </div>
 
@@ -244,9 +250,9 @@
 
         <div class="rounded-lg border border-zinc-800/80 bg-zinc-950/40 px-4 py-3">
 
-            <p class="text-[10px] uppercase tracking-wide text-zinc-500">Receita contratada</p>
+            <p class="text-[10px] uppercase tracking-wide text-zinc-500">Valor comercial atribuído</p>
 
-            <p class="mt-1 text-base font-semibold tabular-nums text-zinc-100">R$ {{ ctx_resultados.resultados.funil.receita_contratada|floatformat:2 }}</p>
+            <p class="mt-1 text-base font-semibold tabular-nums text-zinc-100">R$ {{ ctx_resultados.resultados.funil.receita_contratada|brnum:2 }}</p>
 
             {% with t=ctx_resultados.tendencias.receita_contratada compare_note=ctx_resultados.compare_note %}
 
@@ -258,9 +264,9 @@
 
         <div class="rounded-lg border border-zinc-800/80 bg-zinc-950/40 px-4 py-3">
 
-            <p class="text-[10px] uppercase tracking-wide text-zinc-500">Receita recebida</p>
+            <p class="text-[10px] uppercase tracking-wide text-zinc-500">Recebido relacionado</p>
 
-            <p class="mt-1 text-base font-semibold tabular-nums text-emerald-400">R$ {{ ctx_resultados.resultados.funil.receita_recebida|floatformat:2 }}</p>
+            <p class="mt-1 text-base font-semibold tabular-nums text-emerald-400">R$ {{ ctx_resultados.resultados.funil.receita_recebida|brnum:2 }}</p>
 
             {% with t=ctx_resultados.tendencias.receita_recebida compare_note=ctx_resultados.compare_note %}
 
@@ -365,5 +371,7 @@
     {% include 'marketing/_resultados_evolucao.html' %}
 
     {% endif %}
+
+    {% include 'marketing/_marketing_pro_origens.html' with mkt_pro=ctx_resultados.marketing_pro %}
 
 </section>

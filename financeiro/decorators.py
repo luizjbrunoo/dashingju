@@ -1,4 +1,4 @@
-"""Decorators de permissão para views financeiras."""
+"""Decorators de permissão para views financeiras (fail-closed)."""
 
 from __future__ import annotations
 
@@ -14,26 +14,68 @@ from financeiro.permissions import (
     PERM_CREATE_COBRANCAS,
     PERM_CREATE_RECEBIMENTOS,
     PERM_EDIT_COBRANCAS,
+    PERM_MANAGE_CAIXA,
     PERM_VIEW_COBRANCAS,
     PERM_VIEW_RECEBIMENTOS,
     PERM_VIEW_RELATORIOS,
     _tem_perm,
+    pode_ver_caixa,
+    tem_capability_financeira,
 )
 
 
 def _negado(request, mensagem: str):
     messages.add_message(request, constants.ERROR, mensagem)
-    return redirect("financeiro_dashboard")
+    return redirect("home")
 
 
 def requer_perm(perm: str, *, mensagem: str | None = None):
     def decorator(view_func):
         @wraps(view_func)
         def wrapper(request, *args, **kwargs):
+            if not getattr(request.user, "is_authenticated", False):
+                return view_func(request, *args, **kwargs)
             if not _tem_perm(request.user, perm):
                 return _negado(
                     request,
                     mensagem or "Você não tem permissão para acessar esta área financeira.",
+                )
+            return view_func(request, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+def requer_ver_caixa(*, mensagem: str | None = None):
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapper(request, *args, **kwargs):
+            if not getattr(request.user, "is_authenticated", False):
+                return view_func(request, *args, **kwargs)
+            if not pode_ver_caixa(request.user):
+                return _negado(
+                    request,
+                    mensagem or "Sem permissão para visualizar o caixa.",
+                )
+            return view_func(request, *args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
+def requer_capability_financeira(*, mensagem: str | None = None):
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapper(request, *args, **kwargs):
+            if not getattr(request.user, "is_authenticated", False):
+                return view_func(request, *args, **kwargs)
+            if not tem_capability_financeira(request.user):
+                return _negado(
+                    request,
+                    mensagem
+                    or "Você não tem permissão para acessar o módulo financeiro.",
                 )
             return view_func(request, *args, **kwargs)
 
@@ -57,7 +99,6 @@ def login_e_perm(perm: str, *, mensagem: str | None = None):
     return decorator
 
 
-# Atalhos usados nas views
 perm_ver_cobrancas = requer_perm(
     PERM_VIEW_COBRANCAS,
     mensagem="Sem permissão para visualizar cobranças.",
@@ -86,3 +127,9 @@ perm_ver_relatorios = requer_perm(
     PERM_VIEW_RELATORIOS,
     mensagem="Sem permissão para visualizar relatórios financeiros.",
 )
+perm_ver_caixa = requer_ver_caixa()
+perm_gerir_caixa = requer_perm(
+    PERM_MANAGE_CAIXA,
+    mensagem="Sem permissão para movimentar o caixa.",
+)
+perm_qualquer_financeiro = requer_capability_financeira()

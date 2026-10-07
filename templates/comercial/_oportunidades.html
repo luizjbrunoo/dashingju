@@ -1,0 +1,63 @@
+<section class="mt-6">
+    <h2 class="text-lg font-semibold text-zinc-200">Oportunidades</h2>
+    <p class="mt-1 text-sm text-zinc-500">Pipeline priorizado — potencial, não promessa de contratação.</p>
+
+    {% if ctx.recomendacoes.itens %}
+    <div class="mt-4 overflow-x-auto rounded-lg border border-zinc-800">
+        <table class="min-w-full text-left text-sm">
+            <thead class="border-b border-zinc-800 bg-zinc-950/50 text-xs uppercase tracking-wide text-zinc-500">
+                <tr>
+                    <th class="px-3 py-2 font-medium">Cliente</th>
+                    <th class="px-3 py-2 font-medium">Etapa</th>
+                    <th class="px-3 py-2 font-medium">Última atividade</th>
+                    <th class="px-3 py-2 font-medium">Prioridade</th>
+                    <th class="px-3 py-2 font-medium">Próxima ação</th>
+                    <th class="px-3 py-2 font-medium"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-800">
+                {% for acao in ctx.recomendacoes.itens %}
+                <tr class="text-zinc-300">
+                    <td class="px-3 py-2 text-zinc-100">
+                        <a href="{{ acao.url_registro }}" class="hover:text-bally-bright">{{ acao.cliente_nome|default:"—" }}</a>
+                    </td>
+                    <td class="px-3 py-2 text-xs text-zinc-400">{{ acao.titulo }}</td>
+                    <td class="px-3 py-2 text-xs text-zinc-500">{{ acao.prazo_label }}</td>
+                    <td class="px-3 py-2">
+                        <span class="rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide
+                            {% if acao.prioridade == 'urgente' %}bg-red-950/60 text-red-300
+                            {% elif acao.prioridade == 'alta' %}bg-amber-950/50 text-amber-200
+                            {% else %}bg-zinc-800 text-zinc-400{% endif %}">{{ acao.prioridade }}</span>
+                    </td>
+                    <td class="px-3 py-2 text-xs">{{ acao.acao_recomendada }}</td>
+                    <td class="px-3 py-2 text-right">
+                        <a href="{{ acao.url_agendar }}" class="text-xs text-bally-bright hover:underline">Agendar</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="mt-4 text-sm text-zinc-500">{{ ctx.recomendacoes.mensagem }}</p>
+    {% endif %}
+</section>
+
+<section class="mt-8">
+    <h2 class="text-sm font-semibold text-zinc-200">Oportunidades na base</h2>
+    {% if ctx.carteira.itens %}
+    <ul class="mt-3 grid gap-3 sm:grid-cols-2">
+        {% for item in ctx.carteira.itens %}
+        <li>
+            <a href="{{ item.url }}" class="block rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3 hover:border-bally/40">
+                <p class="text-xl font-semibold tabular-nums text-zinc-100">{{ item.quantidade|brnum:0 }}</p>
+                <p class="mt-1 text-sm font-medium text-bally-bright">{{ item.titulo }}</p>
+                <p class="mt-0.5 text-xs text-zinc-500">{{ item.detalhe }}</p>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="mt-3 text-sm text-zinc-500">{{ ctx.carteira.mensagem|default:"Nenhuma oportunidade extra na base no momento." }}</p>
+    {% endif %}
+</section>

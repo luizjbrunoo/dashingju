@@ -10,7 +10,9 @@ from urllib.parse import urlencode
 
 from financeiro.choices import StatusCobranca, StatusContrato
 from financeiro.models import Cobranca, Contrato
+from financeiro.services.cobranca_listagem import queryset_anotado_organization
 from financeiro.services.cobrancas import saldo_cobranca
+from financeiro.services.contrato_crud import contratos_queryset
 
 
 @dataclass(frozen=True)
@@ -21,7 +23,87 @@ class ResumoFinanceiroCliente:
     cobrancas_abertas: int
 
 
+def _resumo_vazio() -> ResumoFinanceiroCliente:
+    return ResumoFinanceiroCliente(
+        a_receber=Decimal("0"),
+        vencido=Decimal("0"),
+        contratos_ativos=0,
+        cobrancas_abertas=0,
+    )
+
+
+def _cliente_na_organization(organization, cliente) -> bool:
+    if organization is None or cliente is None:
+        return False
+    org_id = getattr(cliente, "organization_id", None)
+    if org_id is None:
+        return False
+    return org_id == organization.pk
+
+
+def _cobrancas_qs_organization(organization, cliente):
+    if not _cliente_na_organization(organization, cliente):
+        return Cobranca.objects.none()
+    return queryset_anotado_organization(organization).filter(cliente=cliente)
+
+
+def _contratos_qs_organization(organization, cliente):
+    if not _cliente_na_organization(organization, cliente):
+        return Contrato.objects.none()
+    return contratos_queryset(organization).filter(cliente=cliente)
+
+
+def resumo_financeiro_cliente_organization(organization, cliente) -> ResumoFinanceiroCliente:
+    if not _cliente_na_organization(organization, cliente):
+        return _resumo_vazio()
+    cobrancas = _cobrancas_qs_organization(organization, cliente).exclude(
+        status=StatusCobranca.CANCELED
+    )
+
+    a_receber = Decimal("0")
+    vencido = Decimal("0")
+    abertas = 0
+    for c in cobrancas:
+        saldo = getattr(c, "saldo_calc", None)
+        if saldo is None:
+            saldo = saldo_cobranca(c)
+        if saldo <= 0:
+            continue
+        abertas += 1
+        a_receber += saldo
+        if c.status == StatusCobranca.OVERDUE:
+            vencido += saldo
+
+    contratos_ativos = _contratos_qs_organization(organization, cliente).filter(
+        status=StatusContrato.ACTIVE
+    ).count()
+
+    return ResumoFinanceiroCliente(
+        a_receber=a_receber,
+        vencido=vencido,
+        contratos_ativos=contratos_ativos,
+        cobrancas_abertas=abertas,
+    )
+
+
+def cobrancas_cliente_organization(organization, cliente, *, limit: int = 5):
+    if not _cliente_na_organization(organization, cliente):
+        return Cobranca.objects.none()
+    return (
+        _cobrancas_qs_organization(organization, cliente)
+        .select_related("contrato", "responsavel")
+        .order_by("data_vencimento", "id")[:limit]
+    )
+
+
+def contratos_cliente_organization(organization, cliente, *, limit: int = 5):
+    if not _cliente_na_organization(organization, cliente):
+        return Contrato.objects.none()
+    return _contratos_qs_organization(organization, cliente).order_by("-criado_em")[:limit]
+
+
 def resumo_financeiro_cliente(usuario, cliente) -> ResumoFinanceiroCliente:
+    """LEGACY ONLY — Agenda ainda usa User como tenant. Não usar em Cliente 360."""
     cobrancas = Cobranca.objects.filter(
         usuario=usuario,
         cliente=cliente,
@@ -54,6 +136,7 @@ def resumo_financeiro_cliente(usuario, cliente) -> ResumoFinanceiroCliente:
 
 
 def cobrancas_cliente(usuario, cliente, *, limit: int = 5):
+    """LEGACY ONLY — Agenda / callers W5b+."""
     return (
         Cobranca.objects.filter(usuario=usuario, cliente=cliente)
         .select_related("contrato", "responsavel")
@@ -62,6 +145,7 @@ def cobrancas_cliente(usuario, cliente, *, limit: int = 5):
 
 
 def contratos_cliente(usuario, cliente, *, limit: int = 5):
+    """LEGACY ONLY — Agenda / callers W5b+."""
     return (
         Contrato.objects.filter(usuario=usuario, cliente=cliente)
         .order_by("-criado_em")[:limit]

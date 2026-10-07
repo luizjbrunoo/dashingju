@@ -1,116 +1,123 @@
-<section class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 shadow-sm shadow-black/20">
-
-    <h2 class="mb-4 text-lg font-semibold text-zinc-100">Lista unificada</h2>
-
-    <div class="overflow-x-auto">
-
-        <table class="w-full min-w-[1000px] text-left text-sm">
-
-            <thead>
-
-                <tr class="border-b border-zinc-800 text-xs uppercase tracking-wide text-zinc-500">
-
-                    <th class="pb-3 pr-4 font-medium">Data</th>
-
-                    <th class="pb-3 pr-4 font-medium">Horário</th>
-
-                    <th class="pb-3 pr-4 font-medium">Tipo</th>
-
-                    <th class="pb-3 pr-4 font-medium">Título</th>
-
-                    <th class="pb-3 pr-4 font-medium">Cliente</th>
-
-                    <th class="pb-3 pr-4 font-medium">Processo</th>
-
-                    <th class="pb-3 pr-4 font-medium">Responsável</th>
-
-                    <th class="pb-3 pr-4 font-medium">Status</th>
-
-                    <th class="pb-3 pr-4 font-medium">Prioridade</th>
-
-                    <th class="pb-3 font-medium"></th>
-
-                </tr>
-
-            </thead>
-
-            <tbody class="divide-y divide-zinc-800/80">
-
-                {% for item in lista_unificada %}
-
-                    <tr class="text-zinc-300">
-
-                        <td class="py-3 pr-4 font-mono text-xs whitespace-nowrap {% if item.atrasada %}text-red-400{% else %}text-zinc-400{% endif %}">
-
-                            {% if item.data %}{{ item.data|date:"d/m/Y" }}{% else %}—{% endif %}
-
-                        </td>
-
-                        <td class="py-3 pr-4 font-mono text-xs text-bally-bright whitespace-nowrap">{{ item.hora }}</td>
-
-                        <td class="py-3 pr-4">
-                            {% if item.item_tipo == 'compromisso' %}
-                                {% with compromisso=item.compromisso %}
-                                    {% include 'agenda/_badge_tipo_compromisso.html' %}
-                                {% endwith %}
-                            {% else %}
-                                <span class="rounded-md border border-zinc-700 bg-zinc-950/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400">Tarefa</span>
-                            {% endif %}
-                        </td>
-
-                        <td class="py-3 pr-4 font-medium {% if item.tarefa and item.tarefa.status == 'concluida' %}text-zinc-500 line-through{% else %}text-zinc-100{% endif %}">{{ item.titulo }}</td>
-
-                        <td class="py-3 pr-4">{% if item.cliente_nome %}{{ item.cliente_nome }}{% else %}—{% endif %}</td>
-
-                        <td class="py-3 pr-4 font-mono text-xs text-zinc-400">{% if item.processo %}{{ item.processo }}{% else %}—{% endif %}</td>
-
-                        <td class="py-3 pr-4">{% if item.responsavel_nome %}{{ item.responsavel_nome }}{% else %}—{% endif %}</td>
-
-                        <td class="py-3 pr-4">
-                            {% if item.item_tipo == 'compromisso' %}
-                                {% with compromisso=item.compromisso %}
-                                    <div class="flex flex-wrap gap-1">
-                                        {% include 'agenda/_badge_status_compromisso.html' %}
-                                        {% include 'agenda/_badge_confirmacao_consulta.html' %}
-                                    </div>
-                                {% endwith %}
-                            {% else %}
-                                {% with tarefa=item.tarefa %}
-                                    {% include 'agenda/_badge_status_tarefa.html' %}
-                                {% endwith %}
-                            {% endif %}
-                        </td>
-
-                        <td class="py-3 pr-4">{% include 'agenda/_badge_prioridade.html' with prioridade=item.prioridade %}</td>
-
-                        <td class="py-3 text-right">
-                            {% if item.item_tipo == 'compromisso' %}
-                                {% with compromisso=item.compromisso %}
-                                    {% include 'agenda/_acoes_compromisso.html' %}
-                                {% endwith %}
-                            {% else %}
-                                {% with tarefa=item.tarefa %}
-                                    {% include 'agenda/_acoes_tarefa.html' %}
-                                {% endwith %}
-                            {% endif %}
-                        </td>
-
-                    </tr>
-
-                {% empty %}
-
-                    <tr>
-
-                        <td colspan="10" class="py-6 text-center text-zinc-500">Nenhum item encontrado.</td>
-
-                    </tr>
-
-                {% endfor %}
-
-            </tbody>
-
-        </table>
-
-    </div>
-
-</section>
+<section class="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 shadow-sm shadow-black/20">
+
+    <h2 class="mb-4 text-lg font-semibold text-zinc-100">Lista unificada</h2>
+
+    <div class="overflow-x-auto">
+
+        <table class="w-full min-w-[1000px] text-left text-sm">
+
+            <thead>
+
+                <tr class="border-b border-zinc-800 text-xs uppercase tracking-wide text-zinc-500">
+
+                    <th class="pb-3 pr-4 font-medium">Data</th>
+
+                    <th class="pb-3 pr-4 font-medium">Horário</th>
+
+                    <th class="pb-3 pr-4 font-medium">Tipo</th>
+
+                    <th class="pb-3 pr-4 font-medium">Título</th>
+
+                    <th class="pb-3 pr-4 font-medium">Cliente</th>
+
+                    <th class="pb-3 pr-4 font-medium">Processo</th>
+
+                    <th class="pb-3 pr-4 font-medium">Responsável</th>
+
+                    <th class="pb-3 pr-4 font-medium">Status</th>
+
+                    <th class="pb-3 pr-4 font-medium">Prioridade</th>
+
+                    <th class="pb-3 font-medium"></th>
+
+                </tr>
+
+            </thead>
+
+            <tbody class="divide-y divide-zinc-800/80">
+
+                {% for item in lista_unificada %}
+
+                    <tr class="text-zinc-300">
+
+                        <td class="py-3 pr-4 font-mono text-xs whitespace-nowrap {% if item.atrasada %}text-red-400{% else %}text-zinc-400{% endif %}">
+
+                            {% if item.data %}{{ item.data|date:"d/m/Y" }}{% else %}—{% endif %}
+
+                        </td>
+
+                        <td class="py-3 pr-4 font-mono text-xs text-bally-bright whitespace-nowrap">{{ item.hora }}</td>
+
+                        <td class="py-3 pr-4">
+                            {% if item.item_tipo == 'compromisso' %}
+                                {% with compromisso=item.compromisso %}
+                                    {% include 'agenda/_badge_tipo_compromisso.html' %}
+                                {% endwith %}
+                            {% else %}
+                                <span class="rounded-md border border-zinc-700 bg-zinc-950/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400">Tarefa</span>
+                            {% endif %}
+                        </td>
+
+                        <td class="py-3 pr-4 font-medium {% if item.tarefa and item.tarefa.status == 'concluida' %}text-zinc-500 line-through{% else %}text-zinc-100{% endif %}">{{ item.titulo }}</td>
+
+                        <td class="py-3 pr-4">{% if item.cliente_nome %}{{ item.cliente_nome }}{% else %}—{% endif %}</td>
+
+                        <td class="py-3 pr-4 font-mono text-xs text-zinc-400">{% if item.processo %}{{ item.processo }}{% else %}—{% endif %}</td>
+
+                        <td class="py-3 pr-4">{% if item.responsavel_nome %}{{ item.responsavel_nome }}{% else %}—{% endif %}</td>
+
+                        <td class="py-3 pr-4">
+                            {% if item.item_tipo == 'compromisso' %}
+                                {% with compromisso=item.compromisso %}
+                                    <div class="flex flex-wrap gap-1">
+                                        {% include 'agenda/_badge_status_compromisso.html' %}
+                                        {% include 'agenda/_badge_confirmacao_consulta.html' %}
+                                    </div>
+                                {% endwith %}
+                            {% else %}
+                                {% with tarefa=item.tarefa %}
+                                    {% include 'agenda/_badge_status_tarefa.html' %}
+                                {% endwith %}
+                            {% endif %}
+                        </td>
+
+                        <td class="py-3 pr-4">
+                            {% include 'agenda/_badge_prioridade.html' with prioridade=item.prioridade %}
+                            {% if item.compromisso %}
+                                {% include 'agenda/_badge_criticidade.html' with obj=item.compromisso %}
+                            {% elif item.tarefa %}
+                                {% include 'agenda/_badge_criticidade.html' with obj=item.tarefa %}
+                            {% endif %}
+                        </td>
+
+                        <td class="py-3 text-right">
+                            {% if item.item_tipo == 'compromisso' %}
+                                {% with compromisso=item.compromisso %}
+                                    {% include 'agenda/_acoes_compromisso.html' %}
+                                {% endwith %}
+                            {% else %}
+                                {% with tarefa=item.tarefa %}
+                                    {% include 'agenda/_acoes_tarefa.html' %}
+                                {% endwith %}
+                            {% endif %}
+                        </td>
+
+                    </tr>
+
+                {% empty %}
+
+                    <tr>
+
+                        <td colspan="10" class="py-6 text-center text-zinc-500">Nenhum item encontrado.</td>
+
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</section>

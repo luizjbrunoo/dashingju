@@ -1,19 +1,19 @@
 <div class="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
     <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
         <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">A receber</p>
-        <p class="mt-1 font-mono text-lg font-semibold text-zinc-100">R$ {{ kpis.a_receber|floatformat:2 }}</p>
+        <p class="mt-1 font-mono text-lg font-semibold text-zinc-100">R$ {{ kpis.a_receber|brnum:2 }}</p>
     </div>
     <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
         <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Vence este mês</p>
-        <p class="mt-1 font-mono text-lg font-semibold text-amber-300">R$ {{ kpis.vence_mes|floatformat:2 }}</p>
+        <p class="mt-1 font-mono text-lg font-semibold text-amber-300">R$ {{ kpis.vence_mes|brnum:2 }}</p>
     </div>
     <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
         <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Vencido</p>
-        <p class="mt-1 font-mono text-lg font-semibold text-red-300">R$ {{ kpis.vencido|floatformat:2 }}</p>
+        <p class="mt-1 font-mono text-lg font-semibold text-red-300">R$ {{ kpis.vencido|brnum:2 }}</p>
     </div>
     <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
         <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Recebido no mês</p>
-        <p class="mt-1 font-mono text-lg font-semibold text-emerald-400">R$ {{ kpis.recebido_mes|floatformat:2 }}</p>
+        <p class="mt-1 font-mono text-lg font-semibold text-emerald-400">R$ {{ kpis.recebido_mes|brnum:2 }}</p>
     </div>
     <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
         <p class="text-[10px] font-medium uppercase tracking-wide text-zinc-500">Taxa de recebimento</p>

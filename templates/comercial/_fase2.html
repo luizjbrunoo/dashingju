@@ -1,0 +1,234 @@
+{# Seções Fase 2 do Comercial #}
+
+<section class="mt-10 border-t border-zinc-800 pt-8">
+    <h2 class="text-lg font-semibold text-zinc-200">Oportunidades de receita</h2>
+    <p class="mt-1 text-sm text-zinc-500">Situações comercialmente relevantes — potencial, não promessa de contratação.</p>
+    {% if ctx.oportunidades.itens %}
+    <ul class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {% for item in ctx.oportunidades.itens %}
+        <li>
+            <a href="{{ item.url }}" class="block rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3 hover:border-bally/40">
+                <p class="text-2xl font-semibold tabular-nums text-zinc-100">{{ item.quantidade|brnum:0 }}</p>
+                <p class="mt-1 text-sm font-medium {% if item.tom == 'risco' %}text-red-300{% elif item.tom == 'atencao' %}text-amber-200{% else %}text-bally-bright{% endif %}">{{ item.titulo }}</p>
+                <p class="mt-0.5 text-xs text-zinc-500">{{ item.detalhe }}</p>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="mt-4 text-sm text-zinc-500">{{ ctx.oportunidades.mensagem }}</p>
+    {% endif %}
+</section>
+
+<section class="mt-10 border-t border-zinc-800 pt-8" id="proximas-acoes">
+    <h2 class="text-lg font-semibold text-zinc-200">Próximas melhores ações</h2>
+    <p class="mt-1 text-sm text-zinc-500">Prioridades de hoje · score 0–100 explicável · reutiliza Agenda/Tarefas.</p>
+    {% if ctx.recomendacoes.itens %}
+    <ul class="mt-4 space-y-3">
+        {% for acao in ctx.recomendacoes.itens %}
+        <li class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide
+                            {% if acao.prioridade == 'urgente' %}bg-red-950/60 text-red-300 border border-red-800/50
+                            {% elif acao.prioridade == 'alta' %}bg-amber-950/50 text-amber-200 border border-amber-800/40
+                            {% elif acao.prioridade == 'media' %}bg-zinc-800 text-zinc-300 border border-zinc-700
+                            {% else %}bg-zinc-900 text-zinc-500 border border-zinc-800{% endif %}">
+                            {{ acao.prioridade }} · {{ acao.score }}
+                        </span>
+                        <a href="{{ acao.url_registro }}" class="text-sm font-medium text-zinc-100 hover:text-bally-bright">{{ acao.titulo }}</a>
+                    </div>
+                    <p class="mt-1 text-xs text-zinc-500">{{ acao.motivo }}</p>
+                    <p class="mt-1 text-xs text-zinc-400">
+                        {{ acao.cliente_nome }} · {{ acao.responsavel }} · prazo: {{ acao.prazo_label }}
+                    </p>
+                    <p class="mt-1 text-xs text-zinc-300">Ação: {{ acao.acao_recomendada }}</p>
+                    <details class="mt-2 text-xs text-zinc-500">
+                        <summary class="cursor-pointer text-zinc-400 hover:text-zinc-200">Por que esta ação é prioridade?</summary>
+                        <ul class="mt-1 list-inside list-disc space-y-0.5">
+                            {% for f in acao.fatores %}
+                            <li>{{ f.label }} (+{{ f.pontos }})</li>
+                            {% endfor %}
+                        </ul>
+                    </details>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <a href="{{ acao.url_registro }}" class="rounded-md border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800">Abrir</a>
+                    <a href="{{ acao.url_agendar }}" class="rounded-md border border-zinc-700 px-2.5 py-1 text-xs text-zinc-300 hover:bg-zinc-800">Agendar</a>
+                    <form method="post" action="{% url 'comercial_acao_criar_tarefa' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="chave" value="{{ acao.chave }}" />
+                        <input type="hidden" name="cliente_id" value="{{ acao.cliente_id|default:'' }}" />
+                        <input type="hidden" name="titulo" value="{{ acao.titulo }}" />
+                        <input type="hidden" name="motivo" value="{{ acao.motivo }}" />
+                        <button type="submit" class="rounded-md border border-bally/40 bg-bally-muted/30 px-2.5 py-1 text-xs text-bally-bright hover:bg-bally-muted/50">Criar tarefa</button>
+                    </form>
+                    <form method="post" action="{% url 'comercial_acao_resolver' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="chave" value="{{ acao.chave }}" />
+                        <input type="hidden" name="cliente_id" value="{{ acao.cliente_id|default:'' }}" />
+                        <button type="submit" class="rounded-md border border-zinc-700 px-2.5 py-1 text-xs text-zinc-400 hover:bg-zinc-800">Resolvido</button>
+                    </form>
+                </div>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="mt-4 text-sm text-zinc-500">{{ ctx.recomendacoes.mensagem }}</p>
+    {% endif %}
+</section>
+
+<section class="mt-10 border-t border-zinc-800 pt-8">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+        <div>
+            <h2 class="text-lg font-semibold text-zinc-200">Performance por área</h2>
+            <p class="mt-1 text-sm text-zinc-500">Com base na área jurídica dos compromissos no período.</p>
+        </div>
+        {% if ctx.performance_area.disponivel %}
+        <form method="get" class="text-sm">
+            <input type="hidden" name="dias" value="{{ dias }}" />
+            <label class="sr-only" for="orden_area">Ordenar</label>
+            <select id="orden_area" name="orden_area" class="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-zinc-100" onchange="this.form.submit()">
+                <option value="receita" {% if ctx.performance_area.ordenacao == 'receita' %}selected{% endif %}>Receita</option>
+                <option value="contratos" {% if ctx.performance_area.ordenacao == 'contratos' %}selected{% endif %}>Contratos</option>
+                <option value="conversao" {% if ctx.performance_area.ordenacao == 'conversao' %}selected{% endif %}>Conversão</option>
+                <option value="ticket" {% if ctx.performance_area.ordenacao == 'ticket' %}selected{% endif %}>Ticket</option>
+                <option value="consultas" {% if ctx.performance_area.ordenacao == 'consultas' %}selected{% endif %}>Consultas</option>
+                <option value="area" {% if ctx.performance_area.ordenacao == 'area' %}selected{% endif %}>Área</option>
+            </select>
+        </form>
+        {% endif %}
+    </div>
+    {% if not ctx.performance_area.disponivel %}
+    <p class="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-6 text-center text-sm text-zinc-500">{{ ctx.performance_area.mensagem }}</p>
+    {% else %}
+    <div class="mt-4 overflow-x-auto rounded-lg border border-zinc-800">
+        <table class="min-w-full text-left text-sm">
+            <thead class="border-b border-zinc-800 bg-zinc-950/50 text-xs uppercase tracking-wide text-zinc-500">
+                <tr>
+                    <th class="px-3 py-2 font-medium">Área</th>
+                    <th class="px-3 py-2 font-medium">Clientes</th>
+                    <th class="px-3 py-2 font-medium">Consultas</th>
+                    <th class="px-3 py-2 font-medium">Contratos</th>
+                    <th class="px-3 py-2 font-medium">Conversão</th>
+                    <th class="px-3 py-2 font-medium">Ticket</th>
+                    <th class="px-3 py-2 font-medium">Receita</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-800">
+                {% for l in ctx.performance_area.linhas %}
+                <tr class="text-zinc-300">
+                    <td class="px-3 py-2 text-zinc-100">{{ l.area }}</td>
+                    <td class="px-3 py-2 tabular-nums">{{ l.leads_proxy|brnum:0 }}</td>
+                    <td class="px-3 py-2 tabular-nums">{{ l.consultas|brnum:0 }}</td>
+                    <td class="px-3 py-2 tabular-nums">{{ l.contratos|brnum:0 }}</td>
+                    <td class="px-3 py-2 tabular-nums">{% if l.conversao_pct is not None %}{{ l.conversao_pct|floatformat:1 }}%{% else %}—{% endif %}</td>
+                    <td class="px-3 py-2 tabular-nums">{% if ctx.ocultar_financeiro %}—{% elif l.ticket_medio %}R$ {{ l.ticket_medio|brnum:2 }}{% else %}—{% endif %}</td>
+                    <td class="px-3 py-2 tabular-nums">{% if ctx.ocultar_financeiro %}—{% else %}R$ {{ l.receita|brnum:2 }}{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</section>
+
+<section class="mt-10 border-t border-zinc-800 pt-8">
+    <h2 class="text-lg font-semibold text-zinc-200">Origem → contrato → receita</h2>
+    <p class="mt-1 text-sm text-zinc-500">Qual canal gera contratos e receita (não apenas cliques).</p>
+    {% if ctx.origem.mensagem %}
+    <p class="mt-3 text-xs text-amber-200/80">{{ ctx.origem.mensagem }}</p>
+    {% endif %}
+    {% if ctx.origem.linhas %}
+    <div class="mt-4 overflow-x-auto rounded-lg border border-zinc-800">
+        <table class="min-w-full text-left text-sm">
+            <thead class="border-b border-zinc-800 bg-zinc-950/50 text-xs uppercase tracking-wide text-zinc-500">
+                <tr>
+                    <th class="px-3 py-2 font-medium">Origem</th>
+                    <th class="px-3 py-2 font-medium">Leads</th>
+                    <th class="px-3 py-2 font-medium">Consultas</th>
+                    <th class="px-3 py-2 font-medium">Contratos</th>
+                    <th class="px-3 py-2 font-medium">Conversão</th>
+                    <th class="px-3 py-2 font-medium">Ticket</th>
+                    <th class="px-3 py-2 font-medium">Receita</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-800">
+                {% for l in ctx.origem.linhas %}
+                <tr class="text-zinc-300">
+                    <td class="px-3 py-2 text-zinc-100">{{ l.label }}</td>
+                    <td class="px-3 py-2 tabular-nums">{{ l.leads|brnum:0 }}</td>
+                    <td class="px-3 py-2 tabular-nums">{{ l.consultas|brnum:0 }}</td>
+                    <td class="px-3 py-2 tabular-nums">{{ l.contratos|brnum:0 }}</td>
+                    <td class="px-3 py-2 tabular-nums">{% if l.conversao_pct is not None %}{{ l.conversao_pct|floatformat:1 }}%{% else %}—{% endif %}</td>
+                    <td class="px-3 py-2 tabular-nums">{% if ctx.ocultar_financeiro %}—{% elif l.ticket_medio %}R$ {{ l.ticket_medio|brnum:2 }}{% else %}—{% endif %}</td>
+                    <td class="px-3 py-2 tabular-nums">{% if ctx.ocultar_financeiro %}—{% else %}R$ {{ l.receita|brnum:2 }}{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="mt-4 text-sm text-zinc-500">Sem dados de origem no período.</p>
+    {% endif %}
+</section>
+
+<section class="mt-10 border-t border-zinc-800 pt-8" id="simulador">
+    <h2 class="text-lg font-semibold text-zinc-200">Simulador de crescimento</h2>
+    <p class="mt-1 text-sm text-zinc-500">{{ ctx.simulador.aviso }}</p>
+    <form method="get" class="mt-4 grid gap-4 rounded-lg border border-zinc-800 bg-zinc-900/30 p-4 lg:grid-cols-2">
+        <input type="hidden" name="dias" value="{{ dias }}" />
+        <div>
+            <p class="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">Atual</p>
+            <div class="space-y-2">
+                <label class="block text-xs text-zinc-400">Leads/mês
+                    <input type="number" name="sim_leads" min="0" value="{{ ctx.sim_inputs.leads }}" class="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100" />
+                </label>
+                <label class="block text-xs text-zinc-400">Taxa lead→contrato (%)
+                    <input type="number" step="0.1" name="sim_taxa" min="0" max="100" value="{{ ctx.sim_inputs.taxa }}" class="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100" />
+                </label>
+                <label class="block text-xs text-zinc-400">Ticket médio (R$)
+                    <input type="number" step="0.01" name="sim_ticket" min="0" value="{{ ctx.sim_inputs.ticket }}" class="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100" />
+                </label>
+            </div>
+            <div class="mt-3 text-sm text-zinc-300">
+                <p>{{ ctx.simulador.atual.contratos|brnum:1 }} contratos ·
+                   {% if not ctx.ocultar_financeiro %}R$ {{ ctx.simulador.atual.receita|brnum:2 }}{% else %}—{% endif %}
+                </p>
+            </div>
+        </div>
+        <div>
+            <p class="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">Cenário simulado</p>
+            <div class="space-y-2">
+                <label class="block text-xs text-zinc-400">Leads/mês
+                    <input type="number" name="sim_leads_s" min="0" value="{{ ctx.sim_inputs.leads_s }}" class="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100" />
+                </label>
+                <label class="block text-xs text-zinc-400">Taxa lead→contrato (%)
+                    <input type="number" step="0.1" name="sim_taxa_s" min="0" max="100" value="{{ ctx.sim_inputs.taxa_s }}" class="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100" />
+                </label>
+                <label class="block text-xs text-zinc-400">Ticket médio (R$)
+                    <input type="number" step="0.01" name="sim_ticket_s" min="0" value="{{ ctx.sim_inputs.ticket_s }}" class="mt-1 w-full rounded-md border border-zinc-700 bg-zinc-950/50 px-3 py-2 text-sm text-zinc-100" />
+                </label>
+            </div>
+            <div class="mt-3 text-sm text-zinc-300">
+                <p>{{ ctx.simulador.simulado.contratos|brnum:1 }} contratos ·
+                   {% if not ctx.ocultar_financeiro %}R$ {{ ctx.simulador.simulado.receita|brnum:2 }}{% else %}—{% endif %}
+                </p>
+            </div>
+        </div>
+        <div class="lg:col-span-2 flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 pt-3">
+            <p class="text-sm text-zinc-400">
+                Diferença potencial:
+                <span class="font-medium text-bally-bright">
+                    {% if ctx.simulador.diff_contratos >= 0 %}+{% endif %}{{ ctx.simulador.diff_contratos|brnum:1 }} contratos
+                    {% if not ctx.ocultar_financeiro %}
+                    · {% if ctx.simulador.diff_receita >= 0 %}+{% endif %}R$ {{ ctx.simulador.diff_receita|brnum:2 }}
+                    {% endif %}
+                </span>
+            </p>
+            <button type="submit" class="rounded-md bg-bally px-4 py-2 text-sm font-semibold text-white hover:bg-bally-bright">Recalcular</button>
+        </div>
+    </form>
+</section>

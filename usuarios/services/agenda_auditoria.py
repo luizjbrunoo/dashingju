@@ -1,4 +1,8 @@
-"""Consultas de auditoria da agenda."""
+"""Consultas de auditoria da agenda.
+
+AgendaAuditLog.usuario permanece ACTOR.
+A população é a Organization dos itens auditados, nunca o autor do log.
+"""
 
 from __future__ import annotations
 
@@ -16,16 +20,24 @@ class ResumoAuditoriaAgenda:
     total_registrado: int
 
 
-def _ids_tenant(user) -> tuple[list[int], list[int]]:
+def _ids_tenant(organization) -> tuple[list[int], list[int]]:
+    if organization is None:
+        return [], []
     comp_ids = list(
-        Compromisso.objects.filter(user=user).values_list("pk", flat=True)
+        Compromisso.objects.filter(organization=organization).values_list(
+            "pk", flat=True
+        )
     )
-    tar_ids = list(Tarefa.objects.filter(user=user).values_list("pk", flat=True))
+    tar_ids = list(
+        Tarefa.objects.filter(organization=organization).values_list("pk", flat=True)
+    )
     return comp_ids, tar_ids
 
 
-def queryset_auditoria_usuario(user):
-    comp_ids, tar_ids = _ids_tenant(user)
+def queryset_auditoria_organization(organization):
+    comp_ids, tar_ids = _ids_tenant(organization)
+    if not comp_ids and not tar_ids:
+        return AgendaAuditLog.objects.none()
     return (
         AgendaAuditLog.objects.filter(
             Q(item_tipo=AgendaAuditLog.ItemTipo.COMPROMISSO, item_id__in=comp_ids)
@@ -36,12 +48,12 @@ def queryset_auditoria_usuario(user):
     )
 
 
-def historico_auditoria_usuario(user, *, limit: int = 100):
-    return queryset_auditoria_usuario(user)[:limit]
+def historico_auditoria_organization(organization, *, limit: int = 100):
+    return queryset_auditoria_organization(organization)[:limit]
 
 
-def resumo_auditoria_usuario(user) -> ResumoAuditoriaAgenda:
-    qs = queryset_auditoria_usuario(user)
+def resumo_auditoria_organization(organization) -> ResumoAuditoriaAgenda:
+    qs = queryset_auditoria_organization(organization)
     hoje = timezone.localdate()
     return ResumoAuditoriaAgenda(
         eventos_hoje=qs.filter(criado_em__date=hoje).count(),

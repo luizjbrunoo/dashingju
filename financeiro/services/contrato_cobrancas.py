@@ -27,6 +27,7 @@ def gerar_cobrancas_do_contrato(
     contrato: Contrato,
     *,
     autor,
+    organization,
     tipo_lancamento: str,
     primeiro_vencimento,
     categoria: str,
@@ -37,7 +38,11 @@ def gerar_cobrancas_do_contrato(
     observacoes_internas: str = "",
     salvar_como_rascunho: bool = False,
 ):
+    from financeiro.tenancy_write import assert_parent_organization
+
     _validar_contrato_para_geracao(contrato)
+    assert_parent_organization(contrato, organization)
+    assert_parent_organization(contrato.cliente, organization)
     descricao_final = descricao or contrato.descricao
 
     if tipo_lancamento == "parcelada":
@@ -53,6 +58,7 @@ def gerar_cobrancas_do_contrato(
             num_parcelas=num_parcelas,
             periodicidade=periodicidade,
             categoria=categoria,
+            organization=organization,
             responsavel=contrato.responsavel,
             contrato=contrato,
             forma_prevista_pagamento=forma_prevista_pagamento,
@@ -71,6 +77,7 @@ def gerar_cobrancas_do_contrato(
     status_inicial = StatusCobranca.DRAFT if salvar_como_rascunho else StatusCobranca.PENDING
     cobranca = Cobranca(
         usuario=contrato.usuario,
+        organization=organization,
         cliente=contrato.cliente,
         contrato=contrato,
         contrato_referencia=contrato.referencia,
@@ -84,7 +91,7 @@ def gerar_cobrancas_do_contrato(
         observacoes_internas=observacoes_internas,
         criado_por=autor,
     )
-    criar_cobranca(cobranca, autor=autor)
+    criar_cobranca(cobranca, autor=autor, organization=organization)
     _registrar_historico_geracao(contrato, [cobranca], autor, tipo_lancamento)
     if contrato.status == StatusContrato.DRAFT:
         contrato.status = StatusContrato.ACTIVE

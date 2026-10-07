@@ -8,6 +8,8 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
+REASON_MISSING_ORGANIZATION = "MISSING_ORGANIZATION"
+
 
 def disparar_lembrete_compromisso(compromisso_id: int) -> None:
     from usuarios.choices import StatusCompromisso
@@ -16,6 +18,14 @@ def disparar_lembrete_compromisso(compromisso_id: int) -> None:
     try:
         compromisso = Compromisso.objects.select_related("user").get(pk=compromisso_id)
     except Compromisso.DoesNotExist:
+        return
+
+    if compromisso.organization_id is None:
+        logger.info(
+            "skip model=Compromisso pk=%s reason=%s",
+            compromisso.pk,
+            REASON_MISSING_ORGANIZATION,
+        )
         return
 
     if compromisso.status == StatusCompromisso.CANCELADO:

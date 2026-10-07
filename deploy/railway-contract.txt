@@ -1,0 +1,37 @@
+RAILWAY-STAGING-PREP-01 — contrato operacional (ainda não implantado)
+
+Não criar recursos Railway neste arquivo.
+Não há hostname, senha ou DATABASE_URL aqui.
+
+WEB
+  image: Dockerfile (mesmo repositório)
+  start: ./deploy/web.sh
+  PORT: injetada pelo Railway
+  health: GET /health/
+  ready (opcional): GET /ready/
+  database: DATABASE_URL
+  public domain: sim (configurar DJANGO_ALLOWED_HOSTS e CSRF)
+
+WORKER
+  image: o mesmo Dockerfile
+  start: ./deploy/worker.sh
+  database: a mesma DATABASE_URL
+  public domain: NONE
+  broker: Django-Q ORM (tabelas no PostgreSQL; Redis não é requerido)
+
+PRE-DEPLOY
+  ./deploy/migrate.sh
+  (python manage.py check && python manage.py migrate --noinput)
+  Não rodar migrate no startup de cada instância Web.
+
+POSTGRES
+  não criar nesta etapa
+
+STATIC
+  collectstatic no Docker build
+  WhiteNoise serve somente /static/
+  Documentos privados: NÃO via WhiteNoise nem /media/
+
+railway.toml
+  não versionado de propósito: Web e Worker compartilham o repo
+  com start commands diferentes por serviço.

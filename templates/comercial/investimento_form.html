@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block 'body' %}
+<div class="app-shell py-8">
+    {% if messages %}
+    <div class="mb-6 space-y-2">
+        {% for message in messages %}
+            <p class="rounded-md px-3 py-2 text-sm {{ message.tags }}">{{ message }}</p>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% include 'comercial/_subnav.html' with aba='investimento' %}
+
+    <h1 class="text-xl font-semibold text-zinc-100">Investimento de mídia</h1>
+    <p class="mt-1 text-sm text-zinc-500">
+        Registre gastos reais de marketing para calcular ROI, CAC e CPL. Sem registro, o ROI permanece indisponível (não inventamos valores).
+    </p>
+
+    <form method="post" class="mt-6 max-w-xl space-y-4 rounded-lg border border-zinc-800 bg-zinc-900/40 p-6">
+        {% csrf_token %}
+        {% for field in form %}
+        <div>
+            <label class="mb-1 block text-sm font-medium text-zinc-300" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<p class="mt-1 text-sm text-red-400">{{ field.errors.0 }}</p>{% endif %}
+        </div>
+        {% endfor %}
+        <button type="submit" class="rounded-md bg-bally px-4 py-2 text-sm font-semibold text-white hover:bg-bally-bright">
+            Registrar investimento
+        </button>
+    </form>
+
+    <h2 class="mt-10 text-lg font-semibold text-zinc-200">Registros recentes</h2>
+    {% if itens %}
+    <ul class="mt-4 divide-y divide-zinc-800 rounded-lg border border-zinc-800 bg-zinc-900/30">
+        {% for i in itens %}
+        <li class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+            <span class="text-zinc-300">{{ i.data_inicio|date:"d/m/Y" }} – {{ i.data_fim|date:"d/m/Y" }}{% if i.canal %} · {{ i.canal }}{% endif %}</span>
+            <span class="font-mono text-bally-bright">R$ {{ i.valor|brnum:2 }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="mt-4 text-sm text-zinc-500">Nenhum investimento registrado ainda.</p>
+    {% endif %}
+</div>
+{% endblock 'body' %}

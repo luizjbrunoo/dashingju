@@ -23,6 +23,14 @@ class Banco(models.Model):
         on_delete=models.CASCADE,
         related_name="bancos_financeiro",
     )
+    organization = models.ForeignKey(
+        "organizacoes.Organization",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="bancos_financeiro",
+        db_index=True,
+    )
     nome = models.CharField(max_length=120)
     agencia = models.CharField(max_length=20, blank=True)
     conta = models.CharField(max_length=30, blank=True)
@@ -34,6 +42,10 @@ class Banco(models.Model):
         ordering = ["nome"]
         verbose_name = "Banco"
         verbose_name_plural = "Bancos"
+        permissions = [
+            ("view_caixa", "Pode visualizar caixa"),
+            ("manage_caixa", "Pode movimentar caixa"),
+        ]
 
     def __str__(self):
         return self.nome
@@ -57,6 +69,14 @@ class Categoria(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="categorias_financeiro",
+    )
+    organization = models.ForeignKey(
+        "organizacoes.Organization",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="categorias_financeiro",
+        db_index=True,
     )
     nome = models.CharField(max_length=120)
     tipo = models.CharField(max_length=10, choices=Tipo.choices)
@@ -82,6 +102,14 @@ class Movimento(models.Model):
         on_delete=models.CASCADE,
         related_name="movimentos_financeiro",
     )
+    organization = models.ForeignKey(
+        "organizacoes.Organization",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="movimentos_financeiro",
+        db_index=True,
+    )
     banco = models.ForeignKey(Banco, on_delete=models.CASCADE)
     categoria = models.ForeignKey(Categoria, on_delete=models.PROTECT)
     valor = models.DecimalField(max_digits=14, decimal_places=2)
@@ -101,11 +129,13 @@ class Movimento(models.Model):
         super().clean()
         if self.valor is not None and self.valor <= 0:
             raise ValidationError({"valor": "O valor deve ser maior que zero."})
-        if self.usuario_id and self.banco_id and self.categoria_id:
-            if self.banco.usuario_id != self.usuario_id:
-                raise ValidationError("O banco não pertence ao usuário.")
-            if self.categoria.usuario_id != self.usuario_id:
-                raise ValidationError("A categoria não pertence ao usuário.")
+        if self.banco_id and self.categoria_id:
+            if not self.organization_id:
+                raise ValidationError("O lançamento precisa de um escritório.")
+            if self.banco.organization_id != self.organization_id:
+                raise ValidationError("O banco não pertence ao escritório.")
+            if self.categoria.organization_id != self.organization_id:
+                raise ValidationError("A categoria não pertence ao escritório.")
 
 
 class Contrato(models.Model):
@@ -113,6 +143,14 @@ class Contrato(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="contratos_financeiro",
+    )
+    organization = models.ForeignKey(
+        "organizacoes.Organization",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="contratos_financeiro",
+        db_index=True,
     )
     cliente = models.ForeignKey(
         "usuarios.Cliente",
@@ -175,9 +213,9 @@ class Contrato(models.Model):
         super().clean()
         if self.valor_total is not None and self.valor_total <= 0:
             raise ValidationError({"valor_total": "O valor deve ser maior que zero."})
-        if self.usuario_id and self.cliente_id:
-            if self.cliente.user_id != self.usuario_id:
-                raise ValidationError({"cliente": "Cliente não pertence ao usuário."})
+        if self.organization_id and self.cliente_id:
+            if self.cliente.organization_id != self.organization_id:
+                raise ValidationError({"cliente": "Cliente não pertence ao escritório."})
 
 
 class Cobranca(models.Model):
@@ -185,6 +223,14 @@ class Cobranca(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="cobrancas_financeiro",
+    )
+    organization = models.ForeignKey(
+        "organizacoes.Organization",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="cobrancas_financeiro",
+        db_index=True,
     )
     cliente = models.ForeignKey(
         "usuarios.Cliente",
@@ -303,12 +349,12 @@ class Cobranca(models.Model):
         super().clean()
         if self.valor_original is not None and self.valor_original <= 0:
             raise ValidationError({"valor_original": "O valor deve ser maior que zero."})
-        if self.usuario_id and self.cliente_id:
-            if self.cliente.user_id != self.usuario_id:
-                raise ValidationError({"cliente": "Cliente não pertence ao usuário."})
-        if self.contrato_id and self.usuario_id:
-            if self.contrato.usuario_id != self.usuario_id:
-                raise ValidationError({"contrato": "Contrato não pertence ao usuário."})
+        if self.organization_id and self.cliente_id:
+            if self.cliente.organization_id != self.organization_id:
+                raise ValidationError({"cliente": "Cliente não pertence ao escritório."})
+        if self.contrato_id and self.organization_id:
+            if self.contrato.organization_id != self.organization_id:
+                raise ValidationError({"contrato": "Contrato não pertence ao escritório."})
             if self.cliente_id and self.contrato.cliente_id != self.cliente_id:
                 raise ValidationError({"contrato": "Contrato não pertence ao cliente."})
         if self.parcela_numero and self.parcela_total:
@@ -328,6 +374,14 @@ class CobrancaRecebimento(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="recebimentos_cobranca",
+    )
+    organization = models.ForeignKey(
+        "organizacoes.Organization",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="recebimentos_financeiro",
+        db_index=True,
     )
     valor = models.DecimalField(max_digits=14, decimal_places=2)
     data_recebimento = models.DateField()
@@ -390,12 +444,12 @@ class CobrancaRecebimento(models.Model):
         super().clean()
         if self.valor is not None and self.valor <= 0:
             raise ValidationError({"valor": "O valor recebido deve ser maior que zero."})
-        if self.cobranca_id and self.usuario_id:
-            if self.cobranca.usuario_id != self.usuario_id:
-                raise ValidationError("A cobrança não pertence ao usuário.")
-        if self.movimento_id and self.usuario_id:
-            if self.movimento.usuario_id != self.usuario_id:
-                raise ValidationError("O movimento não pertence ao usuário.")
+        if self.organization_id and self.cobranca_id:
+            if self.cobranca.organization_id != self.organization_id:
+                raise ValidationError("A cobrança não pertence ao escritório.")
+        if self.movimento_id and self.organization_id:
+            if self.movimento.organization_id != self.organization_id:
+                raise ValidationError("O movimento não pertence ao escritório.")
 
 
 class CobrancaHistorico(models.Model):

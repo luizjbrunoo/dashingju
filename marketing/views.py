@@ -16,6 +16,7 @@ from marketing.services.resultados_campanhas import (
 )
 from marketing.services.google_ads_resultados import contexto_dashboard_resultados
 from marketing.services.periodo import PeriodoMarketing
+from financeiro.tenancy_write import organization_for_finance_write
 
 from . import nichos
 from .services import campanha_demo, demo
@@ -125,6 +126,7 @@ def dashboard(request):
     ctx_resultados = contexto_dashboard_resultados(
         request.user,
         periodo,
+        organization=organization_for_finance_write(request),
         modo_demo=True,
         nicho=nicho_chave,
         granularidade=(request.GET.get("granularidade") or "auto").strip(),

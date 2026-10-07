@@ -9,7 +9,7 @@ from decimal import Decimal
 from django.utils import timezone
 
 from financeiro.choices import StatusCobranca
-from financeiro.services.cobranca_listagem import queryset_anotado
+from financeiro.services.cobranca_listagem import queryset_anotado_organization
 
 JANELAS_PREVISAO = (
     ("0_30", "Próximos 30 dias", 0, 30),
@@ -39,11 +39,37 @@ class ResumoPrevisao:
     cobrancas: list
 
 
-def calcular_previsao(usuario, *, hoje: date | None = None) -> ResumoPrevisao:
+def _resumo_vazio(hoje: date) -> ResumoPrevisao:
+    janelas = []
+    for codigo, rotulo, offset_min, offset_max in JANELAS_PREVISAO:
+        janelas.append(
+            JanelaPrevisao(
+                codigo=codigo,
+                rotulo=rotulo,
+                total=Decimal("0"),
+                quantidade=0,
+                data_inicio=hoje + timedelta(days=offset_min),
+                data_fim=hoje + timedelta(days=offset_max),
+            )
+        )
+    return ResumoPrevisao(
+        total_previsto=Decimal("0"),
+        quantidade=0,
+        janelas=janelas,
+        cumulativo_30=Decimal("0"),
+        cumulativo_60=Decimal("0"),
+        cumulativo_90=Decimal("0"),
+        cobrancas=[],
+    )
+
+
+def calcular_previsao(organization, *, hoje: date | None = None) -> ResumoPrevisao:
     hoje = hoje or timezone.localdate()
+    if organization is None:
+        return _resumo_vazio(hoje)
     fim = hoje + timedelta(days=90)
     qs = (
-        queryset_anotado(usuario)
+        queryset_anotado_organization(organization)
         .exclude(status__in=[StatusCobranca.CANCELED, StatusCobranca.DRAFT])
         .filter(saldo_calc__gt=0, data_vencimento__gte=hoje, data_vencimento__lte=fim)
         .select_related("cliente")

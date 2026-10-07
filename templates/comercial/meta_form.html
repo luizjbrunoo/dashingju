@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block 'body' %}
+<div class="app-shell py-8">
+    {% if messages %}
+    <div class="mb-6 space-y-2">
+        {% for message in messages %}
+            <p class="rounded-md px-3 py-2 text-sm {{ message.tags }}">{{ message }}</p>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% include 'comercial/_subnav.html' with aba='meta' %}
+
+    <h1 class="text-xl font-semibold text-zinc-100">Meta de faturamento</h1>
+    <p class="mt-1 text-sm text-zinc-500">
+        Defina meta anual/mensal e ticket médio. O ticket automático usa a média dos contratos do escritório.
+    </p>
+
+    {% if auto_ticket.valor %}
+    <p class="mt-4 text-sm text-zinc-400">
+        Ticket automático sugerido: <span class="font-medium text-bally-bright">R$ {{ auto_ticket.valor|brnum:2 }}</span>
+        <span class="text-zinc-500">— {{ auto_ticket.mensagem }}</span>
+    </p>
+    {% else %}
+    <p class="mt-4 text-sm text-zinc-500">{{ auto_ticket.mensagem }}</p>
+    {% endif %}
+
+    <form method="post" class="mt-6 max-w-xl space-y-4 rounded-lg border border-zinc-800 bg-zinc-900/40 p-6">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+        <div class="rounded-md border border-red-800/80 bg-red-950/90 px-3 py-2 text-sm text-red-300">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        {% for field in form %}
+        <div>
+            <label class="mb-1 block text-sm font-medium text-zinc-300" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<p class="mt-1 text-xs text-zinc-500">{{ field.help_text }}</p>{% endif %}
+            {% if field.errors %}<p class="mt-1 text-sm text-red-400">{{ field.errors.0 }}</p>{% endif %}
+        </div>
+        {% endfor %}
+
+        <div class="flex flex-wrap gap-3 pt-2">
+            <button type="submit" class="rounded-md bg-bally px-4 py-2 text-sm font-semibold text-white hover:bg-bally-bright">
+                Salvar meta
+            </button>
+            <a href="{% url 'comercial_dashboard' %}" class="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800">
+                Cancelar
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock 'body' %}

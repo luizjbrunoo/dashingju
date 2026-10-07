@@ -46,8 +46,8 @@
                             {% endif %}
                         </td>
                         <td class="px-4 py-3 font-mono text-xs text-zinc-400">{{ cobranca.contrato.referencia|default:cobranca.contrato_referencia|default:"—" }}</td>
-                        <td class="px-4 py-3 font-mono text-zinc-100">R$ {{ cobranca.valor_original|floatformat:2 }}</td>
-                        <td class="px-4 py-3 font-mono text-bally-bright">R$ {{ cobranca.saldo_exibicao|floatformat:2 }}</td>
+                        <td class="px-4 py-3 font-mono text-zinc-100">R$ {{ cobranca.valor_original|brnum:2 }}</td>
+                        <td class="px-4 py-3 font-mono text-bally-bright">R$ {{ cobranca.saldo_exibicao|brnum:2 }}</td>
                         <td class="px-4 py-3 font-mono {% if cobranca.status == 'overdue' %}text-red-300{% else %}text-zinc-300{% endif %}">{{ cobranca.data_vencimento|date:"d/m/Y" }}</td>
                         <td class="px-4 py-3">
                             {% if cobranca.status == 'overdue' %}

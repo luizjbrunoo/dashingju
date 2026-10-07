@@ -10,7 +10,7 @@
         {{ cobranca.descricao }} — {{ cobranca.cliente.nome }}
     </p>
     <p class="mt-1 font-mono text-sm text-emerald-400">
-        R$ {{ recebimento.valor|floatformat:2 }} — {{ recebimento.data_recebimento|date:"d/m/Y" }}
+        R$ {{ recebimento.valor|brnum:2 }} — {{ recebimento.data_recebimento|date:"d/m/Y" }}
     </p>
 
     <form method="post" class="mt-8 space-y-5">

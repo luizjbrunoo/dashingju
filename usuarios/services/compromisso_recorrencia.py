@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import calendar
 import copy
+import logging
 from datetime import datetime, timedelta
 
 from django.db.models import Q
@@ -12,8 +13,13 @@ from django.utils import timezone
 from usuarios.choices import Recorrencia, StatusCompromisso
 from usuarios.models import Compromisso, CompromissoParticipante
 
+logger = logging.getLogger(__name__)
+
 OCORRENCIAS_PADRAO = 3
 FUTUROS_MINIMOS = 2
+REASON_MISSING_ORGANIZATION = "MISSING_ORGANIZATION"
+REASON_CLIENT_ORGANIZATION_CONFLICT = "CLIENT_ORGANIZATION_CONFLICT"
+REASON_RESPONSAVEL_NOT_IN_ORG = "RESPONSAVEL_NOT_IN_ORG"
 
 
 def _chave_serie_raiz() -> str:
@@ -54,10 +60,32 @@ def _duracao_compromisso(compromisso: Compromisso) -> timedelta | None:
     return None
 
 
-def _compromissos_da_serie(raiz_id: int):
-    return Compromisso.objects.filter(
+def _log_skip_serie(compromisso: Compromisso, reason: str) -> None:
+    logger.info("skip model=Compromisso pk=%s reason=%s", compromisso.pk, reason)
+
+
+def _motivo_bloqueio_serie(origem: Compromisso) -> str | None:
+    if origem.organization_id is None:
+        return REASON_MISSING_ORGANIZATION
+    if origem.cliente_id:
+        cliente = origem.cliente
+        if cliente is None or cliente.organization_id != origem.organization_id:
+            return REASON_CLIENT_ORGANIZATION_CONFLICT
+    if origem.responsavel_id:
+        from usuarios.services.agenda_equipe import responsavel_permitido
+
+        if not responsavel_permitido(origem.organization, origem.responsavel):
+            return REASON_RESPONSAVEL_NOT_IN_ORG
+    return None
+
+
+def _compromissos_da_serie(raiz_id: int, organization=None):
+    qs = Compromisso.objects.filter(
         Q(pk=raiz_id) | Q(metadados__serie_raiz_id=raiz_id)
     ).exclude(status=StatusCompromisso.CANCELADO)
+    if organization is not None:
+        qs = qs.filter(organization=organization)
+    return qs
 
 
 def _clonar_compromisso(
@@ -74,6 +102,7 @@ def _clonar_compromisso(
 
     clone = Compromisso(
         user=origem.user,
+        organization=origem.organization,
         titulo=origem.titulo,
         descricao=origem.descricao,
         tipo=origem.tipo,
@@ -106,6 +135,10 @@ def gerar_ocorrencias_serie(
     """Gera cópias futuras a partir de um compromisso recorrente."""
     if compromisso.recorrencia == Recorrencia.NAO_REPETIR:
         return []
+    motivo = _motivo_bloqueio_serie(compromisso)
+    if motivo:
+        _log_skip_serie(compromisso, motivo)
+        return []
 
     metadados = copy.deepcopy(compromisso.metadados or {})
     metadados[_chave_serie_raiz()] = compromisso.pk
@@ -114,7 +147,9 @@ def gerar_ocorrencias_serie(
         compromisso.save(update_fields=["metadados", "atualizado_em"])
 
     existentes = set(
-        _compromissos_da_serie(compromisso.pk).values_list("data_hora", flat=True)
+        _compromissos_da_serie(
+            compromisso.pk, organization=compromisso.organization
+        ).values_list("data_hora", flat=True)
     )
 
     criados: list[Compromisso] = []
@@ -146,28 +181,28 @@ def manter_series_recorrentes() -> int:
 
     gerados = 0
     for raiz in raizes:
-        futuros = (
-            _compromissos_da_serie(raiz.pk)
-            .filter(data_hora__gt=agora)
-            .count()
-        )
+        motivo = _motivo_bloqueio_serie(raiz)
+        if motivo:
+            _log_skip_serie(raiz, motivo)
+            continue
+
+        serie = _compromissos_da_serie(raiz.pk, organization=raiz.organization)
+        futuros = serie.filter(data_hora__gt=agora).count()
         faltam = max(0, FUTUROS_MINIMOS - futuros)
         if not faltam:
             continue
 
-        ultimo = (
-            _compromissos_da_serie(raiz.pk).order_by("-data_hora").first()
-        )
+        ultimo = serie.order_by("-data_hora").first()
         if not ultimo:
             continue
 
-        existentes = set(
-            _compromissos_da_serie(raiz.pk).values_list("data_hora", flat=True)
-        )
+        existentes = set(serie.values_list("data_hora", flat=True))
         momento = ultimo.data_hora
         seguranca = 0
         while (
-            _compromissos_da_serie(raiz.pk).filter(data_hora__gt=agora).count()
+            _compromissos_da_serie(raiz.pk, organization=raiz.organization)
+            .filter(data_hora__gt=agora)
+            .count()
             < FUTUROS_MINIMOS
             and seguranca < 52
         ):

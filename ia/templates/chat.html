@@ -39,6 +39,7 @@
                 </div>
                 <div class="mt-4 rounded-lg border border-zinc-800/80 bg-zinc-900/40 px-4 py-4 sm:px-6 lg:px-8">
                     <form id="form-pergunta">
+                        {% csrf_token %}
                         <div class="flex items-center gap-4">
                             <input type="text"
                                    name="pergunta"
@@ -59,10 +60,16 @@
         document.getElementById('form-pergunta').addEventListener('submit', async function(event){
             event.preventDefault();
             const pergunta = document.getElementById('pergunta').value
+            const csrfToken = document.querySelector("[name=csrfmiddlewaretoken]").value;
             const formData = new FormData();
             formData.append('pergunta', pergunta)
+            formData.append("csrfmiddlewaretoken", csrfToken)
             const response = await fetch("", {
                 method: "POST",
+                credentials: "same-origin",
+                headers: {
+                    "X-CSRFToken": csrfToken,
+                },
                 body: formData
             })
             const data = await response.json()
@@ -106,10 +113,12 @@
 
             const streamResponse = await fetch("{% url 'stream_resposta' %}",{
                 method: "POST",
+                credentials: "same-origin",
                 headers: {
                      "Content-Type": "application/x-www-form-urlencoded",
+                     "X-CSRFToken": csrfToken,
                 },
-                body: new URLSearchParams({id_pergunta: perguntaId})
+                body: new URLSearchParams({id_pergunta: perguntaId, csrfmiddlewaretoken: csrfToken})
             });
 
             const reader = streamResponse.body.getReader()
@@ -120,7 +129,6 @@
                 const {done, value} = await reader.read()
                 if (done) break;
 
-                console.log(value)
                 const chunk = decoder.decode(value, { stream: true})
                 respostaElemento.innerText += chunk
 

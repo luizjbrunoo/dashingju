@@ -182,20 +182,25 @@ class CompromissoForm(forms.ModelForm):
             "responsavel": forms.Select(attrs={"class": _SELECT}),
         }
 
-    def __init__(self, *args, user=None, **kwargs):
+    def __init__(self, *args, user=None, organization=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.user = user
+        self.organization = organization
         self.auto_id = "compromisso_%s"
-        if user:
-            membros = membros_agenda(user)
+        if organization:
+            membros = membros_agenda(organization)
             self.fields["responsavel"].queryset = membros
-            if not self.instance.pk:
+            if not self.instance.pk and user:
                 self.fields["responsavel"].initial = user.pk
             self.fields["responsavel"].empty_label = None
             self.fields["participantes"].queryset = membros
-            self.fields["cliente"].queryset = Cliente.objects.filter(user=user).order_by(
-                "nome"
-            )
+            self.fields["cliente"].queryset = Cliente.objects.filter(
+                organization=organization
+            ).order_by("nome")
+        else:
+            self.fields["responsavel"].queryset = User.objects.none()
+            self.fields["participantes"].queryset = User.objects.none()
+            self.fields["cliente"].queryset = Cliente.objects.none()
         self.fields["cliente"].required = False
         self.fields["cliente"].empty_label = "Nenhum"
         self.fields["processo_referencia"].required = False
@@ -207,7 +212,11 @@ class CompromissoForm(forms.ModelForm):
                 cliente_id = None
         elif self.instance.pk and self.instance.cliente_id:
             cliente_id = self.instance.cliente_id
-        sugestoes = processos_distintos(user, cliente_id=cliente_id) if user else []
+        sugestoes = (
+            processos_distintos(organization, cliente_id=cliente_id)
+            if organization
+            else []
+        )
         datalist_id = "processos-compromisso-sugeridos"
         self.fields["processo_referencia"].widget.attrs["list"] = datalist_id
         self.fields["processo_referencia"].widget.attrs["data-datalist"] = datalist_id
@@ -287,20 +296,23 @@ class CompromissoForm(forms.ModelForm):
 
     def clean_cliente(self):
         cliente = self.cleaned_data.get("cliente")
-        if cliente and self.user and cliente.user_id != self.user.pk:
-            raise forms.ValidationError("Cliente não pertence ao seu cadastro.")
+        if cliente and (
+            not self.organization
+            or cliente.organization_id != self.organization.pk
+        ):
+            raise forms.ValidationError("Cliente não pertence ao escritório ativo.")
         return cliente
 
     def clean_responsavel(self):
         responsavel = self.cleaned_data.get("responsavel")
-        if responsavel and self.user and not responsavel_permitido(self.user, responsavel):
+        if responsavel and not responsavel_permitido(self.organization, responsavel):
             raise forms.ValidationError("Responsável não pertence ao seu escritório.")
         return responsavel
 
     def clean_participantes(self):
         participantes = self.cleaned_data.get("participantes")
-        if participantes and self.user and not participantes_permitidos(
-            self.user, participantes
+        if participantes and not participantes_permitidos(
+            self.organization, participantes
         ):
             raise forms.ValidationError("Participante inválido para esta agenda.")
         return participantes
@@ -373,11 +385,15 @@ class CompromissoForm(forms.ModelForm):
     def _post_clean(self):
         if self.user:
             self.instance.user = self.user
+        if not self.instance.pk:
+            self.instance.organization = self.organization
         super()._post_clean()
 
     def save(self, commit=True):
         instance = super().save(commit=False)
         instance.user = self.user
+        if not instance.pk:
+            instance.organization = self.organization
         instance.data_hora = self.cleaned_data["data_hora_inicio"]
         instance.data_hora_fim = self.cleaned_data["data_hora_fim"]
         instance.prazo_oficial = self.cleaned_data.get("prazo_oficial")
@@ -460,21 +476,25 @@ class TarefaForm(forms.ModelForm):
             "responsavel": forms.Select(attrs={"class": _SELECT}),
         }
 
-    def __init__(self, *args, user=None, **kwargs):
+    def __init__(self, *args, user=None, organization=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.user = user
+        self.organization = organization
         self.auto_id = "tarefa_%s"
         self.fields["descricao"].required = False
         self.fields["processo_referencia"].required = False
-        if user:
-            membros = membros_agenda(user)
+        if organization:
+            membros = membros_agenda(organization)
             self.fields["responsavel"].queryset = membros
-            if not self.instance.pk:
+            if not self.instance.pk and user:
                 self.fields["responsavel"].initial = user.pk
             self.fields["responsavel"].empty_label = None
-            self.fields["cliente"].queryset = Cliente.objects.filter(user=user).order_by(
-                "nome"
-            )
+            self.fields["cliente"].queryset = Cliente.objects.filter(
+                organization=organization
+            ).order_by("nome")
+        else:
+            self.fields["responsavel"].queryset = User.objects.none()
+            self.fields["cliente"].queryset = Cliente.objects.none()
         self.fields["cliente"].required = False
         self.fields["cliente"].empty_label = "Nenhum"
         cliente_id = None
@@ -485,7 +505,11 @@ class TarefaForm(forms.ModelForm):
                 cliente_id = None
         elif self.instance.pk and self.instance.cliente_id:
             cliente_id = self.instance.cliente_id
-        sugestoes = processos_distintos(user, cliente_id=cliente_id) if user else []
+        sugestoes = (
+            processos_distintos(organization, cliente_id=cliente_id)
+            if organization
+            else []
+        )
         datalist_id = "processos-tarefa-sugeridos"
         self.fields["processo_referencia"].widget.attrs["list"] = datalist_id
         self.fields["processo_referencia"].widget.attrs["data-datalist"] = datalist_id
@@ -499,24 +523,31 @@ class TarefaForm(forms.ModelForm):
 
     def clean_responsavel(self):
         responsavel = self.cleaned_data.get("responsavel")
-        if responsavel and self.user and not responsavel_permitido(self.user, responsavel):
+        if responsavel and not responsavel_permitido(self.organization, responsavel):
             raise forms.ValidationError("Responsável não pertence ao seu escritório.")
         return responsavel
 
     def clean_cliente(self):
         cliente = self.cleaned_data.get("cliente")
-        if cliente and self.user and cliente.user_id != self.user.pk:
-            raise forms.ValidationError("Cliente não pertence ao seu cadastro.")
+        if cliente and (
+            not self.organization
+            or cliente.organization_id != self.organization.pk
+        ):
+            raise forms.ValidationError("Cliente não pertence ao escritório ativo.")
         return cliente
 
     def _post_clean(self):
         if self.user:
             self.instance.user = self.user
+        if not self.instance.pk:
+            self.instance.organization = self.organization
         super()._post_clean()
 
     def save(self, commit=True):
         instance = super().save(commit=False)
         instance.user = self.user
+        if not instance.pk:
+            instance.organization = self.organization
         if not instance.responsavel_id:
             instance.responsavel = self.user
         if commit:

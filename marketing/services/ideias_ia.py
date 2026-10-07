@@ -30,13 +30,13 @@ class BancoIdeiasService:
     def __init__(self, profile: ContentProfile | None = None):
         self.profile = profile
 
-    def sugerir(self, *, user, parametros: dict[str, Any]) -> list[ContentIdea]:
+    def sugerir(self, *, user, parametros: dict[str, Any], organization=None) -> list[ContentIdea]:
         if not os.environ.get("OPENAI_API_KEY"):
             raise ContentGenerationError(
                 "OPENAI_API_KEY não configurada. Defina a chave no arquivo .env."
             )
         parametros = self._enriquecer(parametros)
-        temas = self._temas_existentes(user)
+        temas = self._temas_existentes(user, organization=organization)
         prompt = prompt_banco_ideias(parametros, self.profile, temas)
         agent = Agent(
             model=OpenAIChat(id="gpt-4o-mini"),
@@ -58,6 +58,7 @@ class BancoIdeiasService:
         for ideia in output.ideias:
             obj = ContentIdea.objects.create(
                 usuario=user,
+                organization=organization,
                 titulo=ideia.titulo[:255],
                 descricao=ideia.descricao,
                 area_juridica=(ideia.area_juridica or parametros.get("area_juridica", ""))[:120],
@@ -68,14 +69,15 @@ class BancoIdeiasService:
             criadas.append(obj)
         return criadas
 
-    def _temas_existentes(self, user) -> list[str]:
-        temas = list(
-            ContentItem.objects.filter(usuario=user).values_list("titulo", flat=True)
-        )
+    def _temas_existentes(self, user, organization=None) -> list[str]:
+        del user
+        if organization is None:
+            return []
+        itens = ContentItem.objects.filter(organization=organization)
+        ideias = ContentIdea.objects.filter(organization=organization)
+        temas = list(itens.values_list("titulo", flat=True))
         temas += list(
-            ContentIdea.objects.filter(usuario=user).exclude(
-                status=StatusIdeia.DESCARTADA
-            ).values_list("titulo", flat=True)
+            ideias.exclude(status=StatusIdeia.DESCARTADA).values_list("titulo", flat=True)
         )
         return [t for t in temas if t]
 

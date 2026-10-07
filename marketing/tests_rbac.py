@@ -33,10 +33,11 @@ class MarketingRbacTests(TestCase):
         self.grupo_vazio = _grupo_restrito("Mkt RBAC — vazio")
         self.restrito.groups.add(self.grupo_vazio)
 
-    def test_legado_acessa_dashboard_google_ads(self):
+    def test_legado_sem_perm_fail_closed(self):
         self.http.login(username="mkt_legado", password="senha123")
         resp = self.http.get(reverse("marketing_dashboard"))
-        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.url, reverse("clientes"))
 
     def test_grupo_sem_perm_redireciona_clientes(self):
         self.http.login(username="mkt_restrito", password="senha123")

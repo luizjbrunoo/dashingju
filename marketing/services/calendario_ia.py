@@ -34,13 +34,13 @@ class PlanoEditorialService:
     def __init__(self, profile: ContentProfile | None = None):
         self.profile = profile
 
-    def gerar_plano(self, *, user, parametros: dict[str, Any]) -> EditorialCalendar:
+    def gerar_plano(self, *, user, parametros: dict[str, Any], organization=None) -> EditorialCalendar:
         if not os.environ.get("OPENAI_API_KEY"):
             raise ContentGenerationError(
                 "OPENAI_API_KEY não configurada. Defina a chave no arquivo .env."
             )
         parametros = self._enriquecer(parametros)
-        temas = self._temas_existentes(user)
+        temas = self._temas_existentes(user, organization=organization)
         prompt = prompt_plano_editorial(parametros, self.profile, temas)
         agent = Agent(
             model=OpenAIChat(id="gpt-4o-mini"),
@@ -62,6 +62,7 @@ class PlanoEditorialService:
         periodo = parametros["periodo_dias"]
         calendario = EditorialCalendar.objects.create(
             usuario=user,
+            organization=organization,
             nome=f"Plano {parametros.get('area_juridica') or 'geral'} — {periodo} dias",
             area_juridica=parametros.get("area_juridica", ""),
             publico=parametros.get("publico", ""),
@@ -76,6 +77,7 @@ class PlanoEditorialService:
             objetivo = parametros.get("objetivo", "")
             ContentItem.objects.create(
                 usuario=user,
+                organization=organization,
                 calendario=calendario,
                 titulo=item_plano.titulo[:255],
                 tema=item_plano.tema[:255],
@@ -90,8 +92,13 @@ class PlanoEditorialService:
             )
         return calendario
 
-    def _temas_existentes(self, user) -> list[str]:
-        qs = ContentItem.objects.filter(usuario=user).values_list("titulo", "tema")
+    def _temas_existentes(self, user, organization=None) -> list[str]:
+        del user
+        if organization is None:
+            return []
+        qs = ContentItem.objects.filter(organization=organization).values_list(
+            "titulo", "tema"
+        )
         temas = []
         for titulo, tema in qs:
             if titulo:

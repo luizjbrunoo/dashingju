@@ -3,6 +3,7 @@
         href="{% url 'financeiro_cobranca_listar' %}{% if filtros_query %}?{{ filtros_query }}{% endif %}"
         class="rounded-md px-3 py-1.5 font-medium {% if aba_cobrancas == 'todas' %}bg-zinc-800 text-bally-bright ring-1 ring-bally/30{% else %}text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright{% endif %}"
     >Todas</a>
+    {% if fin_perms.ver_relatorios %}
     <a
         href="{% url 'financeiro_cobranca_inadimplencia' %}"
         class="rounded-md px-3 py-1.5 font-medium {% if aba_cobrancas == 'inadimplencia' %}bg-zinc-800 text-bally-bright ring-1 ring-bally/30{% else %}text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright{% endif %}"
@@ -11,4 +12,5 @@
         href="{% url 'financeiro_cobranca_previsao' %}"
         class="rounded-md px-3 py-1.5 font-medium {% if aba_cobrancas == 'previsao' %}bg-zinc-800 text-bally-bright ring-1 ring-bally/30{% else %}text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright{% endif %}"
     >Previsão 30/60/90</a>
+    {% endif %}
 </nav>

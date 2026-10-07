@@ -12,6 +12,7 @@
                             {% include 'agenda/_badge_status_compromisso.html' %}
                             {% include 'agenda/_badge_confirmacao_consulta.html' %}
                             {% include 'agenda/_badge_prazo_compromisso.html' %}
+                            {% include 'agenda/_badge_criticidade.html' with obj=compromisso %}
                         </div>
                         <p class="mt-1 text-sm font-medium text-zinc-100">{{ compromisso.titulo }}</p>
                         {% include 'agenda/_bloco_prazo_compacto.html' %}
@@ -50,6 +51,7 @@
                             <span class="rounded-md border border-zinc-700 bg-zinc-950/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400">Tarefa</span>
                             {% include 'agenda/_badge_status_tarefa.html' %}
                             {% include 'agenda/_badge_prioridade.html' with prioridade=tarefa.prioridade %}
+                            {% include 'agenda/_badge_criticidade.html' with obj=tarefa %}
                         </div>
                         <p class="mt-1 text-sm font-medium {% if tarefa.status == 'concluida' %}text-zinc-500 line-through{% else %}text-zinc-100{% endif %}">{{ tarefa.titulo }}</p>
                         {% if tarefa.cliente or tarefa.processo_referencia %}

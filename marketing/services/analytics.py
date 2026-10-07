@@ -8,13 +8,15 @@ from marketing.choices import PlataformaMarketing, StatusConteudo, StatusIntegra
 from marketing.models import ContentItem, ContentPerformance, MarketingIntegracao
 
 
-def _integracoes_usuario(user):
-    return MarketingIntegracao.objects.filter(usuario=user)
+def _integracoes_org(organization):
+    if organization is None:
+        return MarketingIntegracao.objects.none()
+    return MarketingIntegracao.objects.filter(organization=organization)
 
 
-def plataformas_com_status(user) -> list[dict]:
-    """Lista plataformas com status de conexão do usuário."""
-    existentes = {i.plataforma: i for i in _integracoes_usuario(user)}
+def plataformas_com_status(user, organization=None) -> list[dict]:
+    """Lista plataformas com status de conexão do escritório."""
+    existentes = {i.plataforma: i for i in _integracoes_org(organization)}
     resultado = []
     for valor, label in PlataformaMarketing.choices:
         integracao = existentes.get(valor)
@@ -27,19 +29,22 @@ def plataformas_com_status(user) -> list[dict]:
     return resultado
 
 
-def tem_integracao_ativa(user) -> bool:
-    return _integracoes_usuario(user).filter(status=StatusIntegracao.CONECTADO).exists()
+def tem_integracao_ativa(user, organization=None) -> bool:
+    return _integracoes_org(organization).filter(status=StatusIntegracao.CONECTADO).exists()
 
 
-def performances_usuario(user):
-    return ContentPerformance.objects.filter(
-        content_item__usuario=user,
+def performances_usuario(user, organization=None):
+    del user
+    qs = ContentPerformance.objects.filter(
         content_item__status=StatusConteudo.PUBLICADO,
     ).select_related("content_item")
+    if organization is None:
+        return qs.none()
+    return qs.filter(content_item__organization=organization)
 
 
-def tem_dados_reais(user) -> bool:
-    return performances_usuario(user).filter(
+def tem_dados_reais(user, organization=None) -> bool:
+    return performances_usuario(user, organization=organization).filter(
         Q(visualizacoes__isnull=False)
         | Q(alcance__isnull=False)
         | Q(engajamento__isnull=False)
@@ -48,8 +53,8 @@ def tem_dados_reais(user) -> bool:
     ).exists()
 
 
-def metricas_agregadas(user) -> dict:
-    qs = performances_usuario(user)
+def metricas_agregadas(user, organization=None) -> dict:
+    qs = performances_usuario(user, organization=organization)
     agg = qs.aggregate(
         visualizacoes=Sum("visualizacoes"),
         alcance=Sum("alcance"),
@@ -57,9 +62,10 @@ def metricas_agregadas(user) -> dict:
         cliques=Sum("cliques"),
         leads_atribuidos=Sum("leads_atribuidos"),
     )
-    publicados = ContentItem.objects.filter(
-        usuario=user, status=StatusConteudo.PUBLICADO
-    ).count()
+    itens = ContentItem.objects.none()
+    if organization is not None:
+        itens = ContentItem.objects.filter(organization=organization)
+    publicados = itens.filter(status=StatusConteudo.PUBLICADO).count()
     return {
         "publicados": publicados,
         "visualizacoes": agg["visualizacoes"] or 0,
@@ -70,9 +76,9 @@ def metricas_agregadas(user) -> dict:
     }
 
 
-def top_conteudos(user, limite: int = 10) -> list[dict]:
+def top_conteudos(user, limite: int = 10, organization=None) -> list[dict]:
     qs = (
-        performances_usuario(user)
+        performances_usuario(user, organization=organization)
         .filter(visualizacoes__isnull=False)
         .order_by("-visualizacoes")[:limite]
     )
@@ -88,11 +94,13 @@ def top_conteudos(user, limite: int = 10) -> list[dict]:
     ]
 
 
-def solicitar_integracao(user, plataforma: str) -> MarketingIntegracao:
+def solicitar_integracao(user, plataforma: str, organization=None) -> MarketingIntegracao | None:
+    if organization is None:
+        return None
     obj, _ = MarketingIntegracao.objects.get_or_create(
-        usuario=user,
+        organization=organization,
         plataforma=plataforma,
-        defaults={"status": StatusIntegracao.PENDENTE},
+        defaults={"usuario": user, "status": StatusIntegracao.PENDENTE},
     )
     if obj.status == StatusIntegracao.NAO_CONECTADO:
         obj.status = StatusIntegracao.PENDENTE

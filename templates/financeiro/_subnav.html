@@ -22,6 +22,7 @@
             >Auditoria</a
         >
         {% endif %}
+        {% if fin_perms.ver_caixa %}
         <a
             href="{% url 'financeiro_banco_listar' %}"
             class="rounded-md px-3 py-1.5 font-medium text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright"
@@ -37,11 +38,14 @@
             class="rounded-md px-3 py-1.5 font-medium text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright"
             >Extrato</a
         >
+        {% endif %}
+        {% if fin_perms.gerir_caixa %}
         <a
             href="{% url 'financeiro_movimento_novo' %}"
             class="rounded-md border border-bally/40 bg-bally-muted/40 px-3 py-1.5 font-semibold text-bally-bright hover:bg-bally-muted/60"
             >Novo lançamento</a
         >
+        {% endif %}
     </div>
     <div class="flex flex-wrap items-center gap-2">
         {% include '_modulos_nav.html' with current='financeiro' %}

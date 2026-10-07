@@ -128,10 +128,26 @@ def _date_param(get_params, key: str) -> Optional[date]:
 
 
 def queryset_anotado(usuario):
+    return _anotar_saldos(
+        Cobranca.objects.filter(usuario=usuario).select_related(
+            "cliente", "contrato", "responsavel", "criado_por"
+        )
+    )
+
+
+def queryset_anotado_organization(organization):
+    if organization is None:
+        return _anotar_saldos(Cobranca.objects.none())
+    return _anotar_saldos(
+        Cobranca.objects.filter(organization=organization).select_related(
+            "cliente", "contrato", "responsavel", "criado_por"
+        )
+    )
+
+
+def _anotar_saldos(qs):
     return (
-        Cobranca.objects.filter(usuario=usuario)
-        .select_related("cliente", "contrato", "responsavel", "criado_por")
-        .annotate(
+        qs.annotate(
             total_recebido_calc=Coalesce(
                 Sum(
                     "recebimentos__valor",
@@ -140,8 +156,7 @@ def queryset_anotado(usuario):
                 Value(Decimal("0")),
                 output_field=DecimalField(max_digits=14, decimal_places=2),
             )
-        )
-        .annotate(saldo_calc=F("valor_original") - F("total_recebido_calc"))
+        ).annotate(saldo_calc=F("valor_original") - F("total_recebido_calc"))
     )
 
 
@@ -263,16 +278,37 @@ def cobrancas_para_listagem(usuario, filtros: CobrancaFiltros):
     return cobrancas
 
 
-def calcular_kpis_cobrancas(usuario, *, hoje: date | None = None) -> CobrancaKpis:
+def cobrancas_para_listagem_organization(organization, filtros: CobrancaFiltros):
+    if organization is None:
+        return []
+    hoje = timezone.localdate()
+    qs = queryset_anotado_organization(organization)
+    qs = aplicar_filtros(qs, filtros, hoje=hoje)
+    qs = ordenar_queryset(qs, filtros.ordem, hoje=hoje)
+    cobrancas = list(qs)
+    sincronizar_statuses(cobrancas, hoje=hoje)
+    return cobrancas
+
+
+def kpis_vazios() -> CobrancaKpis:
+    return CobrancaKpis(
+        a_receber=Decimal("0"),
+        vence_mes=Decimal("0"),
+        vencido=Decimal("0"),
+        recebido_mes=Decimal("0"),
+        taxa_recebimento=Decimal("0"),
+    )
+
+
+def _calcular_kpis(qs_cobrancas, qs_recebimentos, hoje: date) -> CobrancaKpis:
     """
     Taxa de recebimento = recebido_no_mês / (recebido_no_mês + saldo_vencido) × 100
     quando o denominador > 0.
     """
-    hoje = hoje or timezone.localdate()
     inicio_mes = date(hoje.year, hoje.month, 1)
     fim_mes = date(hoje.year, hoje.month, monthrange(hoje.year, hoje.month)[1])
 
-    abertas = queryset_anotado(usuario).exclude(
+    abertas = qs_cobrancas.exclude(
         status__in=[StatusCobranca.CANCELED, StatusCobranca.DRAFT]
     )
 
@@ -291,8 +327,7 @@ def calcular_kpis_cobrancas(usuario, *, hoje: date | None = None) -> CobrancaKpi
         if inicio_mes <= venc <= fim_mes:
             vence_mes += saldo
 
-    recebido_mes = CobrancaRecebimento.objects.filter(
-        usuario=usuario,
+    recebido_mes = qs_recebimentos.filter(
         cancelado_em__isnull=True,
         data_recebimento__gte=inicio_mes,
         data_recebimento__lte=fim_mes,
@@ -313,10 +348,39 @@ def calcular_kpis_cobrancas(usuario, *, hoje: date | None = None) -> CobrancaKpi
     )
 
 
+def calcular_kpis_cobrancas(usuario, *, hoje: date | None = None) -> CobrancaKpis:
+    """TENANT_LEGACY_W5: Comercial/Advisor ainda usam User como tenant."""
+    hoje = hoje or timezone.localdate()
+    return _calcular_kpis(
+        queryset_anotado(usuario),
+        CobrancaRecebimento.objects.filter(usuario=usuario),
+        hoje,
+    )
+
+
+def calcular_kpis_cobrancas_organization(organization, *, hoje: date | None = None) -> CobrancaKpis:
+    hoje = hoje or timezone.localdate()
+    if organization is None:
+        return kpis_vazios()
+    return _calcular_kpis(
+        queryset_anotado_organization(organization),
+        CobrancaRecebimento.objects.filter(organization=organization),
+        hoje,
+    )
+
+
 def opcoes_filtro_clientes(usuario):
     from usuarios.models import Cliente
 
     return Cliente.objects.filter(user=usuario).order_by("nome")
+
+
+def opcoes_filtro_clientes_organization(organization):
+    from usuarios.models import Cliente
+
+    if organization is None:
+        return Cliente.objects.none()
+    return Cliente.objects.filter(organization=organization).order_by("nome")
 
 
 def opcoes_filtro_responsaveis(usuario):

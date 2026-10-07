@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from financeiro.choices import AcaoCobrancaHistorico, TomMensagemCobranca
 from financeiro.services.cobrancas import saldo_cobranca
 from financeiro.services.historico_cobranca import registrar_historico_cobranca
+from usuarios.br_format import format_currency_br
 
 
 class CobrancaMensagemError(Exception):
@@ -64,7 +65,7 @@ def montar_contexto_mensagem(cobranca, *, hoje: date | None = None) -> ContextoC
         dias_atraso=dias_atraso if dias_atraso and dias_atraso > 0 else None,
         parcela_rotulo=cobranca.parcela_rotulo or "",
         vencimento_fmt=cobranca.data_vencimento.strftime("%d/%m/%Y"),
-        saldo_fmt=f"R$ {saldo:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+        saldo_fmt=format_currency_br(saldo),
     )
 
 

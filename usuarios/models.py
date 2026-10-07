@@ -67,6 +67,14 @@ class Cliente(models.Model):
     campaign_id = models.CharField(max_length=64, blank=True)
     criado_em = models.DateTimeField(auto_now_add=True, db_index=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
+    organization = models.ForeignKey(
+        "organizacoes.Organization",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="clientes",
+        db_index=True,
+    )
 
     class Meta:
         indexes = [
@@ -116,6 +124,14 @@ class Compromisso(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="compromissos",
+    )
+    organization = models.ForeignKey(
+        "organizacoes.Organization",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="compromissos",
+        db_index=True,
     )
     titulo = models.CharField(max_length=255)
     descricao = models.TextField(blank=True)
@@ -186,6 +202,13 @@ class Compromisso(models.Model):
 
     class Meta:
         ordering = ["data_hora"]
+        permissions = [
+            ("view_agenda", "Pode visualizar a agenda"),
+            ("create_agenda", "Pode criar compromissos e tarefas"),
+            ("edit_agenda", "Pode editar compromissos e tarefas"),
+            ("cancel_agenda", "Pode cancelar compromissos e tarefas"),
+            ("view_audit_agenda", "Pode visualizar auditoria da agenda"),
+        ]
         indexes = [
             models.Index(fields=["user", "data_hora"]),
             models.Index(fields=["user", "status"]),
@@ -237,12 +260,16 @@ class Compromisso(models.Model):
 
     def clean(self):
         super().clean()
-        if self.cliente_id and self.cliente.user_id != self.user_id:
-            raise ValidationError({"cliente": "Cliente não pertence ao usuário do compromisso."})
-        if self.responsavel_id:
+        if self.organization_id and self.cliente_id:
+            cliente = self.cliente
+            if cliente is None or cliente.organization_id != self.organization_id:
+                raise ValidationError(
+                    {"cliente": "Cliente não pertence ao escritório do compromisso."}
+                )
+        if self.organization_id and self.responsavel_id:
             from usuarios.services.agenda_equipe import responsavel_permitido
 
-            if not responsavel_permitido(self.user, self.responsavel):
+            if not responsavel_permitido(self.organization, self.responsavel):
                 raise ValidationError(
                     {"responsavel": "Responsável não pertence ao escritório."}
                 )
@@ -290,6 +317,14 @@ class Tarefa(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="tarefas",
+    )
+    organization = models.ForeignKey(
+        "organizacoes.Organization",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="tarefas",
+        db_index=True,
     )
     titulo = models.CharField(max_length=255)
     descricao = models.TextField(blank=True)
@@ -360,12 +395,16 @@ class Tarefa(models.Model):
 
     def clean(self):
         super().clean()
-        if self.cliente_id and self.cliente.user_id != self.user_id:
-            raise ValidationError({"cliente": "Cliente não pertence ao usuário da tarefa."})
-        if self.responsavel_id:
+        if self.organization_id and self.cliente_id:
+            cliente = self.cliente
+            if cliente is None or cliente.organization_id != self.organization_id:
+                raise ValidationError(
+                    {"cliente": "Cliente não pertence ao escritório da tarefa."}
+                )
+        if self.organization_id and self.responsavel_id:
             from usuarios.services.agenda_equipe import responsavel_permitido
 
-            if not responsavel_permitido(self.user, self.responsavel):
+            if not responsavel_permitido(self.organization, self.responsavel):
                 raise ValidationError(
                     {"responsavel": "Responsável não pertence ao escritório."}
                 )

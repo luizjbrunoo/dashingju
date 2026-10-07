@@ -18,15 +18,14 @@ TODAS_PERMISSOES_MARKETING = (
 
 
 def rbac_restritivo(user) -> bool:
-    """Usuários em grupos Django obedecem RBAC; demais mantêm acesso legado."""
-    return user.groups.exists()
+    """RBAC de marketing é sempre restritivo (fail-closed). Membership ≠ capability."""
+    return True
 
 
 def _tem_perm(user, perm: str) -> bool:
-    if user.is_superuser:
-        return True
-    if not rbac_restritivo(user):
-        return True
+    """Fail-closed. Sem Group / Group vazio / Membership não concedem acesso."""
+    if not getattr(user, "is_authenticated", False):
+        return False
     return user.has_perm(perm)
 
 

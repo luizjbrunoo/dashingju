@@ -5,6 +5,7 @@
             <div class="mt-1.5 flex flex-wrap gap-1.5">
                 {% include 'agenda/_badge_status_tarefa.html' %}
                 {% include 'agenda/_badge_prioridade.html' with prioridade=tarefa.prioridade %}
+                {% include 'agenda/_badge_criticidade.html' with obj=tarefa %}
                 {% if tarefa.responsavel %}
                     <span class="rounded-md border border-bally/20 bg-bally-muted/20 px-2 py-0.5 text-[10px] text-bally-bright">{{ tarefa.responsavel.get_full_name|default:tarefa.responsavel.username }}</span>
                 {% endif %}

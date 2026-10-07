@@ -10,7 +10,7 @@
         {{ cobranca.descricao }} — {{ cobranca.cliente.nome }}
     </p>
     <p class="mt-1 text-sm text-zinc-500">
-        Saldo em aberto: <span class="font-mono text-bally-bright">R$ {{ cobranca.saldo|floatformat:2 }}</span>
+        Saldo em aberto: <span class="font-mono text-bally-bright">R$ {{ cobranca.saldo|brnum:2 }}</span>
     </p>
 
     <form method="post" class="mt-8 space-y-5">

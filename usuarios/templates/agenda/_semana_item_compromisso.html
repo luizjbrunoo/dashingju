@@ -5,6 +5,7 @@
         <div class="flex flex-wrap justify-end gap-1">
             {% include 'agenda/_badge_tipo_compromisso.html' %}
             {% include 'agenda/_badge_prazo_compromisso.html' %}
+            {% include 'agenda/_badge_criticidade.html' with obj=compromisso %}
         </div>
     </div>
     <p class="mt-1 truncate text-xs font-medium text-zinc-100">{{ compromisso.titulo }}</p>

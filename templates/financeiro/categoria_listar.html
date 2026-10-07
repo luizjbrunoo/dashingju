@@ -6,11 +6,13 @@
 
     <div class="flex flex-wrap items-center justify-between gap-4">
         <h1 class="text-xl font-semibold text-zinc-100">Categorias</h1>
+        {% if fin_perms.gerir_caixa %}
         <a
             href="{% url 'financeiro_categoria_nova' %}"
             class="rounded-md bg-bally px-4 py-2 text-sm font-semibold text-white hover:bg-bally-bright"
             >Nova categoria</a
         >
+        {% endif %}
     </div>
 
     {% if categorias %}
@@ -35,9 +37,11 @@
                                 {% endif %}
                             </td>
                             <td class="px-4 py-3 text-right">
+                                {% if fin_perms.gerir_caixa %}
                                 <a href="{% url 'financeiro_categoria_editar' c.pk %}" class="text-bally-bright hover:underline">Editar</a>
                                 <span class="text-zinc-600">·</span>
                                 <a href="{% url 'financeiro_categoria_excluir' c.pk %}" class="text-red-400 hover:underline">Excluir</a>
+                                {% endif %}
                             </td>
                         </tr>
                     {% endfor %}

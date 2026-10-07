@@ -7,25 +7,29 @@
     <h1 class="text-xl font-semibold text-zinc-100">Painel financeiro</h1>
     <p class="mt-1 text-sm text-zinc-500">Resumo do mês {{ mes_ref }}</p>
 
+    {% if mostrar_caixa %}
     <div class="mt-8 grid gap-4 sm:grid-cols-3">
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Receitas no mês</p>
-            <p class="mt-2 text-2xl font-semibold text-emerald-400">R$ {{ total_receitas_mes|floatformat:2 }}</p>
+            <p class="mt-2 text-2xl font-semibold text-emerald-400">R$ {{ total_receitas_mes|brnum:2 }}</p>
         </div>
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Despesas no mês</p>
-            <p class="mt-2 text-2xl font-semibold text-red-400">R$ {{ total_despesas_mes|floatformat:2 }}</p>
+            <p class="mt-2 text-2xl font-semibold text-red-400">R$ {{ total_despesas_mes|brnum:2 }}</p>
         </div>
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Saldo no mês</p>
-            <p class="mt-2 text-2xl font-semibold text-zinc-100">R$ {{ saldo_mes|floatformat:2 }}</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-100">R$ {{ saldo_mes|brnum:2 }}</p>
         </div>
     </div>
+
+    {% endif %}
 
     {% if cobrancas %}
     {% include 'financeiro/_dashboard_cobrancas.html' %}
     {% endif %}
 
+    {% if mostrar_caixa %}
     <section class="mt-12">
         <h2 class="text-lg font-semibold text-zinc-200">Histórico de receitas e despesas</h2>
         <p class="mt-1 text-sm text-zinc-500">
@@ -67,15 +71,17 @@
             {% for s in saldos %}
                 <li class="flex items-center justify-between px-4 py-3 text-sm">
                     <span class="text-zinc-300">{{ s.banco }}</span>
-                    <span class="font-mono font-medium text-bally-bright">R$ {{ s.saldo|floatformat:2 }}</span>
+                    <span class="font-mono font-medium text-bally-bright">R$ {{ s.saldo|brnum:2 }}</span>
                 </li>
             {% endfor %}
         </ul>
     {% else %}
         <p class="mt-4 text-sm text-zinc-500">Cadastre um banco para acompanhar saldos.</p>
     {% endif %}
+    {% endif %}
 </div>
 
+{% if mostrar_caixa %}
 {{ charts_payload|json_script:"financeiro-dashboard-charts" }}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -228,7 +234,12 @@
                                         return a + b;
                                     }, 0);
                                     var v = ctx.raw;
-                                    var pct = t ? ((v / t) * 100).toFixed(1) : "0";
+                                    var pct = t
+                                        ? ((v / t) * 100).toLocaleString("pt-BR", {
+                                              minimumFractionDigits: 1,
+                                              maximumFractionDigits: 1,
+                                          })
+                                        : "0";
                                     return ctx.label + ": " + fmtMoney(v) + " (" + pct + "%)";
                                 },
                             },
@@ -249,4 +260,5 @@
     }
 })();
 </script>
+{% endif %}
 {% endblock 'body' %}

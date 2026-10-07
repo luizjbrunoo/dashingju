@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 def sincronizar_lembretes_cobrancas_abertas() -> int:
+    """Discovery global; cada cobrança valida Organization antes do side effect."""
     from financeiro.choices import StatusCobranca
     from financeiro.models import Cobranca
     from financeiro.services.cobranca_agenda import sincronizar_lembrete_cobranca
@@ -18,5 +19,5 @@ def sincronizar_lembretes_cobrancas_abertas() -> int:
     ).iterator():
         sincronizar_lembrete_cobranca(cobranca)
         total += 1
-    logger.info("Financeiro: %s lembrete(s) de cobrança sincronizado(s).", total)
+    logger.info("Financeiro: %s cobrança(s) varrida(s) para lembrete.", total)
     return total

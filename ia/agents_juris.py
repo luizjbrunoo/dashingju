@@ -1,4 +1,5 @@
 import json
+import os
 import requests
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
@@ -18,10 +19,14 @@ def search_datajud_api(tribunal: TribunalLiteral, process_number: str) -> str:
     """
     Consulta processo no DataJud (CNJ) pelo número CNJ.
     """
+    api_key = (os.environ.get("DATAJUD_API_KEY") or "").strip()
+    if not api_key:
+        return json.dumps({"error": "consulta_indisponivel"})
+
     url = f"https://api-publica.datajud.cnj.jus.br/api_publica_{tribunal}/_search"
     payload = {"query": {"match": {"numeroProcesso": process_number}}}
     headers = {
-        "Authorization": "APIKey cDZHYzlZa0JadVREZDJCendQbXY6SkJlTzNjLV9TRENyQk1RdnFKZGRQdw==",
+        "Authorization": f"APIKey {api_key}",
         "Content-Type": "application/json",
     }
 
@@ -29,8 +34,8 @@ def search_datajud_api(tribunal: TribunalLiteral, process_number: str) -> str:
         response = requests.post(url, headers=headers, json=payload, timeout=30)
         response.raise_for_status()
         return response.text
-    except requests.RequestException as exc:
-        return json.dumps({"error": str(exc)})
+    except requests.RequestException:
+        return json.dumps({"error": "consulta_indisponivel"})
 
 # 1. Mantemos o Schema de saída (Pydantic)
 class JurisprudenciaOutput(BaseModel):
@@ -180,9 +185,4 @@ class JurisprudenciaAI:
 
         """
 
-# Exemplo de uso:
-if __name__ == "__main__":
-    ai = JurisprudenciaAI()
-    analise = ai.run("Texto da petição inicial aqui...")
-    print(f"Risco: {analise.indice_risco}%")
-    print(f"Red Flags: {analise.red_flags}")
+

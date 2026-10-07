@@ -1,20 +1,34 @@
 {# Navegação comum entre módulos. Use: {% include '_modulos_nav.html' with current='marketing' %} #}
 <div class="flex flex-wrap gap-3" role="navigation" aria-label="Navegação entre módulos">
     <a
+        href="{% url 'home' %}"
+        class="rounded-xl border px-4 py-2 text-sm font-medium transition-colors {% if current == 'home' %}border-bally/50 bg-bally-muted/25 text-bally-bright ring-1 ring-bally/20{% else %}border-zinc-700 bg-zinc-900/60 text-zinc-200 hover:border-bally/40 hover:text-bally-bright{% endif %}"
+        >Home</a
+    >
+    <a
         href="{% url 'clientes' %}"
         class="rounded-xl border px-4 py-2 text-sm font-medium transition-colors {% if current == 'clientes' %}border-bally/50 bg-bally-muted/25 text-bally-bright ring-1 ring-bally/20{% else %}border-zinc-700 bg-zinc-900/60 text-zinc-200 hover:border-bally/40 hover:text-bally-bright{% endif %}"
         >Clientes</a
     >
+    {% if fin_perms.ver_cobrancas or fin_perms.ver_caixa or fin_perms.ver_recebimentos or fin_perms.ver_relatorios %}
     <a
         href="{% url 'financeiro_dashboard' %}"
         class="rounded-xl border px-4 py-2 text-sm font-medium transition-colors {% if current == 'financeiro' %}border-bally/50 bg-bally-muted/25 text-bally-bright ring-1 ring-bally/20{% else %}border-zinc-700 bg-zinc-900/60 text-zinc-200 hover:border-bally/40 hover:text-bally-bright{% endif %}"
         >Financeiro</a
     >
+    {% endif %}
     <a
         href="{% url 'agenda' %}"
         class="rounded-xl border px-4 py-2 text-sm font-medium transition-colors {% if current == 'agenda' %}border-bally/50 bg-bally-muted/25 text-bally-bright ring-1 ring-bally/20{% else %}border-zinc-700 bg-zinc-900/60 text-zinc-200 hover:border-bally/40 hover:text-bally-bright{% endif %}"
         >Agenda</a
     >
+    {% if com_perms.ver_dashboard %}
+    <a
+        href="{% url 'comercial_dashboard' %}"
+        class="rounded-xl border px-4 py-2 text-sm font-medium transition-colors {% if current == 'comercial' %}border-bally/50 bg-bally-muted/25 text-bally-bright ring-1 ring-bally/20{% else %}border-zinc-700 bg-zinc-900/60 text-zinc-200 hover:border-bally/40 hover:text-bally-bright{% endif %}"
+        >Comercial</a
+    >
+    {% endif %}
     {% if mkt_perms.ver_marketing or mkt_perms.ver_conteudo %}
     <a
         href="{% if mkt_perms.ver_marketing %}{% url 'marketing_dashboard' %}{% else %}{% url 'marketing_conteudo_dashboard' %}{% endif %}"

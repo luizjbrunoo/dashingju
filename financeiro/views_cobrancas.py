@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.messages import constants
 from django.core.exceptions import ValidationError
+from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .decorators import (
@@ -10,8 +11,9 @@ from .decorators import (
     perm_editar_cobrancas,
     perm_registrar_recebimentos,
     perm_ver_cobrancas,
-    perm_ver_recebimentos,
+    perm_ver_relatorios,
 )
+from .permissions import pode_ver_recebimentos
 from .forms import CobrancaForm, RecebimentoForm
 from .choices import CategoriaCobranca, FormaPagamento, StatusCobranca, TomMensagemCobranca
 from .models import Cobranca, CobrancaRecebimento
@@ -24,9 +26,9 @@ from .services.cobranca_inadimplencia import calcular_inadimplencia
 from .services.cobranca_previsao import calcular_previsao
 from .services.cobranca_listagem import (
     CobrancaFiltros,
-    calcular_kpis_cobrancas,
-    cobrancas_para_listagem,
-    opcoes_filtro_clientes,
+    calcular_kpis_cobrancas_organization,
+    cobrancas_para_listagem_organization,
+    opcoes_filtro_clientes_organization,
     opcoes_filtro_responsaveis,
 )
 from .services.cobranca_agenda import (
@@ -45,16 +47,39 @@ from .services.cobranca_mensagem import (
     montar_contexto_mensagem,
 )
 from .services.cobranca_recebimento import estornar_recebimento, registrar_recebimento
-from .services.cobranca_auditoria import historico_auditoria_usuario, resumo_auditoria_usuario
+from .services.cobranca_auditoria import (
+    historico_auditoria_organization,
+    resumo_auditoria_organization,
+)
+from .tenancy_write import (
+    MSG_PARENT_TENANT,
+    organization_for_finance_write,
+    parent_in_organization,
+    preserve_organization,
+    reject_or_organization,
+    update_allowed,
+)
 
 
-def _get_cobranca(usuario, pk):
+def _billing_organization(request):
+    return organization_for_finance_write(request)
+
+
+def _billing_org_or_404(request):
+    org = _billing_organization(request)
+    if org is None:
+        raise Http404()
+    return org
+
+
+def _get_cobranca(request, pk):
+    org = _billing_org_or_404(request)
     return get_object_or_404(
         Cobranca.objects.select_related(
             "cliente", "responsavel", "criado_por", "contrato"
         ),
         pk=pk,
-        usuario=usuario,
+        organization=org,
     )
 
 
@@ -62,18 +87,19 @@ def _get_cobranca(usuario, pk):
 @login_required
 def cobranca_listar(request):
     filtros = CobrancaFiltros.from_request(request)
-    cobrancas = cobrancas_para_listagem(request.user, filtros)
+    org = _billing_organization(request)
+    cobrancas = cobrancas_para_listagem_organization(org, filtros)
     return render(
         request,
         "financeiro/cobrancas_listar.html",
         {
             "cobrancas": cobrancas,
-            "kpis": calcular_kpis_cobrancas(request.user),
+            "kpis": calcular_kpis_cobrancas_organization(org),
             "filtros": filtros,
             "status_choices": StatusCobranca.choices,
             "categoria_choices": CategoriaCobranca.choices,
             "forma_choices": FormaPagamento.choices,
-            "clientes_filtro": opcoes_filtro_clientes(request.user),
+            "clientes_filtro": opcoes_filtro_clientes_organization(org),
             "responsaveis_filtro": opcoes_filtro_responsaveis(request.user),
             "aba_cobrancas": "todas",
             "filtros_query": filtros.query_string(),
@@ -81,10 +107,11 @@ def cobranca_listar(request):
     )
 
 
-@perm_ver_cobrancas
+@perm_ver_relatorios
 @login_required
 def cobranca_inadimplencia(request):
-    resumo = calcular_inadimplencia(request.user)
+    org = _billing_organization(request)
+    resumo = calcular_inadimplencia(org)
     maior_faixa = max(resumo.faixas, key=lambda f: f.total, default=None)
     if maior_faixa and maior_faixa.total <= 0:
         maior_faixa = None
@@ -100,10 +127,11 @@ def cobranca_inadimplencia(request):
     )
 
 
-@perm_ver_cobrancas
+@perm_ver_relatorios
 @login_required
 def cobranca_previsao(request):
-    resumo = calcular_previsao(request.user)
+    org = _billing_organization(request)
+    resumo = calcular_previsao(org)
     return render(
         request,
         "financeiro/cobrancas_previsao.html",
@@ -120,14 +148,18 @@ def cobranca_previsao(request):
 def cobranca_nova(request):
     initial = {}
     cliente_id = (request.GET.get("cliente") or "").strip()
-    if cliente_id.isdigit():
+    org_get = _billing_organization(request)
+    if cliente_id.isdigit() and org_get is not None:
         from usuarios.models import Cliente
 
-        if Cliente.objects.filter(pk=int(cliente_id), user=request.user).exists():
+        if Cliente.objects.filter(pk=int(cliente_id), organization=org_get).exists():
             initial["cliente"] = int(cliente_id)
 
     if request.method == "POST":
-        form = CobrancaForm(request.POST, usuario=request.user)
+        org, denied = reject_or_organization(request, "financeiro_cobranca_listar")
+        if denied:
+            return denied
+        form = CobrancaForm(request.POST, usuario=request.user, organization=org)
         if form.is_valid():
             if form.cleaned_data.get("tipo_lancamento") == "parcelada":
                 parcelas = criar_cobrancas_parceladas(
@@ -140,6 +172,7 @@ def cobranca_nova(request):
                     num_parcelas=form.cleaned_data["num_parcelas"],
                     periodicidade=form.cleaned_data["periodicidade"],
                     categoria=form.cleaned_data["categoria"],
+                    organization=org,
                     responsavel=form.cleaned_data.get("responsavel"),
                     contrato=form.cleaned_data.get("contrato"),
                     forma_prevista_pagamento=form.cleaned_data.get(
@@ -156,13 +189,15 @@ def cobranca_nova(request):
                 return redirect("financeiro_cobranca_detalhe", pk=parcelas[0].pk)
             cobranca = form.save(commit=False)
             cobranca.criado_por = request.user
-            criar_cobranca(cobranca, autor=request.user)
+            criar_cobranca(cobranca, autor=request.user, organization=org)
             messages.add_message(
                 request, constants.SUCCESS, "Cobrança criada com sucesso."
             )
             return redirect("financeiro_cobranca_detalhe", pk=cobranca.pk)
     else:
-        form = CobrancaForm(usuario=request.user, initial=initial)
+        form = CobrancaForm(
+            usuario=request.user, organization=org_get, initial=initial
+        )
 
     return render(
         request,
@@ -174,12 +209,16 @@ def cobranca_nova(request):
 @perm_ver_cobrancas
 @login_required
 def cobranca_detalhe(request, pk):
-    cobranca = _get_cobranca(request.user, pk)
+    cobranca = _get_cobranca(request, pk)
     cobranca.atualizar_status(salvar=True)
     historico = cobranca.historico.select_related("autor").all()[:50]
-    recebimentos = cobranca.recebimentos.filter(cancelado_em__isnull=True).select_related(
-        "registrado_por"
-    )
+    if pode_ver_recebimentos(request.user):
+        recebimentos = cobranca.recebimentos.filter(
+            cancelado_em__isnull=True,
+            organization=cobranca.organization,
+        ).select_related("registrado_por")
+    else:
+        recebimentos = CobrancaRecebimento.objects.none()
     pode_receber = (
         cobranca.status not in (StatusCobranca.CANCELED, StatusCobranca.DRAFT)
         and cobranca.saldo > 0
@@ -208,7 +247,7 @@ def cobranca_detalhe(request, pk):
 @perm_editar_cobrancas
 @login_required
 def cobranca_editar(request, pk):
-    cobranca = _get_cobranca(request.user, pk)
+    cobranca = _get_cobranca(request, pk)
     if cobranca.status == StatusCobranca.CANCELED:
         messages.add_message(
             request,
@@ -217,12 +256,25 @@ def cobranca_editar(request, pk):
         )
         return redirect("financeiro_cobranca_detalhe", pk=cobranca.pk)
 
+    original_org_id = cobranca.organization_id
     if request.method == "POST":
+        org, denied = reject_or_organization(
+            request, "financeiro_cobranca_detalhe", pk=cobranca.pk
+        )
+        if denied:
+            return denied
+        if not update_allowed(cobranca, org):
+            messages.add_message(request, constants.ERROR, MSG_PARENT_TENANT)
+            return redirect("financeiro_cobranca_detalhe", pk=cobranca.pk)
         vencimento_anterior = cobranca.data_vencimento
         responsavel_anterior_id = cobranca.responsavel_id
-        form = CobrancaForm(request.POST, instance=cobranca, usuario=request.user)
+        form = CobrancaForm(
+            request.POST, instance=cobranca, usuario=request.user, organization=org
+        )
         if form.is_valid():
-            cobranca = form.save()
+            cobranca = form.save(commit=False)
+            preserve_organization(cobranca, original_org_id)
+            cobranca.save()
             atualizar_cobranca(
                 cobranca,
                 autor=request.user,
@@ -234,7 +286,11 @@ def cobranca_editar(request, pk):
             )
             return redirect("financeiro_cobranca_detalhe", pk=cobranca.pk)
     else:
-        form = CobrancaForm(instance=cobranca, usuario=request.user)
+        form = CobrancaForm(
+            instance=cobranca,
+            usuario=request.user,
+            organization=cobranca.organization,
+        )
 
     return render(
         request,
@@ -246,7 +302,7 @@ def cobranca_editar(request, pk):
 @perm_cancelar_cobrancas
 @login_required
 def cobranca_cancelar(request, pk):
-    cobranca = _get_cobranca(request.user, pk)
+    cobranca = _get_cobranca(request, pk)
     if cobranca.status == StatusCobranca.CANCELED:
         return redirect("financeiro_cobranca_detalhe", pk=cobranca.pk)
 
@@ -266,7 +322,7 @@ def cobranca_cancelar(request, pk):
 @perm_registrar_recebimentos
 @login_required
 def cobranca_registrar_recebimento(request, pk):
-    cobranca = _get_cobranca(request.user, pk)
+    cobranca = _get_cobranca(request, pk)
     if cobranca.status in (StatusCobranca.CANCELED, StatusCobranca.DRAFT):
         messages.add_message(
             request,
@@ -279,6 +335,14 @@ def cobranca_registrar_recebimento(request, pk):
         return redirect("financeiro_cobranca_detalhe", pk=cobranca.pk)
 
     if request.method == "POST":
+        org, denied = reject_or_organization(
+            request, "financeiro_cobranca_detalhe", pk=cobranca.pk
+        )
+        if denied:
+            return denied
+        if not parent_in_organization(cobranca, org):
+            messages.add_message(request, constants.ERROR, MSG_PARENT_TENANT)
+            return redirect("financeiro_cobranca_detalhe", pk=cobranca.pk)
         form = RecebimentoForm(request.POST, cobranca=cobranca)
         if form.is_valid():
             registrar_recebimento(
@@ -289,6 +353,7 @@ def cobranca_registrar_recebimento(request, pk):
                 referencia=form.cleaned_data.get("referencia", ""),
                 observacao=form.cleaned_data.get("observacao", ""),
                 autor=request.user,
+                organization=org,
             )
             messages.add_message(
                 request, constants.SUCCESS, "Recebimento registrado com sucesso."
@@ -307,12 +372,12 @@ def cobranca_registrar_recebimento(request, pk):
 @perm_registrar_recebimentos
 @login_required
 def cobranca_estornar_recebimento(request, pk, recebimento_id):
-    cobranca = _get_cobranca(request.user, pk)
+    cobranca = _get_cobranca(request, pk)
     recebimento = get_object_or_404(
         CobrancaRecebimento,
         pk=recebimento_id,
         cobranca=cobranca,
-        usuario=request.user,
+        organization=cobranca.organization,
     )
 
     if request.method == "POST":
@@ -336,7 +401,7 @@ def cobranca_estornar_recebimento(request, pk, recebimento_id):
 @perm_editar_cobrancas
 @login_required
 def cobranca_agendar_agenda(request, pk):
-    cobranca = _get_cobranca(request.user, pk)
+    cobranca = _get_cobranca(request, pk)
     if cobranca.status in (StatusCobranca.CANCELED, StatusCobranca.DRAFT):
         messages.add_message(
             request, constants.ERROR, "Esta cobrança não pode ser agendada."
@@ -368,7 +433,7 @@ def cobranca_agendar_agenda(request, pk):
 @perm_editar_cobrancas
 @login_required
 def cobranca_cobrar(request, pk):
-    cobranca = _get_cobranca(request.user, pk)
+    cobranca = _get_cobranca(request, pk)
     if cobranca.status in (StatusCobranca.CANCELED, StatusCobranca.DRAFT):
         messages.add_message(
             request,
@@ -421,8 +486,9 @@ def cobranca_cobrar(request, pk):
 @perm_ver_cobrancas
 @login_required
 def cobranca_auditoria(request):
-    eventos = historico_auditoria_usuario(request.user)
-    resumo = resumo_auditoria_usuario(request.user)
+    org = _billing_organization(request)
+    eventos = historico_auditoria_organization(org)
+    resumo = resumo_auditoria_organization(org)
     return render(
         request,
         "financeiro/cobrancas_auditoria.html",

@@ -68,7 +68,7 @@
     <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Cliques</p>
-            <p class="mt-2 text-2xl font-semibold text-bally-bright">{{ totals.clicks|floatformat:0 }}</p>
+            <p class="mt-2 text-2xl font-semibold text-bally-bright">{{ totals.clicks|brnum:0 }}</p>
             {% with t=kpi_trends.clicks %}
                 <p class="mt-2 flex flex-wrap items-center gap-1 text-sm font-medium {% if t.trend == 'up' %}text-emerald-400{% elif t.trend == 'down' %}text-red-400{% else %}text-zinc-500{% endif %}">
                     {% if t.trend == 'up' %}<span aria-hidden="true">▲</span>{% elif t.trend == 'down' %}<span aria-hidden="true">▼</span>{% else %}<span aria-hidden="true">▬</span>{% endif %}
@@ -79,7 +79,7 @@
         </div>
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Impressões</p>
-            <p class="mt-2 text-2xl font-semibold text-zinc-100">{{ totals.impressions|floatformat:0 }}</p>
+            <p class="mt-2 text-2xl font-semibold text-zinc-100">{{ totals.impressions|brnum:0 }}</p>
             {% with t=kpi_trends.impressions %}
                 <p class="mt-2 flex flex-wrap items-center gap-1 text-sm font-medium {% if t.trend == 'up' %}text-emerald-400{% elif t.trend == 'down' %}text-red-400{% else %}text-zinc-500{% endif %}">
                     {% if t.trend == 'up' %}<span aria-hidden="true">▲</span>{% elif t.trend == 'down' %}<span aria-hidden="true">▼</span>{% else %}<span aria-hidden="true">▬</span>{% endif %}
@@ -107,7 +107,7 @@
         </div>
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Custo (exemplo)</p>
-            <p class="mt-2 text-2xl font-semibold text-emerald-400">{{ totals_cost_value|floatformat:2 }}</p>
+            <p class="mt-2 text-2xl font-semibold text-emerald-400">{{ totals_cost_value|brnum:2 }}</p>
             {% with t=kpi_trends.cost %}
                 <p class="mt-2 flex flex-wrap items-center gap-1 text-sm font-medium {% if t.trend == 'up' %}text-emerald-400{% elif t.trend == 'down' %}text-red-400{% else %}text-zinc-500{% endif %}">
                     {% if t.trend == 'up' %}<span aria-hidden="true">▲</span>{% elif t.trend == 'down' %}<span aria-hidden="true">▼</span>{% else %}<span aria-hidden="true">▬</span>{% endif %}
@@ -119,7 +119,7 @@
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Custo por clique</p>
             {% if totals.clicks %}
-                <p class="mt-2 text-2xl font-semibold text-sky-400">{{ cost_per_click|floatformat:2 }}</p>
+                <p class="mt-2 text-2xl font-semibold text-sky-400">{{ cost_per_click|brnum:2 }}</p>
                 <p class="mt-1 text-xs text-zinc-500">Custo total ÷ cliques (exemplo)</p>
                 {% with t=kpi_trends.cpc %}
                     <p class="mt-2 flex flex-wrap items-center gap-1 text-sm font-medium {% if t.trend == 'up' %}text-emerald-400{% elif t.trend == 'down' %}text-red-400{% else %}text-zinc-500{% endif %}">
@@ -158,7 +158,7 @@
                         style="min-height: 3rem; clip-path: polygon(calc((100% - {{ tier.top_w }}%) / 2) 0, calc((100% + {{ tier.top_w }}%) / 2) 0, calc((100% + {{ tier.bottom_w }}%) / 2) 100%, calc((100% - {{ tier.bottom_w }}%) / 2) 100%); background-color: {% if forloop.first %}#3f3f46{% elif forloop.counter == 2 %}#36363a{% elif forloop.counter == 3 %}#2e2e32{% elif forloop.counter == 4 %}#27272a{% else %}#1f1f23{% endif %};"
                     >
                         <p class="text-[0.65rem] text-zinc-500">{{ stage.label }}</p>
-                        <p class="text-sm font-medium tabular-nums text-zinc-100">{{ stage.value|floatformat:0 }}</p>
+                        <p class="text-sm font-medium tabular-nums text-zinc-100">{{ stage.value|brnum:0 }}</p>
                     </div>
                     {% endwith %}
                     {% endfor %}
@@ -182,7 +182,7 @@
                             {% with stage=tier.stage %}
                             <tr>
                                 <td class="py-2 pr-3 text-zinc-400">{{ stage.label }}</td>
-                                <td class="py-2 pr-3 text-right tabular-nums text-zinc-200">{{ stage.value|floatformat:0 }}</td>
+                                <td class="py-2 pr-3 text-right tabular-nums text-zinc-200">{{ stage.value|brnum:0 }}</td>
                                 <td class="py-2 pr-3 text-right tabular-nums text-zinc-500">
                                     {% if stage.rate_from_top is not None %}{{ stage.rate_from_top|floatformat:2 }}%{% else %}—{% endif %}
                                 </td>
@@ -219,6 +219,17 @@
 (function () {
     var chartHistorico = null;
     var chartEvolucao = null;
+
+    function fmtIntPt(v) {
+        return Number(v).toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+    }
+
+    function fmtMoneyPt(v) {
+        return Number(v).toLocaleString("pt-BR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        });
+    }
 
     function readPayload() {
         var el = document.getElementById("marketing-dashboard-charts");
@@ -299,6 +310,15 @@
                     legend: {
                         labels: { color: textoCor, boxWidth: 12 },
                     },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                var raw = ctx.raw;
+                                var formatted = ctx.yAxisID === "y1" ? fmtMoneyPt(raw) : fmtIntPt(raw);
+                                return ctx.dataset.label + ": " + formatted;
+                            },
+                        },
+                    },
                 },
                 scales: {
                     x: {
@@ -314,14 +334,14 @@
                         type: "linear",
                         position: "left",
                         title: { display: true, text: "Cliques / Impressões", color: textoCor },
-                        ticks: { color: textoCor },
+                        ticks: { color: textoCor, callback: function (v) { return fmtIntPt(v); } },
                         grid: { color: gridCor },
                     },
                     y1: {
                         type: "linear",
                         position: "right",
                         title: { display: true, text: "Custo (R$)", color: textoCor },
-                        ticks: { color: textoCor },
+                        ticks: { color: textoCor, callback: function (v) { return fmtMoneyPt(v); } },
                         grid: { drawOnChartArea: false },
                     },
                 },
@@ -408,6 +428,15 @@
                 interaction: { mode: "index", intersect: false },
                 plugins: {
                     legend: { labels: { color: textoCor, boxWidth: 12 } },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                var raw = ctx.raw;
+                                var formatted = ctx.yAxisID === "y1" ? fmtMoneyPt(raw) : fmtIntPt(raw);
+                                return ctx.dataset.label + ": " + formatted;
+                            },
+                        },
+                    },
                 },
                 scales: {
                     x: {
@@ -418,7 +447,7 @@
                         type: "linear",
                         position: "left",
                         title: { display: true, text: "Quantidade", color: textoCor },
-                        ticks: { color: textoCor, precision: 0 },
+                        ticks: { color: textoCor, precision: 0, callback: function (v) { return fmtIntPt(v); } },
                         grid: { color: gridCor },
                     },
                     y1: evo.receita
@@ -426,7 +455,7 @@
                               type: "linear",
                               position: "right",
                               title: { display: true, text: "Receita (R$)", color: textoCor },
-                              ticks: { color: textoCor },
+                              ticks: { color: textoCor, callback: function (v) { return fmtMoneyPt(v); } },
                               grid: { drawOnChartArea: false },
                           }
                         : undefined,

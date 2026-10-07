@@ -10,10 +10,12 @@
             <p class="mt-1 text-sm text-zinc-500">{{ contrato.cliente.nome }}</p>
         </div>
         <div class="flex flex-wrap gap-2">
-            {% if pode_gerar %}
+            {% if pode_gerar and fin_perms.criar_cobrancas %}
                 <a href="{% url 'financeiro_contrato_gerar_cobrancas' contrato.pk %}" class="rounded-md bg-emerald-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700">Gerar cobranças</a>
             {% endif %}
+            {% if fin_perms.editar_cobrancas %}
             <a href="{% url 'financeiro_contrato_editar' contrato.pk %}" class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:border-bally/40 hover:text-bally-bright">Editar</a>
+            {% endif %}
             <a href="{% url 'financeiro_contrato_listar' %}" class="rounded-md border border-zinc-700 px-3 py-1.5 text-sm text-zinc-300 hover:bg-zinc-800">Voltar</a>
         </div>
     </div>
@@ -21,7 +23,7 @@
     <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <p class="text-xs uppercase tracking-wide text-zinc-500">Valor total</p>
-            <p class="mt-1 text-lg font-semibold text-zinc-100">R$ {{ contrato.valor_total|floatformat:2 }}</p>
+            <p class="mt-1 text-lg font-semibold text-zinc-100">R$ {{ contrato.valor_total|brnum:2 }}</p>
         </div>
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <p class="text-xs uppercase tracking-wide text-zinc-500">Status</p>
@@ -65,7 +67,7 @@
                                     {{ c.descricao }}
                                     {% if c.parcela_rotulo %}<span class="text-xs text-zinc-500">({{ c.parcela_rotulo }})</span>{% endif %}
                                 </td>
-                                <td class="px-3 py-2 font-mono text-zinc-100">R$ {{ c.valor_original|floatformat:2 }}</td>
+                                <td class="px-3 py-2 font-mono text-zinc-100">R$ {{ c.valor_original|brnum:2 }}</td>
                                 <td class="px-3 py-2 font-mono text-zinc-400">{{ c.data_vencimento|date:"d/m/Y" }}</td>
                                 <td class="px-3 py-2 text-zinc-400">{{ c.get_status_display }}</td>
                                 <td class="px-3 py-2"><a href="{% url 'financeiro_cobranca_detalhe' c.pk %}" class="text-bally-bright hover:underline">Ver</a></td>

@@ -9,7 +9,7 @@ from decimal import Decimal
 from django.db.models import Count, Sum
 from django.db.models.functions import TruncDate
 
-from financeiro.models import Contrato
+from usuarios.br_format import format_currency_br, format_number_br
 from marketing.services.atribuicao import clientes_google_ads
 from marketing.services.google_ads_resultados import (
     ResultadosNegocio,
@@ -165,6 +165,7 @@ def calcular_evolucao_resultados(
     user,
     periodo: PeriodoMarketing,
     *,
+    organization=None,
     granularidade: str = GRAN_AUTO,
     ocultar_financeiro: bool = False,
 ) -> SerieEvolucaoResultados:
@@ -172,16 +173,19 @@ def calcular_evolucao_resultados(
     buckets = iter_buckets(periodo, gran)
 
     leads_qs = clientes_google_ads(
-        user, data_inicio=periodo.data_inicio, data_fim=periodo.data_fim
+        user,
+        data_inicio=periodo.data_inicio,
+        data_fim=periodo.data_fim,
+        organization=organization,
     )
     mapa_leads = _mapa_por_data(leads_qs, "criado_em")
 
     ids_subquery = leads_qs.values("pk")
     consultas_qs = (
-        _consultas_qs(user, ids_subquery, periodo)
+        _consultas_qs(user, ids_subquery, periodo, organization=organization)
         .filter(status=StatusCompromisso.REALIZADO)
     )
-    contratos_qs = _contratos_qs(user, ids_subquery, periodo)
+    contratos_qs = _contratos_qs(organization, ids_subquery, periodo)
 
     mapa_consultas = _mapa_por_data(consultas_qs, "data_hora")
     mapa_contratos = _mapa_por_data(contratos_qs, "criado_em")
@@ -226,11 +230,11 @@ class LinhaComparacao:
 
 
 def _fmt_int(val: int) -> str:
-    return str(val)
+    return format_number_br(val, 0)
 
 
 def _fmt_money(val: Decimal) -> str:
-    return f"R$ {val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return format_currency_br(val)
 
 
 def linhas_comparacao_periodo(

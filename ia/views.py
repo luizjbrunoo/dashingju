@@ -1,26 +1,103 @@
 from time import perf_counter
-import re
+import hmac
 import json
+import logging
+import os
+import re
 from datetime import datetime
 
 from django.contrib import messages
+from django.contrib.auth import get_user_model
+from django.contrib.auth.decorators import login_required
 from django.contrib.messages import constants
-from django.http import JsonResponse, StreamingHttpResponse
+from django.http import Http404, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 
+from ia.services.docs_tenancy import (
+    cliente_do_tenant_or_404,
+    documento_do_tenant_or_404,
+    organization_from_request,
+)
 from usuarios.models import Cliente, Documentos
 from usuarios.document_text import extract_document_text
+from usuarios.permissions import pode_baixar_documento
 
 from .agents_juris import JurisprudenciaAI
 from .agents import SecretariaAI
 from .models import AnaliseJurisprudencia, ContextRag, Pergunta
 
+logger = logging.getLogger(__name__)
 
 
-@csrf_exempt
+def _cliente_do_usuario(request, id):
+    return cliente_do_tenant_or_404(request, id)
+
+
+def _pergunta_do_usuario(request, id):
+    organization = organization_from_request(request)
+    if organization is None:
+        raise Http404()
+    return get_object_or_404(
+        Pergunta, id=id, cliente__organization=organization
+    )
+
+
+def _documento_do_usuario(request, id):
+    return documento_do_tenant_or_404(request, id)
+
+
+def _segredo_webhook_valido(request) -> bool:
+    esperado = os.environ.get("IA_WEBHOOK_SECRET") or ""
+    if not esperado:
+        return False
+    recebido = request.headers.get("X-Webhook-Secret") or ""
+    if not recebido:
+        return False
+    a = recebido.encode("utf-8")
+    b = esperado.encode("utf-8")
+    if len(a) != len(b):
+        return False
+    return hmac.compare_digest(a, b)
+
+
+def _usuario_whatsapp_id() -> int | None:
+    # TODO MULTI-TENANT:
+    # substituir IA_WHATSAPP_USER_ID por configuração vinculada à Organization
+    # quando Organization/Membership forem implementados.
+    raw = (os.environ.get("IA_WHATSAPP_USER_ID") or "").strip()
+    if not raw.isdigit():
+        return None
+    User = get_user_model()
+    pk = int(raw)
+    if not User.objects.filter(pk=pk).exists():
+        return None
+    return pk
+
+
+def _extrair_mensagem_webhook(data):
+    if not isinstance(data, dict):
+        return None, None
+    phone = data.get("phone")
+    bloco = data.get("data")
+    if not isinstance(bloco, dict):
+        bloco = {}
+    chave = bloco.get("key") if isinstance(bloco.get("key"), dict) else {}
+    remote = chave.get("remoteJid") or ""
+    if not phone and isinstance(remote, str) and remote:
+        phone = remote.split("@")[0]
+    msg = bloco.get("message") if isinstance(bloco.get("message"), dict) else {}
+    ext = msg.get("extendedTextMessage") if isinstance(msg.get("extendedTextMessage"), dict) else {}
+    texto = ext.get("text") or msg.get("conversation")
+    if not phone or not texto:
+        return None, None
+    return str(phone), str(texto)
+
+
+@login_required
 def chat(request, id):
-    cliente = get_object_or_404(Cliente, id=id)
+    cliente = _cliente_do_usuario(request, id)
     if request.method == "GET":
         return render(request, "chat.html", {"cliente": cliente})
     if request.method == "POST":
@@ -30,13 +107,13 @@ def chat(request, id):
     return JsonResponse({"error": "Método não permitido"}, status=405)
 
 
-@csrf_exempt
+@login_required
 def stream_resposta(request):
     if request.method != "POST":
         return JsonResponse({"error": "Método não permitido"}, status=405)
 
     id_pergunta = request.POST.get("id_pergunta")
-    pergunta = get_object_or_404(Pergunta, id=id_pergunta)
+    pergunta = _pergunta_do_usuario(request, id_pergunta)
 
     def _normalizar_resposta_secretaria(texto: str) -> str:
         if not texto:
@@ -187,10 +264,15 @@ def stream_resposta(request):
             else:
                 yield (
                     "Não foi possível obter resposta do assistente. "
-                    "Confira se OPENAI_API_KEY está configurada e válida."
+                    "Tente novamente em instantes."
                 )
         except Exception as exc:
-            yield f"[erro ao gerar resposta: {exc}]"
+            logger.exception(
+                "ia_stream_erro pergunta_id=%s tipo=%s",
+                pergunta.id,
+                type(exc).__name__,
+            )
+            yield "Não foi possível gerar a resposta."
 
     response = StreamingHttpResponse(
         _stream(),
@@ -200,28 +282,34 @@ def stream_resposta(request):
     response["X-Accel-Buffering"] = "no"
     return response
 
+
+@login_required
 def ver_referencias(request, id):
-    pergunta = get_object_or_404(Pergunta, id=id)
+    pergunta = _pergunta_do_usuario(request, id)
     contextos = ContextRag.objects.filter(pergunta=pergunta)
     return render(request, "ver_referencias.html", {
         "pergunta": pergunta,
         "contextos": contextos
     })
 
+
+@login_required
 def analise_jurisprudencia(request, id):
-    documento = get_object_or_404(Documentos, id=id)
+    documento = _documento_do_usuario(request, id)
     analise = AnaliseJurisprudencia.objects.filter(documento=documento).first()
     return render(request, 'analise_jurisprudencia.html', {
         'documento': documento,
-        'analise': analise
+        'analise': analise,
+        'pode_baixar_documentos': pode_baixar_documento(request.user),
     })
 
 
+@login_required
 def processar_analise(request, id):
     if request.method != "POST":
         return redirect("analise_jurisprudencia", id=id)
 
-    documento = get_object_or_404(Documentos, id=id)
+    documento = _documento_do_usuario(request, id)
     texto_documento = (documento.content or "").strip()
     if not texto_documento and documento.arquivo:
         # Fallback para documentos antigos enviados antes da extração automática.
@@ -266,20 +354,42 @@ def processar_analise(request, id):
             },
         )
         messages.add_message(request, constants.SUCCESS, "Análise concluída com sucesso.")
-    except Exception as exc:
-        messages.add_message(request, constants.ERROR, f"Falha na análise: {exc}")
+    except Exception:
+        logger.exception(
+            "ia_analise_erro documento_id=%s",
+            documento.id,
+        )
+        messages.add_message(request, constants.ERROR, "Falha na análise.")
 
     return redirect("analise_jurisprudencia", id=id)
 
+
 @csrf_exempt
+@require_POST
 def webhook_whatsapp(request):
-    data = json.loads(request.body)
-    phone = data.get('phone')
-    message = data.get('data').get('key').get('remoteJid').split('@')[0]
-    message = data.get('data').get('message').get('extendedTextMessage').get('text')
+    if not _segredo_webhook_valido(request):
+        return JsonResponse({"error": "forbidden"}, status=403)
 
+    user_id = _usuario_whatsapp_id()
+    if user_id is None:
+        logger.warning("ia_webhook_user_id_invalido")
+        return JsonResponse({"error": "forbidden"}, status=403)
 
-    agent = SecretariaAI.build_agent(session_id=phone)
-    response: RunOutput = agent.run(message)
-    print(response.content)
-    return JsonResponse({'response': response.content})
+    try:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+    except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
+        return JsonResponse({"error": "payload_invalido"}, status=400)
+
+    phone, message = _extrair_mensagem_webhook(data)
+    if not phone or not message:
+        return JsonResponse({"error": "payload_invalido"}, status=400)
+
+    try:
+        agent = SecretariaAI.build_agent(session_id=phone, user_id=user_id)
+        agent.run(message)
+    except Exception:
+        logger.exception("ia_webhook_erro user_id=%s", user_id)
+        return JsonResponse({"error": "falha_interna"}, status=500)
+
+    logger.info("ia_webhook_ok user_id=%s", user_id)
+    return JsonResponse({"ok": True})

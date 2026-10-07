@@ -9,7 +9,11 @@ from decimal import Decimal
 from django.utils import timezone
 
 from financeiro.services.cobranca_inadimplencia import calcular_inadimplencia
-from financeiro.services.cobranca_listagem import calcular_kpis_cobrancas, queryset_anotado
+from financeiro.services.cobranca_listagem import (
+    calcular_kpis_cobrancas_organization,
+    kpis_vazios,
+    queryset_anotado_organization,
+)
 from financeiro.services.cobranca_previsao import calcular_previsao
 from financeiro.choices import StatusCobranca
 from financeiro.models import CobrancaRecebimento
@@ -28,7 +32,22 @@ class CobrancaDashboardResumo:
     proximos_vencimentos: list
 
 
-def calcular_dashboard_cobrancas(usuario, *, hoje: date | None = None) -> CobrancaDashboardResumo:
+def _dashboard_vazio() -> CobrancaDashboardResumo:
+    zeros = kpis_vazios()
+    return CobrancaDashboardResumo(
+        a_receber=zeros.a_receber,
+        recebido_mes=zeros.recebido_mes,
+        vencido=zeros.vencido,
+        taxa_inadimplencia=Decimal("0"),
+        previsao_30=Decimal("0"),
+        ticket_medio=Decimal("0"),
+        prazo_medio_recebimento=None,
+        clientes_inadimplentes=[],
+        proximos_vencimentos=[],
+    )
+
+
+def calcular_dashboard_cobrancas(organization, *, hoje: date | None = None) -> CobrancaDashboardResumo:
     """
     Indicadores compactos para o painel financeiro.
 
@@ -36,9 +55,11 @@ def calcular_dashboard_cobrancas(usuario, *, hoje: date | None = None) -> Cobran
     (percentual do contas a receber que está em atraso).
     """
     hoje = hoje or timezone.localdate()
-    kpis = calcular_kpis_cobrancas(usuario, hoje=hoje)
-    previsao = calcular_previsao(usuario, hoje=hoje)
-    inadimplencia = calcular_inadimplencia(usuario, hoje=hoje)
+    if organization is None:
+        return _dashboard_vazio()
+    kpis = calcular_kpis_cobrancas_organization(organization, hoje=hoje)
+    previsao = calcular_previsao(organization, hoje=hoje)
+    inadimplencia = calcular_inadimplencia(organization, hoje=hoje)
 
     if kpis.a_receber > 0:
         taxa = (kpis.vencido / kpis.a_receber * Decimal("100")).quantize(Decimal("0.1"))
@@ -46,7 +67,7 @@ def calcular_dashboard_cobrancas(usuario, *, hoje: date | None = None) -> Cobran
         taxa = Decimal("0")
 
     abertas_qtd = (
-        queryset_anotado(usuario)
+        queryset_anotado_organization(organization)
         .exclude(status__in=[StatusCobranca.CANCELED, StatusCobranca.DRAFT])
         .filter(saldo_calc__gt=0)
         .count()
@@ -57,7 +78,7 @@ def calcular_dashboard_cobrancas(usuario, *, hoje: date | None = None) -> Cobran
         else Decimal("0")
     )
 
-    prazo = _prazo_medio_recebimento(usuario)
+    prazo = _prazo_medio_recebimento(organization)
 
     return CobrancaDashboardResumo(
         a_receber=kpis.a_receber,
@@ -72,10 +93,12 @@ def calcular_dashboard_cobrancas(usuario, *, hoje: date | None = None) -> Cobran
     )
 
 
-def _prazo_medio_recebimento(usuario) -> Decimal | None:
+def _prazo_medio_recebimento(organization) -> Decimal | None:
     """Média de dias entre vencimento e recebimento (recebimentos ativos)."""
+    if organization is None:
+        return None
     recebimentos = CobrancaRecebimento.objects.filter(
-        usuario=usuario,
+        organization=organization,
         cancelado_em__isnull=True,
     ).select_related("cobranca")
     total_dias = 0

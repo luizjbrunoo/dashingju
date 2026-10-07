@@ -37,6 +37,7 @@ from marketing.services.resultados_operacional import (
     queryset_followups_atrasados,
     queryset_leads_sem_proxima_acao,
 )
+from organizacoes.models import Membership, Organization
 from usuarios.choices import OrigemLead, StatusCompromisso, TipoCompromisso
 from usuarios.models import Cliente, Compromisso
 
@@ -57,13 +58,38 @@ class MarketingSpecFase15Tests(TestCase):
     def setUp(self):
         self.user_a = User.objects.create_user(username="spec_mkt_a", password="senha123")
         self.user_b = User.objects.create_user(username="spec_mkt_b", password="senha123")
+        self.org_a = Organization.objects.create(name="Spec Mkt A")
+        self.org_b = Organization.objects.create(name="Spec Mkt B")
+        Membership.objects.create(
+            user=self.user_a,
+            organization=self.org_a,
+            role=Membership.Role.MEMBER,
+            status=Membership.Status.ACTIVE,
+        )
+        Membership.objects.create(
+            user=self.user_b,
+            organization=self.org_b,
+            role=Membership.Role.MEMBER,
+            status=Membership.Status.ACTIVE,
+        )
+        from marketing.tests_helpers import grant_marketing_permissions
+
+        grant_marketing_permissions(self.user_a)
+        grant_marketing_permissions(self.user_b)
         self.http = Client()
         self.hoje = timezone.localdate()
         self.periodo = PeriodoMarketing.ultimos_dias(30, referencia=self.hoje)
 
     def _lead_ads(self, user, nome, email, **kwargs):
+        org = kwargs.pop("organization", None)
+        if org is None:
+            if user == self.user_a:
+                org = self.org_a
+            elif user == self.user_b:
+                org = self.org_b
         return Cliente.objects.create(
             user=user,
+            organization=org,
             nome=nome,
             email=email,
             origem=OrigemLead.GOOGLE_ADS,
@@ -103,26 +129,32 @@ class MarketingSpecFase15Tests(TestCase):
     # TESTE 02 — Lead Google Ads contabilizado.
     def test_spec_02_lead_google_ads_contabilizado(self):
         self._lead_ads(self.user_a, "Ads", "ads@test.com")
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertEqual(res.funil.leads, 1)
 
     # TESTE 03 — Lead orgânico não contabilizado como Google Ads.
     def test_spec_03_lead_organico_nao_contabilizado(self):
         Cliente.objects.create(
             user=self.user_a,
+            organization=self.org_a,
             nome="Orgânico",
             email="org@test.com",
             origem=OrigemLead.GOOGLE_ORGANIC,
             atribuicao_confiavel=True,
         )
         self._lead_ads(self.user_a, "Ads", "ads@test.com")
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertEqual(res.funil.leads, 1)
 
     # TESTE 04 — Lead sem origem não atribuído ao Google Ads.
     def test_spec_04_lead_sem_origem_nao_atribuido(self):
         Cliente.objects.create(
             user=self.user_a,
+            organization=self.org_a,
             nome="Sem origem",
             email="sem@test.com",
             origem=OrigemLead.NAO_IDENTIFICADA,
@@ -130,12 +162,15 @@ class MarketingSpecFase15Tests(TestCase):
         )
         Cliente.objects.create(
             user=self.user_a,
+            organization=self.org_a,
             nome="Manual sem prova",
             email="manual@test.com",
             origem=OrigemLead.GOOGLE_ADS,
             atribuicao_confiavel=False,
         )
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertEqual(res.funil.leads, 0)
 
     # TESTE 05 — Lead não duplicado.
@@ -143,6 +178,7 @@ class MarketingSpecFase15Tests(TestCase):
         lead = self._lead_ads(self.user_a, "Único", "unico@test.com")
         Compromisso.objects.create(
             user=self.user_a,
+            organization=self.org_a,
             cliente=lead,
             titulo="C1",
             tipo=TipoCompromisso.CONSULTA,
@@ -151,6 +187,7 @@ class MarketingSpecFase15Tests(TestCase):
         )
         Compromisso.objects.create(
             user=self.user_a,
+            organization=self.org_a,
             cliente=lead,
             titulo="C2",
             tipo=TipoCompromisso.CONSULTA,
@@ -159,6 +196,7 @@ class MarketingSpecFase15Tests(TestCase):
         )
         Contrato.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=lead,
             referencia="C-UN",
             descricao="Contrato",
@@ -166,7 +204,9 @@ class MarketingSpecFase15Tests(TestCase):
             status=StatusContrato.ACTIVE,
             criado_por=self.user_a,
         )
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertEqual(res.funil.leads, 1)
 
     # TESTE 06 — Consulta agendada calculada.
@@ -174,13 +214,16 @@ class MarketingSpecFase15Tests(TestCase):
         lead = self._lead_ads(self.user_a, "Agenda", "ag@test.com")
         Compromisso.objects.create(
             user=self.user_a,
+            organization=self.org_a,
             cliente=lead,
             titulo="Consulta futura",
             tipo=TipoCompromisso.CONSULTA,
             status=StatusCompromisso.CONFIRMADO,
             data_hora=_dt_no_dia(self.hoje),
         )
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertEqual(res.funil.consultas_agendadas, 1)
 
     # TESTE 07 — Consulta realizada calculada.
@@ -188,13 +231,16 @@ class MarketingSpecFase15Tests(TestCase):
         lead = self._lead_ads(self.user_a, "Realizada", "real@test.com")
         Compromisso.objects.create(
             user=self.user_a,
+            organization=self.org_a,
             cliente=lead,
             titulo="Consulta ok",
             tipo=TipoCompromisso.CONSULTA,
             status=StatusCompromisso.REALIZADO,
             data_hora=_dt_no_dia(self.hoje),
         )
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertEqual(res.funil.consultas_realizadas, 1)
 
     # TESTE 08 — Consulta cancelada não considerada realizada.
@@ -202,13 +248,16 @@ class MarketingSpecFase15Tests(TestCase):
         lead = self._lead_ads(self.user_a, "Cancel", "cancel@test.com")
         Compromisso.objects.create(
             user=self.user_a,
+            organization=self.org_a,
             cliente=lead,
             titulo="Cancelada",
             tipo=TipoCompromisso.CONSULTA,
             status=StatusCompromisso.CANCELADO,
             data_hora=_dt_no_dia(self.hoje),
         )
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertEqual(res.funil.consultas_agendadas, 0)
         self.assertEqual(res.funil.consultas_realizadas, 0)
 
@@ -220,7 +269,9 @@ class MarketingSpecFase15Tests(TestCase):
             "prop@test.com",
             fase_funil="proposta_enviada",
         )
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertEqual(res.funil.propostas, 1)
 
     # TESTE 10 — Contrato contabilizado uma única vez.
@@ -228,6 +279,7 @@ class MarketingSpecFase15Tests(TestCase):
         lead = self._lead_ads(self.user_a, "Contrato", "ctr@test.com")
         Contrato.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=lead,
             referencia="CTR-SPEC",
             descricao="Honorários",
@@ -235,7 +287,9 @@ class MarketingSpecFase15Tests(TestCase):
             status=StatusContrato.ACTIVE,
             criado_por=self.user_a,
         )
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertEqual(res.funil.contratos, 1)
 
     # TESTE 11 — Receita contratada correta.
@@ -243,6 +297,7 @@ class MarketingSpecFase15Tests(TestCase):
         lead = self._lead_ads(self.user_a, "Receita C", "rc@test.com")
         Contrato.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=lead,
             referencia="CTR-R",
             descricao="Honorários",
@@ -250,7 +305,9 @@ class MarketingSpecFase15Tests(TestCase):
             status=StatusContrato.ACTIVE,
             criado_por=self.user_a,
         )
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertEqual(res.funil.receita_contratada, Decimal("8500.50"))
 
     # TESTE 12 — Receita recebida correta.
@@ -258,6 +315,7 @@ class MarketingSpecFase15Tests(TestCase):
         lead = self._lead_ads(self.user_a, "Receita R", "rr@test.com")
         cob = Cobranca.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=lead,
             descricao="Honorários",
             valor_original=Decimal("4000.00"),
@@ -267,11 +325,14 @@ class MarketingSpecFase15Tests(TestCase):
         CobrancaRecebimento.objects.create(
             cobranca=cob,
             usuario=self.user_a,
+            organization=self.org_a,
             valor=Decimal("2500.00"),
             data_recebimento=self.hoje,
             registrado_por=self.user_a,
         )
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertEqual(res.funil.receita_recebida, Decimal("2500.00"))
 
     # TESTE 13 — Cobrança aberta não vira receita recebida.
@@ -279,20 +340,23 @@ class MarketingSpecFase15Tests(TestCase):
         lead = self._lead_ads(self.user_a, "Aberta", "aberta@test.com")
         Cobranca.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=lead,
             descricao="Pendente",
             valor_original=Decimal("9000.00"),
             data_vencimento=self.hoje + timedelta(days=10),
             criado_por=self.user_a,
         )
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertEqual(res.funil.receita_recebida, Decimal("0.00"))
 
     # TESTE 14 — CPL correto.
     def test_spec_14_cpl_correto(self):
         self._lead_ads(self.user_a, "CPL", "cpl@test.com")
         funil = calcular_funil(
-            self.user_a, self.periodo, modo_demo=True, nicho="trabalhista"
+            self.user_a, self.periodo, organization=self.org_a, modo_demo=True, nicho="trabalhista"
         )
         esperado = get_cpl(funil.investimento, funil.leads)
         self.assertIsNotNone(esperado)
@@ -310,7 +374,7 @@ class MarketingSpecFase15Tests(TestCase):
     def test_spec_16_cac_midia_correto(self):
         self._lead_ads(self.user_a, "CAC", "cac@test.com")
         funil = calcular_funil(
-            self.user_a, self.periodo, modo_demo=True, nicho="trabalhista"
+            self.user_a, self.periodo, organization=self.org_a, modo_demo=True, nicho="trabalhista"
         )
         cac = get_cac_midia(funil.investimento, funil.leads)
         self.assertEqual(cac, get_cpl(funil.investimento, funil.leads))
@@ -320,13 +384,16 @@ class MarketingSpecFase15Tests(TestCase):
         lead = self._lead_ads(self.user_a, "Conv LC", "clc@test.com")
         Compromisso.objects.create(
             user=self.user_a,
+            organization=self.org_a,
             cliente=lead,
             titulo="Consulta",
             tipo=TipoCompromisso.CONSULTA,
             status=StatusCompromisso.REALIZADO,
             data_hora=_dt_no_dia(self.hoje),
         )
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertEqual(
             res.eficiencia.conv_lead_consulta_pct,
             get_conversao_lead_consulta(1, 1),
@@ -338,6 +405,7 @@ class MarketingSpecFase15Tests(TestCase):
         lead = self._lead_ads(self.user_a, "Conv LCo", "lco@test.com")
         Contrato.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=lead,
             referencia="CTR-CV",
             descricao="X",
@@ -345,7 +413,9 @@ class MarketingSpecFase15Tests(TestCase):
             status=StatusContrato.ACTIVE,
             criado_por=self.user_a,
         )
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertEqual(
             res.eficiencia.conv_lead_contrato_pct,
             get_conversao_lead_contrato(1, 1),
@@ -356,6 +426,7 @@ class MarketingSpecFase15Tests(TestCase):
         lead = self._lead_ads(self.user_a, "Conv CC", "cc@test.com")
         Compromisso.objects.create(
             user=self.user_a,
+            organization=self.org_a,
             cliente=lead,
             titulo="Consulta",
             tipo=TipoCompromisso.CONSULTA,
@@ -364,6 +435,7 @@ class MarketingSpecFase15Tests(TestCase):
         )
         Contrato.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=lead,
             referencia="CTR-CC",
             descricao="X",
@@ -371,7 +443,9 @@ class MarketingSpecFase15Tests(TestCase):
             status=StatusContrato.ACTIVE,
             criado_por=self.user_a,
         )
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertEqual(
             res.eficiencia.conv_consulta_contrato_pct,
             get_conversao_consulta_contrato(1, 1),
@@ -382,6 +456,7 @@ class MarketingSpecFase15Tests(TestCase):
         lead = self._lead_ads(self.user_a, "Ticket", "ticket@test.com")
         Contrato.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=lead,
             referencia="CTR-T",
             descricao="X",
@@ -389,7 +464,9 @@ class MarketingSpecFase15Tests(TestCase):
             status=StatusContrato.ACTIVE,
             criado_por=self.user_a,
         )
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertEqual(
             res.eficiencia.ticket_medio,
             get_ticket_medio(Decimal("9000.00"), 1),
@@ -400,6 +477,7 @@ class MarketingSpecFase15Tests(TestCase):
         lead = self._lead_ads(self.user_a, "Ratio", "ratio@test.com")
         Contrato.objects.create(
             usuario=self.user_a,
+            organization=self.org_a,
             cliente=lead,
             referencia="CTR-RM",
             descricao="X",
@@ -408,7 +486,7 @@ class MarketingSpecFase15Tests(TestCase):
             criado_por=self.user_a,
         )
         res = calcular_resultados_negocio(
-            self.user_a, self.periodo, modo_demo=True, nicho="trabalhista"
+            self.user_a, self.periodo, organization=self.org_a, modo_demo=True, nicho="trabalhista"
         )
         ratio = get_receita_midia_ratio(
             res.funil.receita_contratada, res.funil.investimento
@@ -424,7 +502,9 @@ class MarketingSpecFase15Tests(TestCase):
         Cliente.objects.filter(pk=lead_fora.pk).update(
             criado_em=timezone.now() - timedelta(days=60)
         )
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertEqual(res.funil.leads, 1)
         self.assertEqual(
             Cliente.objects.filter(pk=lead_dentro.pk).count(),
@@ -435,8 +515,12 @@ class MarketingSpecFase15Tests(TestCase):
     def test_spec_23_tenant_isolado(self):
         self._lead_ads(self.user_a, "Tenant A", "a@test.com")
         self._lead_ads(self.user_b, "Tenant B", "b@test.com")
-        res_a = calcular_resultados_negocio(self.user_a, self.periodo)
-        res_b = calcular_resultados_negocio(self.user_b, self.periodo)
+        res_a = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
+        res_b = calcular_resultados_negocio(
+            self.user_b, self.periodo, organization=self.org_b
+        )
         self.assertEqual(res_a.funil.leads, 1)
         self.assertEqual(res_b.funil.leads, 1)
 
@@ -446,9 +530,16 @@ class MarketingSpecFase15Tests(TestCase):
             username="spec_mkt_sem_fin", password="senha123"
         )
         self._grupo_sem_financeiro(restrito)
-        self._lead_ads(restrito, "Lead Fin", "fin24@test.com")
+        Membership.objects.create(
+            user=restrito,
+            organization=self.org_a,
+            role=Membership.Role.MEMBER,
+            status=Membership.Status.ACTIVE,
+        )
+        self._lead_ads(restrito, "Lead Fin", "fin24@test.com", organization=self.org_a)
         Contrato.objects.create(
             usuario=restrito,
+            organization=self.org_a,
             cliente=Cliente.objects.get(email="fin24@test.com"),
             referencia="CTR-FIN",
             descricao="X",
@@ -466,10 +557,10 @@ class MarketingSpecFase15Tests(TestCase):
     def test_spec_25_demo_nao_contamina_reais(self):
         self._lead_ads(self.user_a, "Real", "real25@test.com")
         res_demo = calcular_resultados_negocio(
-            self.user_a, self.periodo, modo_demo=True
+            self.user_a, self.periodo, organization=self.org_a, modo_demo=True
         )
         res_prod = calcular_resultados_negocio(
-            self.user_a, self.periodo, modo_demo=False
+            self.user_a, self.periodo, organization=self.org_a, modo_demo=False
         )
         self.assertTrue(res_demo.funil.investimento_demo)
         self.assertIsNotNone(res_demo.funil.investimento)
@@ -481,9 +572,16 @@ class MarketingSpecFase15Tests(TestCase):
     # TESTE 26 — Leads sem próxima ação calculados.
     def test_spec_26_leads_sem_proxima_acao(self):
         lead = self._lead_ads(self.user_a, "Sem Acao", "sa26@test.com")
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertEqual(res.operacional.leads_sem_proxima_acao, 1)
-        self.assertIn(lead, queryset_leads_sem_proxima_acao(self.user_a, self.periodo))
+        self.assertIn(
+            lead,
+            queryset_leads_sem_proxima_acao(
+                self.user_a, self.periodo, organization=self.org_a
+            ),
+        )
 
     # TESTE 27 — Follow-ups atrasados calculados.
     def test_spec_27_followups_atrasados(self):
@@ -493,9 +591,16 @@ class MarketingSpecFase15Tests(TestCase):
             "fu27@test.com",
             fase_funil="proposta_enviada",
         )
-        res = calcular_resultados_negocio(self.user_a, self.periodo)
+        res = calcular_resultados_negocio(
+            self.user_a, self.periodo, organization=self.org_a
+        )
         self.assertGreaterEqual(res.operacional.followups_atrasados, 1)
-        self.assertIn(lead, queryset_followups_atrasados(self.user_a, self.periodo))
+        self.assertIn(
+            lead,
+            queryset_followups_atrasados(
+                self.user_a, self.periodo, organization=self.org_a
+            ),
+        )
 
     # TESTE 28 — Dados incompletos não quebram dashboard.
     def test_spec_28_dados_incompletos_nao_quebram_dashboard(self):

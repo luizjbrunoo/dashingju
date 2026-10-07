@@ -39,7 +39,33 @@ def registrar_mudanca_status_automatica(cobranca, status_anterior: str) -> None:
     )
 
 
+def historico_auditoria_organization(organization, *, limite: int = 100):
+    if organization is None:
+        return CobrancaHistorico.objects.none()
+    return (
+        CobrancaHistorico.objects.filter(cobranca__organization=organization)
+        .select_related("cobranca", "cobranca__cliente", "autor")
+        .order_by("-criado_em")[:limite]
+    )
+
+
+def resumo_auditoria_organization(organization, *, hoje: date | None = None):
+    hoje = hoje or timezone.localdate()
+    if organization is None:
+        return {"eventos_hoje": 0, "total_registrado": 0}
+    qs = CobrancaHistorico.objects.filter(
+        cobranca__organization=organization, criado_em__date=hoje
+    )
+    return {
+        "eventos_hoje": qs.count(),
+        "total_registrado": CobrancaHistorico.objects.filter(
+            cobranca__organization=organization
+        ).count(),
+    }
+
+
 def historico_auditoria_usuario(usuario, *, limite: int = 100):
+    """TENANT_LEGACY — não usar em superfícies W3. Mantido só se algum caller legado existir."""
     return (
         CobrancaHistorico.objects.filter(usuario=usuario)
         .select_related("cobranca", "cobranca__cliente", "autor")

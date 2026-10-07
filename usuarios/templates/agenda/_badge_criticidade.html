@@ -1,0 +1,8 @@
+{% if obj.agenda_pro and obj.agenda_pro.elevado %}
+<span class="rounded-md border px-2 py-0.5 text-[10px] font-medium
+    {% if obj.agenda_pro.nivel == 'critico' %}border-red-900/50 bg-red-950/40 text-red-300
+    {% else %}border-amber-900/40 bg-amber-950/30 text-amber-200{% endif %}"
+    title="{{ obj.agenda_pro.reasons|join:' ' }}">
+    {{ obj.agenda_pro.label }}
+</span>
+{% endif %}
