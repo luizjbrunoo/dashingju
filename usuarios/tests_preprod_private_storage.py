@@ -170,11 +170,13 @@ class PreprodPrivateStorageTests(TestCase):
     def test_08_null_ownership(self):
         cli = Cliente.objects.create(
             user=self.a1,
-            organization=None,
+            organization=self.org_a,
             nome="NULL Stor",
             email="null.stor@ex.test",
         )
         nulo = self._doc(cli, "nulo.txt", b"segredo-nulo", "segredo-nulo")
+        cli.organization = None
+        cli.save(update_fields=["organization"])
         resp = self._download(self.a1, nulo)
         self.assertEqual(resp.status_code, 404)
         self.assertNotIn("segredo-nulo", self._body(resp))
@@ -306,9 +308,9 @@ class PreprodPrivateStorageTests(TestCase):
             cleanup()
         with patch("ia.tasks.importlib.import_module", side_effect=ImportError("no-ocr")):
             result = ocr_and_markdown_file(self.dx.pk)
-        self.assertEqual(result, "ok")
+        self.assertEqual(result, "ocr_failed")
         self.dx.refresh_from_db()
-        self.assertTrue(self.dx.content)
+        self.assertEqual(self.dx.content, MARKER_A)
         self.assertNotIn("http://", self.dx.content)
 
     def test_19_rag_isolamento(self):
@@ -345,7 +347,7 @@ class PreprodPrivateStorageTests(TestCase):
             self.assertNotIn(MARKER_A, self._body(resp_prod))
             self._assert_no_disclosure(resp_prod, self.dx.arquivo)
 
-    def test_22_delete_same_org_rag_purge_arquivo_fisico_permanece(self):
+    def test_22_delete_same_org_rag_purge_e_blob(self):
         self.assertEqual(index_document(self.org_a, self.dx), "ok")
         stored_name = self.dx.arquivo.name
         storage = self.dx.arquivo.storage
@@ -354,4 +356,4 @@ class PreprodPrivateStorageTests(TestCase):
         self.dx.delete()
         hits = search_knowledge(self.org_a, MARKER_A)
         self.assertFalse(any(h.metadata.get("documento_id") == pk for h in hits))
-        self.assertTrue(storage.exists(stored_name))
+        self.assertFalse(storage.exists(stored_name))

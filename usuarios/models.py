@@ -15,6 +15,7 @@ from .choices import (
     StatusTarefa,
     TipoCompromisso,
 )
+from .services.document_storage import documento_upload_to
 
 
 class Cliente(models.Model):
@@ -111,7 +112,7 @@ class Documentos(models.Model):
     ]
     cliente = models.ForeignKey(Cliente, on_delete=models.CASCADE)
     tipo = models.CharField(max_length=255, choices=TIPO_CHOICES, default="O")
-    arquivo = models.FileField(upload_to="documentos/")
+    arquivo = models.FileField(upload_to=documento_upload_to)
     data_upload = models.DateTimeField()
     content = MartorField()
 

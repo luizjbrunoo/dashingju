@@ -1,6 +1,6 @@
 import logging
 
-from django.db.models.signals import post_save, pre_delete
+from django.db.models.signals import post_delete, post_save, pre_delete
 from django.dispatch import receiver
 from django_q.tasks import Chain
 from .models import Documentos
@@ -60,3 +60,10 @@ def pre_delete_documentos(sender, instance, **kwargs):
             "skip model=Documentos pk=%s reason=VECTOR_PURGE_FAILED",
             getattr(instance, "pk", None),
         )
+
+
+@receiver(post_delete, sender=Documentos)
+def post_delete_documentos_blob(sender, instance, **kwargs):
+    from usuarios.services.document_storage import delete_documento_blob
+
+    delete_documento_blob(instance)

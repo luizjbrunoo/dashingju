@@ -23,6 +23,7 @@ from .runtime_env import (
     resolve_allowed_hosts,
     resolve_secret_key,
 )
+from .storage import resolve_default_storage
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -170,23 +171,20 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
 
-# PREPROD-PRIVATE-STORAGE-01
-# DEV: FileSystemStorage + MEDIA_ROOT local. NÃO é evidência de segurança.
-# PROD: DJANGO_DEFAULT_FILE_STORAGE deve apontar para backend privado.
-# Arquivos tenant-owned (upload_to=documentos/) NÃO podem ser servidos via MEDIA_URL.
+# PREPROD-PRIVATE-STORAGE-01 + OBJECT-STORAGE-P1
+# DEV sem S3: FileSystemStorage + MEDIA_ROOT local. NÃO é evidência de segurança.
+# Staging/prod: AWS_* completo → storages.backends.s3.S3Storage (privado).
+# Config S3 parcial ou DJANGO_OBJECT_STORAGE_REQUIRED sem credenciais → fail-fast.
+# Arquivos tenant-owned NÃO podem ser servidos via MEDIA_URL.
 # Entrega somente pelo endpoint autorizado usuarios:documento_download.
 # Não assumir filesystem persistente de container (Railway).
-_file_storage = os.environ.get(
-    "DJANGO_DEFAULT_FILE_STORAGE",
-    "django.core.files.storage.FileSystemStorage",
-)
 _static_storage = (
     "django.contrib.staticfiles.storage.StaticFilesStorage"
     if DEBUG
     else "whitenoise.storage.CompressedManifestStaticFilesStorage"
 )
 STORAGES = {
-    "default": {"BACKEND": _file_storage},
+    "default": resolve_default_storage(environ=os.environ),
     "staticfiles": {"BACKEND": _static_storage},
 }
 SERVE_TENANT_MEDIA = False

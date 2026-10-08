@@ -33,19 +33,31 @@ def ocr_and_markdown_file(documento_id: int):
 
     cleanup = None
     try:
-        converter_module = importlib.import_module("docling.document_converter")
-        converter = converter_module.DocumentConverter()
         from usuarios.services.document_storage import local_path_for_backend_read
 
         local_path, cleanup = local_path_for_backend_read(documento.arquivo)
+    except Exception:
+        logger.info(
+            "skip model=Documentos pk=%s reason=STORAGE_UNREADABLE",
+            documento_id,
+        )
+        return "storage_unreadable"
+
+    try:
+        converter_module = importlib.import_module("docling.document_converter")
+        converter = converter_module.DocumentConverter()
         result = converter.convert(local_path)
         texto = result.document.export_to_markdown()
     except Exception:
-        nome = getattr(getattr(documento, "arquivo", None), "name", "") or ""
-        texto = f"Documento recebido: {nome}"
+        logger.info("skip model=Documentos pk=%s reason=OCR_FAILED", documento_id)
+        return "ocr_failed"
     finally:
         if cleanup:
             cleanup()
+
+    if not str(texto or "").strip():
+        logger.info("skip model=Documentos pk=%s reason=OCR_EMPTY", documento_id)
+        return "ocr_empty"
 
     documento.content = texto
     documento.save(update_fields=["content"])

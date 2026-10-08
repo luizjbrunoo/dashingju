@@ -125,11 +125,13 @@ class DocsIaMtAdversarialTests(TestCase):
     def test_null_nao_indexa(self):
         cli_nulo = Cliente.objects.create(
             user=self.a1,
-            organization=None,
+            organization=self.org_a,
             nome="Cliente NULL",
             email="null.docs@ex.test",
         )
         nulo = self._doc(cli_nulo, "nulo.txt", f"conteudo {MARKER_A} nulo")
+        cli_nulo.organization = None
+        cli_nulo.save(update_fields=["organization"])
         self.assertEqual(ocr_and_markdown_file(nulo.pk), "skip")
         self.assertEqual(rag_documentos(nulo.pk), "skip")
         hits = search_knowledge(self.org_a, "nulo")
@@ -256,9 +258,11 @@ class DocsIaMtAdversarialTests(TestCase):
 
     def test_ocr_job_null_skip(self):
         cli = Cliente.objects.create(
-            user=self.a1, organization=None, nome="N", email="n2@ex.test"
+            user=self.a1, organization=self.org_a, nome="N", email="n2@ex.test"
         )
         doc = self._doc(cli, "x.txt", "abc")
+        cli.organization = None
+        cli.save(update_fields=["organization"])
         before = doc.content
         self.assertEqual(ocr_and_markdown_file(doc.pk), "skip")
         doc.refresh_from_db()
