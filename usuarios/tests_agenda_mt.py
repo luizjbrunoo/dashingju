@@ -1,7 +1,5 @@
 """AGENDA-MT-01 — isolamento Organization, responsabilidade, capability e TenantContext."""
 
-from datetime import timedelta
-
 from django.contrib.auth.models import Group, User
 from django.core.management import call_command
 from django.test import Client, RequestFactory, TestCase
@@ -68,7 +66,7 @@ class AgendaMtAdversarialTests(TestCase):
             user=self.a2,
             organization=self.org_a,
             titulo="Compromisso CA A2",
-            data_hora=timezone.now() + timedelta(hours=2),
+            data_hora=_dt(self.hoje, hora=16),
             cliente=self.ca,
             responsavel=self.a2,
         )
