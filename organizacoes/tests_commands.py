@@ -170,6 +170,9 @@ class ProvisionDemoTenantCommandTests(TestCase):
         self.assertTrue(user.groups.filter(name="Marketing — acesso completo").exists())
         self.assertIn("comercial.view_dashboard", user.get_all_permissions())
         self.assertIn("marketing.view_marketing", user.get_all_permissions())
+        self.assertIn(
+            "marketing.manage_integracoes_marketing", user.get_all_permissions()
+        )
         self.assertIn("usuarios.view_documentos", user.get_all_permissions())
         self.assertFalse(user.is_superuser)
         self.assertFalse(user.is_staff)

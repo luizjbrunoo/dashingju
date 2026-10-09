@@ -8,6 +8,7 @@ MARKETING_CODENAMES = (
     "view_resultados_marketing",
     "view_conteudo_marketing",
     "edit_conteudo_marketing",
+    "manage_integracoes_marketing",
 )
 
 

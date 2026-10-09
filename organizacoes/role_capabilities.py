@@ -77,6 +77,18 @@ def groups_for_role(role: str) -> tuple[str, ...]:
     return ROLE_GROUPS[role]
 
 
+def sync_managed_rbac_groups() -> dict[str, Group] | None:
+    """post_migrate: sincroniza Groups quando o catálogo de Permission já existe.
+
+    Idempotente. Não recria Organization/Membership. No-op se a migration
+    de perms ainda não aplicou (evita corrida com create_permissions).
+    """
+    try:
+        return ensure_module_rbac_groups()
+    except ProvisioningError:
+        return None
+
+
 def ensure_module_rbac_groups() -> dict[str, Group]:
     """ENSURE required permissions nos Groups gerenciados. Não substitui extras."""
     resolved_by_group: dict[str, list[Permission]] = {}

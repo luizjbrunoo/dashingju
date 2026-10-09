@@ -8,12 +8,14 @@ PERM_VIEW_MARKETING = "marketing.view_marketing"
 PERM_VIEW_RESULTADOS = "marketing.view_resultados_marketing"
 PERM_VIEW_CONTEUDO = "marketing.view_conteudo_marketing"
 PERM_EDIT_CONTEUDO = "marketing.edit_conteudo_marketing"
+PERM_MANAGE_INTEGRACOES = "marketing.manage_integracoes_marketing"
 
 TODAS_PERMISSOES_MARKETING = (
     PERM_VIEW_MARKETING,
     PERM_VIEW_RESULTADOS,
     PERM_VIEW_CONTEUDO,
     PERM_EDIT_CONTEUDO,
+    PERM_MANAGE_INTEGRACOES,
 )
 
 
@@ -35,6 +37,7 @@ class PermissoesMarketing:
     ver_resultados: bool
     ver_conteudo: bool
     editar_conteudo: bool
+    gerenciar_integracoes: bool
     rbac_ativo: bool
 
 
@@ -44,6 +47,7 @@ def permissoes_marketing(user) -> PermissoesMarketing:
         ver_resultados=_tem_perm(user, PERM_VIEW_RESULTADOS),
         ver_conteudo=_tem_perm(user, PERM_VIEW_CONTEUDO),
         editar_conteudo=_tem_perm(user, PERM_EDIT_CONTEUDO),
+        gerenciar_integracoes=_tem_perm(user, PERM_MANAGE_INTEGRACOES),
         rbac_ativo=rbac_restritivo(user),
     )
 
@@ -62,6 +66,10 @@ def pode_ver_conteudo_marketing(user) -> bool:
 
 def pode_editar_conteudo_marketing(user) -> bool:
     return _tem_perm(user, PERM_EDIT_CONTEUDO)
+
+
+def pode_gerenciar_integracoes_marketing(user) -> bool:
+    return _tem_perm(user, PERM_MANAGE_INTEGRACOES)
 
 
 def pode_acessar_modulo_marketing(user) -> bool:

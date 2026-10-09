@@ -14,7 +14,10 @@ from comercial.permissions import pode_ver_dashboard
 from comercial.tests_helpers import grant_comercial_permissions
 from core.services.executive_home import montar_home_executiva, resolver_caps_executivas
 from financeiro.permissions import pode_ver_cobrancas
-from marketing.permissions import pode_ver_marketing
+from marketing.permissions import (
+    pode_gerenciar_integracoes_marketing,
+    pode_ver_marketing,
+)
 from organizacoes.management.commands.provision_demo_tenant import (
     ORGANIZATION_NAME,
     RESULT_ALREADY,
@@ -162,6 +165,7 @@ class PreprodRbacProvisioningTests(TestCase):
         self.assertIn(GRUPO_DOCUMENTOS, granted)
         self.assertTrue(pode_ver_dashboard(novo))
         self.assertTrue(pode_ver_marketing(novo))
+        self.assertTrue(pode_gerenciar_integracoes_marketing(novo))
         self.assertTrue(pode_ver_cobrancas(novo))
         self.assertTrue(pode_ver_agenda(novo))
         self.assertTrue(pode_baixar_documento(novo))
@@ -182,6 +186,7 @@ class PreprodRbacProvisioningTests(TestCase):
         self.assertEqual(granted, [])
         self.assertFalse(pode_ver_dashboard(self.a2))
         self.assertFalse(pode_ver_marketing(self.a2))
+        self.assertFalse(pode_gerenciar_integracoes_marketing(self.a2))
         self.assertFalse(pode_ver_cobrancas(self.a2))
         self.assertFalse(pode_ver_agenda(self.a2))
         self.assertFalse(pode_baixar_documento(self.a2))
@@ -354,6 +359,40 @@ class PreprodRbacProvisioningTests(TestCase):
         self.assertNotIn("MARKER_RBAC_A", body)
         self.assertNotIn("MARKER_RBAC_B", body)
 
+    def test_28_owner_existente_recebe_manage_integracoes_idempotente(self):
+        grupo = Group.objects.get(name=GRUPO_MARKETING)
+        perm = Permission.objects.get(
+            content_type__app_label="marketing",
+            codename="manage_integracoes_marketing",
+        )
+        grupo.permissions.remove(perm)
+        owner = User.objects.get(pk=self.a1.pk)
+        self.assertFalse(pode_gerenciar_integracoes_marketing(owner))
+        n_org = Organization.objects.count()
+        n_mem = Membership.objects.count()
+        ensure_module_rbac_groups()
+        owner = User.objects.get(pk=self.a1.pk)
+        self.assertTrue(pode_gerenciar_integracoes_marketing(owner))
+        self.assertEqual(Organization.objects.count(), n_org)
+        self.assertEqual(Membership.objects.count(), n_mem)
+
+        owner.groups.remove(grupo)
+        owner = User.objects.get(pk=self.a1.pk)
+        self.assertFalse(pode_gerenciar_integracoes_marketing(owner))
+        grant_owner_module_capabilities(owner)
+        owner = User.objects.get(pk=self.a1.pk)
+        self.assertTrue(pode_gerenciar_integracoes_marketing(owner))
+        self.assertEqual(Organization.objects.count(), n_org)
+        self.assertEqual(Membership.objects.count(), n_mem)
+        self.assertEqual(
+            Membership.objects.filter(user=owner, role=Membership.Role.OWNER).count(),
+            1,
+        )
+
+    def test_29_member_sem_capability_nao_gerencia_integracoes(self):
+        self.assertTrue(pode_gerenciar_integracoes_marketing(self.a1))
+        self.assertFalse(pode_gerenciar_integracoes_marketing(self.a2))
+
 
 class DemoTenantReusableProvisioningTests(TestCase):
     def test_demo_provisioning_idempotente(self):
@@ -371,6 +410,7 @@ class DemoTenantReusableProvisioningTests(TestCase):
         self.assertIn(RESULT_ALREADY, out2.getvalue())
         demo.refresh_from_db()
         self.assertIn("comercial.view_dashboard", demo.get_all_permissions())
+        self.assertIn("marketing.manage_integracoes_marketing", demo.get_all_permissions())
         self.assertIn("usuarios.view_documentos", demo.get_all_permissions())
         self.assertEqual(Organization.objects.filter(name=ORGANIZATION_NAME).count(), 1)
         self.assertFalse(demo.is_superuser)

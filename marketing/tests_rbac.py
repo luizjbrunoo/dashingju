@@ -6,6 +6,10 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import Client, TestCase
 from django.urls import reverse
 
+from marketing.permissions import (
+    pode_gerenciar_integracoes_marketing,
+    pode_ver_marketing,
+)
 from usuarios.choices import OrigemLead
 from usuarios.models import Cliente
 
@@ -119,3 +123,13 @@ class MarketingRbacTests(TestCase):
         resp = self.http.get(reverse("marketing_dashboard"))
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(resp.url, reverse("clientes"))
+
+    def test_view_marketing_nao_implica_gerenciar_integracoes(self):
+        user = User.objects.create_user(username="mkt_so_view", password="senha123")
+        grupo = _grupo_restrito("Mkt RBAC — so view", "view_marketing")
+        user.groups.add(grupo)
+        self.assertTrue(pode_ver_marketing(user))
+        self.assertFalse(pode_gerenciar_integracoes_marketing(user))
+        self.http.login(username="mkt_so_view", password="senha123")
+        resp = self.http.get(reverse("marketing_dashboard"))
+        self.assertEqual(resp.status_code, 200)

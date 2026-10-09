@@ -4,6 +4,10 @@ from django.conf import settings
 from django.db import models
 
 from .choices import CanalConteudo, ObjetivoConteudo, PlataformaMarketing, StatusConteudo, StatusIdeia, StatusIntegracao, TomComunicacao
+from .google_ads_connection import (
+    normalize_google_ads_currency_code,
+    normalize_google_ads_customer_id,
+)
 
 
 class TenantOwnedModel(models.Model):
@@ -330,6 +334,10 @@ class MarketingIntegracao(TenantOwnedModel):
             ),
             ("view_conteudo_marketing", "Pode visualizar marketing de conteúdo"),
             ("edit_conteudo_marketing", "Pode criar e editar conteúdo de marketing"),
+            (
+                "manage_integracoes_marketing",
+                "Pode gerenciar integrações de marketing",
+            ),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -345,3 +353,61 @@ class MarketingIntegracao(TenantOwnedModel):
 
     def __str__(self) -> str:
         return f"{self.plataforma} ({self.usuario})"
+
+
+class OrganizationGoogleAdsConnection(models.Model):
+    """Estado Organization-owned da conexão Google Ads. Sem secrets."""
+
+    class Status(models.TextChoices):
+        DISCONNECTED = "disconnected", "Desconectada"
+        AUTHORIZED = "authorized", "Autorizada"
+        CONFIGURED = "configured", "Configurada"
+
+    organization = models.OneToOneField(
+        "organizacoes.Organization",
+        on_delete=models.CASCADE,
+        related_name="google_ads_connection",
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.DISCONNECTED,
+    )
+    customer_id = models.CharField(max_length=32, blank=True)
+    login_customer_id = models.CharField(max_length=32, blank=True)
+    descriptive_name = models.CharField(max_length=255, blank=True)
+    currency_code = models.CharField(max_length=3, blank=True)
+    connected_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Conexão Google Ads"
+        verbose_name_plural = "Conexões Google Ads"
+
+    def clean(self):
+        super().clean()
+        self.customer_id = normalize_google_ads_customer_id(self.customer_id)
+        self.login_customer_id = normalize_google_ads_customer_id(
+            self.login_customer_id
+        )
+        self.currency_code = normalize_google_ads_currency_code(self.currency_code)
+        self.descriptive_name = (self.descriptive_name or "").strip()[:255]
+
+    def save(self, *args, **kwargs):
+        self.customer_id = normalize_google_ads_customer_id(self.customer_id)
+        self.login_customer_id = normalize_google_ads_customer_id(
+            self.login_customer_id
+        )
+        self.currency_code = normalize_google_ads_currency_code(self.currency_code)
+        self.descriptive_name = (self.descriptive_name or "").strip()[:255]
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return f"google_ads@org-{self.organization_id}"
+
+    def __repr__(self) -> str:
+        return (
+            f"<OrganizationGoogleAdsConnection: google_ads"
+            f"@org-{self.organization_id}>"
+        )

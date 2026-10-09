@@ -12,25 +12,8 @@ from organizacoes.models import Organization, OrganizationProviderCredential
 PROVIDER_GOOGLE_ADS = OrganizationProviderCredential.Provider.GOOGLE_ADS
 PROVIDER_ASAAS = OrganizationProviderCredential.Provider.ASAAS
 
-GOOGLE_ADS_FIELDS = frozenset(
-    {
-        "access_token",
-        "refresh_token",
-        "client_id",
-        "client_secret",
-        "developer_token",
-        "customer_id",
-        "login_customer_id",
-    }
-)
-GOOGLE_ADS_SECRET_FIELDS = frozenset(
-    {
-        "access_token",
-        "refresh_token",
-        "client_secret",
-        "developer_token",
-    }
-)
+GOOGLE_ADS_FIELDS = frozenset({"refresh_token"})
+GOOGLE_ADS_SECRET_FIELDS = frozenset({"refresh_token"})
 ASAAS_FIELDS = frozenset({"api_key", "wallet_id", "environment"})
 ASAAS_ENVIRONMENTS = frozenset({"sandbox", "production"})
 
@@ -89,7 +72,7 @@ def _normalize_secrets(provider: str, secrets) -> dict[str, str]:
     if not cleaned:
         raise InvalidPayload("Payload inválido.")
     if provider == PROVIDER_GOOGLE_ADS:
-        if not (GOOGLE_ADS_SECRET_FIELDS & cleaned.keys()):
+        if cleaned.keys() != GOOGLE_ADS_FIELDS or "refresh_token" not in cleaned:
             raise InvalidPayload("Payload inválido.")
     elif provider == PROVIDER_ASAAS:
         if "api_key" not in cleaned:

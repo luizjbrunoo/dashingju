@@ -82,8 +82,6 @@ class ProviderCredentialServiceTests(TestCase):
         self.org_b = Organization.objects.create(name="Cred Org B")
         self.ads_a = {
             "refresh_token": "rt-org-a-secret",
-            "developer_token": "devtok-a",
-            "customer_id": "123-456-7890",
         }
         self.asaas_a = {
             "api_key": "asaas_a_live_secret",
@@ -214,6 +212,47 @@ class ProviderCredentialServiceTests(TestCase):
                 secrets={"api_key": "nao"},
             )
 
+    def test_vault_google_ads_aceita_somente_refresh_token(self):
+        put(
+            organization=self.org_a,
+            provider="google_ads",
+            secrets={"refresh_token": "rt-org-a-secret"},
+        )
+        payload = get(organization=self.org_a, provider="google_ads")
+        self.assertEqual(payload, {"refresh_token": "rt-org-a-secret"})
+        self.assertNotIn("developer_token", payload)
+        self.assertNotIn("client_id", payload)
+        self.assertNotIn("client_secret", payload)
+        self.assertNotIn("access_token", payload)
+        self.assertNotIn("customer_id", payload)
+        self.assertNotIn("login_customer_id", payload)
+
+    def test_vault_google_ads_rejeita_campos_proibidos(self):
+        proibidos = (
+            {"developer_token": "devtok-a"},
+            {"client_id": "cid.apps.googleusercontent.com"},
+            {"client_secret": "gsecret"},
+            {"access_token": "ya29.fake"},
+            {"customer_id": "1234567890"},
+            {"login_customer_id": "1234567890"},
+            {"refresh_token": "rt-org-a-secret", "developer_token": "devtok-a"},
+            {"refresh_token": "rt-org-a-secret", "customer_id": "1234567890"},
+        )
+        for secrets in proibidos:
+            with self.subTest(secrets=tuple(secrets)):
+                with self.assertRaises(InvalidPayload):
+                    put(
+                        organization=self.org_a,
+                        provider="google_ads",
+                        secrets=secrets,
+                    )
+        self.assertEqual(
+            OrganizationProviderCredential.objects.filter(
+                organization=self.org_a, provider="google_ads"
+            ).count(),
+            0,
+        )
+
     def test_payload_asaas_rejeita_refresh_token(self):
         with self.assertRaises(InvalidPayload):
             put(
@@ -258,8 +297,6 @@ class ProviderCredentialServiceTests(TestCase):
         )
         self.assertNotIn("rt-org-a-secret", str(row))
         self.assertNotIn("rt-org-a-secret", repr(row))
-        self.assertNotIn("devtok-a", str(row))
-        self.assertNotIn("devtok-a", repr(row))
         ciphertext = bytes(row.ciphertext)
         self.assertNotEqual(ciphertext, b"rt-org-a-secret")
         self.assertNotIn(b"rt-org-a-secret", ciphertext)
@@ -359,7 +396,6 @@ class ProviderCredentialServiceTests(TestCase):
         with self.assertRaises(CredentialAccessError) as ctx:
             get(organization=self.org_a, provider="google_ads")
         self.assertNotIn("rt-org-a-secret", str(ctx.exception))
-        self.assertNotIn("devtok-a", str(ctx.exception))
         self.assertNotIn("api_key", str(ctx.exception))
         self.assertNotIn("token", str(ctx.exception).lower())
 
