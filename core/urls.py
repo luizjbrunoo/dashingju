@@ -1,6 +1,5 @@
 from django.contrib import admin
 from django.urls import path, include
-from django.views.generic.base import RedirectView
 
 from . import health, views
 
@@ -13,7 +12,6 @@ urlpatterns = [
         name="recusar_media_documentos",
     ),
     path("", views.home, name="home"),
-    path("favicon.ico", RedirectView.as_view(url="/static/logo_dashing_juridico.jpg", permanent=True)),
     path("admin/", admin.site.urls),
     path("ia/", include("ia.urls")),
     path("usuarios/", include("usuarios.urls")),

@@ -1,11 +1,13 @@
 {% extends 'base.html' %}
-{% load static %}
 
 {% block 'body' %}
 <div class="min-h-screen flex items-center justify-center px-4">
     <div class="w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900/80 p-6 shadow-lg shadow-bally/5 ring-1 ring-bally/10 backdrop-blur-sm">
         <div class="flex items-center justify-center">
-            <img src="{% static 'logo_dashing_juridico.jpg' %}" alt="ADV Growth 90" class="h-10 w-auto" />
+            <p class="text-sm font-semibold text-zinc-100">
+                ADV Growth 90
+                <span class="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-bally" aria-hidden="true"></span>
+            </p>
         </div>
         <h2 class="mt-6 text-xl font-semibold text-zinc-100 text-center">Entrar</h2>
 

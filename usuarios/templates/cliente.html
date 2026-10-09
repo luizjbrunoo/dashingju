@@ -1,5 +1,4 @@
 {% extends 'base.html' %}
-{% load static %}
 {% block 'body' %}
 
   <main>
@@ -18,7 +17,6 @@
               <span aria-hidden="true">←</span>
               Voltar
             </a>
-            <img src="{% static 'logo_dashing_Juridico.jpg' %}" alt="" class="size-16 flex-none rounded-full bg-zinc-800 outline -outline-offset-1 outline-bally/20" />
             <h1>
               <div class="text-sm/6 text-zinc-500">{{ cliente.email }}</div>
               <div class="mt-1 text-base font-semibold text-zinc-100">{{ cliente.nome }}</div>

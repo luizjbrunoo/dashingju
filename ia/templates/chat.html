@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% load static %}
 {% block 'body' %}
     <main>
         <header class="relative isolate border-b border-zinc-800/80 bg-linear-to-r from-bally-muted/50 via-zinc-900/80 to-zinc-950">
@@ -24,7 +23,7 @@
                 <div class="rounded-lg border border-zinc-800/80 bg-zinc-900/40 px-4 py-8 sm:px-6 lg:min-h-[28rem] lg:px-8">
                     <div class="flex flex-col gap-6" id="chat">
                     <div class="flex items-start gap-2.5">
-                        <img class="h-12 w-12 rounded-full" src="{% static 'Imagem_EcildaII.jpg' %}" alt="">
+                        <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-bally-muted text-sm font-semibold text-bally-bright" aria-hidden="true">P</span>
                         <div class="flex w-full max-w-xl flex-col gap-1 lg:max-w-2xl">
                             <div class="flex items-center space-x-2 rtl:space-x-reverse">
                                 <span class="text-sm font-semibold text-bally-bright">PsiQuete</span>
@@ -96,7 +95,7 @@
             novaMensagem.className = "flex items-start gap-2.5";
 
             novaMensagem.innerHTML = `
-                <img class="w-12 h-12 rounded-full" src="{% static 'logo_dashing_juridico.jpg' %}" alt="Pythonete">
+                <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-bally-muted text-sm font-semibold text-bally-bright" aria-hidden="true">P</span>
                 <div class="flex flex-col gap-1 w-full max-w-xl lg:max-w-2xl">
                     <div class="flex items-center space-x-2 rtl:space-x-reverse">
                         <span class="text-sm font-semibold text-bally-bright">PsiQuete</span>
