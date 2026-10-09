@@ -4,11 +4,9 @@ import os
 import requests
 from datetime import datetime, timedelta
 from agno.agent import Agent
-from agno.db.sqlite import SqliteDb
 from agno.tools import tool
 from .literals import TribunalLiteral
 from dotenv import load_dotenv
-from django.conf import settings
 from django.utils import timezone
 from agno.models.openai import OpenAIChat
 from usuarios.models import Compromisso
@@ -173,9 +171,6 @@ def search_datajud_api(tribunal: TribunalLiteral, process_number: str):
 class JuriAI:
 
     DATAJUD_BASE_URL = "https://api-publica.datajud.cnj.jus.br"
-    # P2C-LEGACY: índice Lance por tabela global — não instanciar.
-    MEMORY_DB_FILE = "db.sqlite3"
-    MEMORY_TABLE = "my_memory_table"
     AGENT_NAME = "Assistente Jurídico Virtual"
     AGENT_DESCRIPTION = (
         "Assistente virtual especializado em questões jurídicas com acesso "
@@ -204,10 +199,6 @@ class JuriAI:
             raise ValueError("MISSING_ORGANIZATION")
         extra = dict(knowledge_filters or {})
         extra.pop("organization_id", None)
-        db = SqliteDb(
-            db_file=cls.MEMORY_DB_FILE,
-            memory_table=f"juri_memory_org_{organization.pk}",
-        )
         context = retrieve_tenant_context(organization, "")
         instructions = cls.INSTRUCTIONS
         if context:
@@ -220,17 +211,12 @@ class JuriAI:
             description=cls.AGENT_DESCRIPTION,
             tools=[search_datajud_api],
             instructions=instructions,
-            db=db,
-            update_memory_on_run=True,
             knowledge=None,
             knowledge_filters=extra,
             search_knowledge=False,
         )
 
 class SecretariaAI:
-    MEMORY_DB_FILE = "db.sqlite3"
-    MEMORY_TABLE = "secretaria_memory_table"
-
     INSTRUCTIONS = f"""
     Você é um assistente virtual de secretaria especializado em atendimento ao cliente e agendamento de reuniões.
     Atue como vendedor da empresa, você deve vender os produtos e serviços da empresa para o cliente.
@@ -319,6 +305,8 @@ class SecretariaAI:
         user_id: int,
         organization=None,
         knowledge_context: str = "",
+        conversation_history: str = "",
+        cliente_id=None,
     ) -> Agent:
         @tool
         def listar_compromissos_do_usuario(data: str):
@@ -352,29 +340,38 @@ class SecretariaAI:
                 descricao=descricao,
             )
 
-        db = SqliteDb(
-            db_file=cls.MEMORY_DB_FILE,
-            memory_table=cls.MEMORY_TABLE
-        )
         _ = knowledge_filters
         if organization is None:
             rag_block = (
                 "Não há Organization resolvida. Não consulte índice global. "
                 "Não invente documentos da empresa."
             )
-        elif knowledge_context:
-            rag_block = (
-                "CONTEXTO INTERNO DA ORGANIZAÇÃO (já filtrado pelo tenant; use só isto):\n"
-                f"{knowledge_context}\n"
-                "Não use documentos de outras organizações. "
-                "Não invente conteúdo ausente deste contexto."
-            )
+            history_block = ""
+            session_label = f"org-none-usr-{user_id}"
         else:
-            rag_block = (
-                "Não há contexto RAG tenant-scoped disponível. "
-                "Não consulte índice global. Não invente documentos da empresa."
-            )
-        instructions = f"{cls.INSTRUCTIONS}\n\n{rag_block}"
+            if knowledge_context:
+                rag_block = (
+                    "CONTEXTO INTERNO DA ORGANIZAÇÃO (já filtrado pelo tenant; use só isto):\n"
+                    f"{knowledge_context}\n"
+                    "Não use documentos de outras organizações. "
+                    "Não invente conteúdo ausente deste contexto."
+                )
+            else:
+                rag_block = (
+                    "Não há contexto RAG tenant-scoped disponível. "
+                    "Não consulte índice global. Não invente documentos da empresa."
+                )
+            history_block = (conversation_history or "").strip()
+            parts = [f"org-{organization.pk}"]
+            if cliente_id is not None:
+                parts.append(f"cli-{cliente_id}")
+            parts.append(f"usr-{user_id}")
+            session_label = "-".join(parts)
+        _ = session_id
+        extra_blocks = [rag_block]
+        if history_block:
+            extra_blocks.append(history_block)
+        instructions = f"{cls.INSTRUCTIONS}\n\n" + "\n\n".join(extra_blocks)
 
         return Agent(
             name="Assistente de Secretaria Virtual",
@@ -386,14 +383,10 @@ class SecretariaAI:
                 search_datajud_api,
             ],
             instructions=instructions,
-            db=db,
-            update_memory_on_run=True,
             knowledge=None,
             knowledge_filters={},
             search_knowledge=False,
-            session_id=f"secretaria-{session_id}-user-{user_id}",
-            add_history_to_context=True,
-            num_history_runs=5,
+            session_id=session_label,
             add_datetime_to_context=True,
         )
 

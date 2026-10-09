@@ -30,9 +30,8 @@ class ImportLanceSideEffectTests(SimpleTestCase):
 
     def test_build_agent_sem_organization_nao_liga_knowledge(self):
         with patch("ia.agents.Agent") as mock_agent:
-            with patch("ia.agents.SqliteDb"):
-                with patch("ia.agents.OpenAIChat"):
-                    SecretariaAI.build_agent(session_id="x", user_id=1)
+            with patch("ia.agents.OpenAIChat"):
+                SecretariaAI.build_agent(session_id="x", user_id=1)
         kwargs = mock_agent.call_args.kwargs
         self.assertIsNone(kwargs.get("knowledge"))
         self.assertFalse(kwargs.get("search_knowledge"))

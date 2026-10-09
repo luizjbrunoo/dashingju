@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from usuarios.models import Cliente
 from usuarios.models import Documentos
@@ -83,3 +84,45 @@ class VectorChunk(models.Model):
 
     def __str__(self):
         return self.chunk_id
+
+
+class SecretariaConversationState(models.Model):
+    """Janela curta de conversa da Secretaria. Tenant-scoped. Sem SQLite Agno."""
+
+    organization = models.ForeignKey(
+        "organizacoes.Organization",
+        on_delete=models.CASCADE,
+        related_name="secretaria_conversations",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="secretaria_conversations",
+    )
+    cliente = models.ForeignKey(
+        Cliente,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="secretaria_conversations",
+    )
+    channel_key = models.CharField(max_length=64)
+    turns = models.JSONField(default=list, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "user", "channel_key"],
+                name="uniq_ia_secretaria_org_user_channel",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "user", "channel_key"],
+                name="ia_secretaria_org_user_ch_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return self.channel_key

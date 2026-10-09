@@ -21,6 +21,12 @@ from ia.services.docs_tenancy import (
     organization_from_request,
 )
 from ia.services.document_knowledge import retrieve_tenant_context
+from ia.services.secretaria_state import (
+    append_secretaria_turns,
+    channel_key_chat,
+    channel_key_whatsapp,
+    load_secretaria_history,
+)
 from organizacoes.services import CONTEXT_RESOLVED, resolver_organization
 from usuarios.models import Cliente, Documentos
 from usuarios.document_text import extract_document_text
@@ -232,11 +238,17 @@ def stream_resposta(request):
             knowledge_context = retrieve_tenant_context(
                 rag_org, pergunta.pergunta
             )
+            conversation_history = load_secretaria_history(
+                organization=rag_org,
+                user_id=pergunta.cliente.user_id,
+                channel_key=channel_key_chat(pergunta.cliente.id),
+            )
             agent = SecretariaAI.build_agent(
-                session_id=pergunta.cliente.id,
                 user_id=pergunta.cliente.user_id,
                 organization=rag_org,
                 knowledge_context=knowledge_context,
+                conversation_history=conversation_history,
+                cliente_id=pergunta.cliente.id,
             )
             stream = agent.run(
                 pergunta.pergunta,
@@ -287,7 +299,16 @@ def stream_resposta(request):
                 ).strip()
 
             if texto_final:
-                yield _normalizar_resposta_secretaria(texto_final)
+                texto_final = _normalizar_resposta_secretaria(texto_final)
+                append_secretaria_turns(
+                    organization=rag_org,
+                    user_id=pergunta.cliente.user_id,
+                    channel_key=channel_key_chat(pergunta.cliente.id),
+                    user_text=pergunta.pergunta,
+                    assistant_text=texto_final,
+                    cliente=pergunta.cliente,
+                )
+                yield texto_final
             else:
                 yield (
                     "Não foi possível obter resposta do assistente. "
@@ -413,19 +434,36 @@ def webhook_whatsapp(request):
 
     organization = _organization_for_whatsapp_user(user_id)
     knowledge_context = ""
+    conversation_history = ""
     if organization is None:
         logger.info("ia_webhook_rag_skip reason=TENANT_UNRESOLVED")
     else:
         knowledge_context = retrieve_tenant_context(organization, message)
+        conversation_history = load_secretaria_history(
+            organization=organization,
+            user_id=user_id,
+            channel_key=channel_key_whatsapp(phone),
+        )
 
     try:
         agent = SecretariaAI.build_agent(
-            session_id=phone,
             user_id=user_id,
             organization=organization,
             knowledge_context=knowledge_context,
+            conversation_history=conversation_history,
         )
-        agent.run(message)
+        result = agent.run(message)
+        if organization is not None:
+            assistant_text = ""
+            if result is not None:
+                assistant_text = str(getattr(result, "content", "") or "")
+            append_secretaria_turns(
+                organization=organization,
+                user_id=user_id,
+                channel_key=channel_key_whatsapp(phone),
+                user_text=message,
+                assistant_text=assistant_text,
+            )
     except Exception:
         logger.exception("ia_webhook_erro user_id=%s", user_id)
         return JsonResponse({"error": "falha_interna"}, status=500)
