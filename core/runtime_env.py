@@ -1,6 +1,9 @@
-"""Parsers de environment para staging/produção. Sem secrets e sem I/O de rede."""
+"""Parsers de environment para staging/produção. Sem I/O de rede."""
 
 from __future__ import annotations
+
+import base64
+from dataclasses import dataclass
 
 from django.core.exceptions import ImproperlyConfigured
 
@@ -73,6 +76,82 @@ def resolve_secret_key(*, debug: bool, raw: str | None) -> str:
             "DJANGO_SECRET_KEY de DEV não pode ser usada com DEBUG=False."
         )
     return value
+
+
+KEY_SOURCE_ENV = "env"
+KEY_SOURCE_DEV_DERIVED = "dev-derived"
+_DEV_FERNET_SALT = b"dashingju.integration-credentials.v1"
+_DEV_FERNET_INFO = b"dev-derived"
+
+
+def is_valid_fernet_key(raw: str | None) -> bool:
+    value = (raw or "").strip()
+    if not value:
+        return False
+    try:
+        from cryptography.fernet import Fernet
+
+        Fernet(value.encode("utf-8"))
+    except (ValueError, TypeError, Exception):
+        return False
+    return True
+
+
+def derive_dev_fernet_key(secret_key: str) -> str:
+    """Fernet derivada da SECRET_KEY. Somente DEBUG/teste. Nunca usar em DEBUG=False."""
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+    material = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=_DEV_FERNET_SALT,
+        info=_DEV_FERNET_INFO,
+    ).derive(str(secret_key).encode("utf-8"))
+    return base64.urlsafe_b64encode(material).decode("ascii")
+
+
+@dataclass(frozen=True)
+class IntegrationCredentialsKey:
+    value: str
+    source: str
+
+    def __repr__(self) -> str:
+        return f"IntegrationCredentialsKey(source={self.source!r})"
+
+    def __str__(self) -> str:
+        return f"IntegrationCredentialsKey(source={self.source})"
+
+
+def resolve_integration_credentials_key(
+    *,
+    debug: bool,
+    raw: str | None,
+    secret_key: str,
+) -> IntegrationCredentialsKey:
+    value = (raw or "").strip()
+    if debug:
+        if value:
+            if not is_valid_fernet_key(value):
+                raise ImproperlyConfigured(
+                    "INTEGRATION_CREDENTIALS_KEY inválida."
+                )
+            return IntegrationCredentialsKey(value=value, source=KEY_SOURCE_ENV)
+        derived = derive_dev_fernet_key(secret_key)
+        return IntegrationCredentialsKey(
+            value=derived, source=KEY_SOURCE_DEV_DERIVED
+        )
+    if not value:
+        raise ImproperlyConfigured(
+            "INTEGRATION_CREDENTIALS_KEY é obrigatória quando DEBUG=False."
+        )
+    if not is_valid_fernet_key(value):
+        raise ImproperlyConfigured("INTEGRATION_CREDENTIALS_KEY inválida.")
+    if value == derive_dev_fernet_key(DEV_SECRET_KEY):
+        raise ImproperlyConfigured(
+            "INTEGRATION_CREDENTIALS_KEY de DEV não pode ser usada com DEBUG=False."
+        )
+    return IntegrationCredentialsKey(value=value, source=KEY_SOURCE_ENV)
 
 
 def resolve_allowed_hosts(*, debug: bool, raw: str | None) -> list[str]:

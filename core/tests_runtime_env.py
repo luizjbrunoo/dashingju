@@ -1,15 +1,25 @@
 """RAILWAY-STAGING-PREP-01 — parsers de env e health/readiness."""
 
+import os
+import subprocess
+import sys
+
+from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
+
+from cryptography.fernet import Fernet
 
 from core.runtime_env import (
     DEV_SECRET_KEY,
+    KEY_SOURCE_DEV_DERIVED,
+    KEY_SOURCE_ENV,
     env_bool,
     parse_allowed_hosts,
     parse_csrf_trusted_origins,
     resolve_allowed_hosts,
+    resolve_integration_credentials_key,
     resolve_secret_key,
 )
 
@@ -60,6 +70,33 @@ class RuntimeEnvParserTests(SimpleTestCase):
             ["staging.example.com"],
         )
 
+    def test_integration_key_debug_false_obrigatoria(self):
+        with self.assertRaises(ImproperlyConfigured):
+            resolve_integration_credentials_key(
+                debug=False, raw="", secret_key="prod"
+            )
+
+    def test_integration_key_debug_false_invalida(self):
+        with self.assertRaises(ImproperlyConfigured):
+            resolve_integration_credentials_key(
+                debug=False, raw="abc", secret_key="prod"
+            )
+
+    def test_integration_key_debug_true_deriva_marcada(self):
+        resolved = resolve_integration_credentials_key(
+            debug=True, raw="", secret_key=DEV_SECRET_KEY
+        )
+        self.assertEqual(resolved.source, KEY_SOURCE_DEV_DERIVED)
+        self.assertNotIn(resolved.value, repr(resolved))
+
+    def test_integration_key_debug_true_env_valida(self):
+        key = Fernet.generate_key().decode("ascii")
+        resolved = resolve_integration_credentials_key(
+            debug=True, raw=key, secret_key=DEV_SECRET_KEY
+        )
+        self.assertEqual(resolved.source, KEY_SOURCE_ENV)
+        self.assertEqual(resolved.value, key)
+
 
 class HealthEndpointsTests(TestCase):
     def test_health_liveness_sem_auth(self):
@@ -75,3 +112,44 @@ class HealthEndpointsTests(TestCase):
     def test_media_documentos_continua_404(self):
         response = self.client.get("/media/documentos/nao-publico.txt")
         self.assertEqual(response.status_code, 404)
+
+
+class SettingsLazyCredentialsKeyTests(SimpleTestCase):
+    def test_settings_carrega_debug_false_sem_chave(self):
+        with override_settings(DEBUG=False, INTEGRATION_CREDENTIALS_KEY=""):
+            self.assertFalse(settings.DEBUG)
+            self.assertEqual(settings.INTEGRATION_CREDENTIALS_KEY, "")
+            self.assertTrue(settings.INSTALLED_APPS)
+
+    def _prod_env_sem_cofre(self):
+        env = os.environ.copy()
+        env["DJANGO_DEBUG"] = "0"
+        env["DJANGO_SECRET_KEY"] = "staging-runtime-not-dev-secret"
+        env["DJANGO_ALLOWED_HOSTS"] = "localhost,testserver"
+        env["INTEGRATION_CREDENTIALS_KEY"] = ""
+        env.pop("DATABASE_URL", None)
+        return env
+
+    def test_check_nao_bloqueia_sem_chave(self):
+        proc = subprocess.run(
+            [sys.executable, "manage.py", "check"],
+            env=self._prod_env_sem_cofre(),
+            cwd=str(settings.BASE_DIR),
+            capture_output=True,
+            text=True,
+            timeout=90,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn("INTEGRATION_CREDENTIALS_KEY", proc.stderr)
+
+    def test_collectstatic_nao_bloqueia_sem_chave(self):
+        proc = subprocess.run(
+            [sys.executable, "manage.py", "collectstatic", "--noinput", "--dry-run"],
+            env=self._prod_env_sem_cofre(),
+            cwd=str(settings.BASE_DIR),
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn("INTEGRATION_CREDENTIALS_KEY", proc.stderr)

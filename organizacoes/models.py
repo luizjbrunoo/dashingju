@@ -113,3 +113,51 @@ class Membership(models.Model):
 
     def __str__(self):
         return f"{self.user} @ {self.organization} ({self.role})"
+
+
+class OrganizationProviderCredential(models.Model):
+    """Cofre Organization-owned. Ciphertext opaco; decrypt só no service."""
+
+    class Provider(models.TextChoices):
+        GOOGLE_ADS = "google_ads", "Google Ads"
+        ASAAS = "asaas", "Asaas"
+
+    class Status(models.TextChoices):
+        INACTIVE = "inactive", "Inativa"
+        CONFIGURED = "configured", "Configurada"
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="provider_credentials",
+        db_index=False,
+    )
+    provider = models.CharField(max_length=32, choices=Provider.choices)
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.INACTIVE,
+    )
+    ciphertext = models.BinaryField()
+    key_id = models.CharField(max_length=16, default="v1")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Credencial de provider"
+        verbose_name_plural = "Credenciais de provider"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "provider"],
+                name="uniq_org_provider_credential",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.provider}@org-{self.organization_id}"
+
+    def __repr__(self) -> str:
+        return (
+            f"<OrganizationProviderCredential: {self.provider}"
+            f"@org-{self.organization_id}>"
+        )

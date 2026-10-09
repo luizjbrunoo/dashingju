@@ -41,6 +41,10 @@ SECRET_KEY = resolve_secret_key(
     debug=DEBUG,
     raw=os.environ.get("DJANGO_SECRET_KEY"),
 )
+# Raw opcional. Fernet só é validada no service de credenciais (put/get).
+INTEGRATION_CREDENTIALS_KEY = (
+    os.environ.get("INTEGRATION_CREDENTIALS_KEY") or ""
+).strip()
 ALLOWED_HOSTS = resolve_allowed_hosts(
     debug=DEBUG,
     raw=os.environ.get("DJANGO_ALLOWED_HOSTS"),
