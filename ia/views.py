@@ -20,6 +20,8 @@ from ia.services.docs_tenancy import (
     documento_do_tenant_or_404,
     organization_from_request,
 )
+from ia.services.document_knowledge import retrieve_tenant_context
+from organizacoes.services import CONTEXT_RESOLVED, resolver_organization
 from usuarios.models import Cliente, Documentos
 from usuarios.document_text import extract_document_text
 from usuarios.permissions import pode_baixar_documento
@@ -40,7 +42,9 @@ def _pergunta_do_usuario(request, id):
     if organization is None:
         raise Http404()
     return get_object_or_404(
-        Pergunta, id=id, cliente__organization=organization
+        Pergunta.objects.select_related("cliente", "cliente__organization"),
+        id=id,
+        cliente__organization=organization,
     )
 
 
@@ -60,6 +64,15 @@ def _segredo_webhook_valido(request) -> bool:
     if len(a) != len(b):
         return False
     return hmac.compare_digest(a, b)
+
+
+def _organization_for_whatsapp_user(user_id: int):
+    User = get_user_model()
+    user = User.objects.filter(pk=user_id).first()
+    organization, context = resolver_organization(user)
+    if context != CONTEXT_RESOLVED or organization is None:
+        return None
+    return organization
 
 
 def _usuario_whatsapp_id() -> int | None:
@@ -207,9 +220,23 @@ def stream_resposta(request):
 
             from .agents import SecretariaAI
 
+            organization = organization_from_request(request)
+            sql_org = getattr(pergunta.cliente, "organization", None)
+            rag_org = None
+            if (
+                organization is not None
+                and sql_org is not None
+                and organization.pk == sql_org.pk
+            ):
+                rag_org = organization
+            knowledge_context = retrieve_tenant_context(
+                rag_org, pergunta.pergunta
+            )
             agent = SecretariaAI.build_agent(
                 session_id=pergunta.cliente.id,
                 user_id=pergunta.cliente.user_id,
+                organization=rag_org,
+                knowledge_context=knowledge_context,
             )
             stream = agent.run(
                 pergunta.pergunta,
@@ -384,8 +411,20 @@ def webhook_whatsapp(request):
     if not phone or not message:
         return JsonResponse({"error": "payload_invalido"}, status=400)
 
+    organization = _organization_for_whatsapp_user(user_id)
+    knowledge_context = ""
+    if organization is None:
+        logger.info("ia_webhook_rag_skip reason=TENANT_UNRESOLVED")
+    else:
+        knowledge_context = retrieve_tenant_context(organization, message)
+
     try:
-        agent = SecretariaAI.build_agent(session_id=phone, user_id=user_id)
+        agent = SecretariaAI.build_agent(
+            session_id=phone,
+            user_id=user_id,
+            organization=organization,
+            knowledge_context=knowledge_context,
+        )
         agent.run(message)
     except Exception:
         logger.exception("ia_webhook_erro user_id=%s", user_id)

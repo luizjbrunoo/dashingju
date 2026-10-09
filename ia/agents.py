@@ -5,10 +5,7 @@ import requests
 from datetime import datetime, timedelta
 from agno.agent import Agent
 from agno.db.sqlite import SqliteDb
-from agno.knowledge.embedder.openai import OpenAIEmbedder
-from agno.knowledge.knowledge import Knowledge
 from agno.tools import tool
-from agno.vectordb.lancedb import LanceDb
 from .literals import TribunalLiteral
 from dotenv import load_dotenv
 from django.conf import settings
@@ -176,8 +173,7 @@ def search_datajud_api(tribunal: TribunalLiteral, process_number: str):
 class JuriAI:
 
     DATAJUD_BASE_URL = "https://api-publica.datajud.cnj.jus.br"
-    VECTOR_DB_TABLE = "documentos"
-    VECTOR_DB_URI = "lancedb"
+    # P2C-LEGACY: índice Lance por tabela global — não instanciar.
     MEMORY_DB_FILE = "db.sqlite3"
     MEMORY_TABLE = "my_memory_table"
     AGENT_NAME = "Assistente Jurídico Virtual"
@@ -200,38 +196,38 @@ class JuriAI:
     - Mantenha um tom profissional e objetivo em todas as respostas.
     """
 
-    # Tabela legado global `documentos`. Retrieval tenant-specific usa
-    # knowledge_for_organization (namespace documentos_org_{id}).
-
     @classmethod
     def build_agent(cls, organization, knowledge_filters: dict | None = None) -> Agent:
-        from ia.services.document_knowledge import knowledge_for_organization
+        from ia.services.document_knowledge import retrieve_tenant_context
 
         if organization is None:
             raise ValueError("MISSING_ORGANIZATION")
         extra = dict(knowledge_filters or {})
         extra.pop("organization_id", None)
-        knowledge = knowledge_for_organization(organization)
         db = SqliteDb(
             db_file=cls.MEMORY_DB_FILE,
             memory_table=f"juri_memory_org_{organization.pk}",
         )
+        context = retrieve_tenant_context(organization, "")
+        instructions = cls.INSTRUCTIONS
+        if context:
+            instructions = (
+                f"{cls.INSTRUCTIONS}\n\nCONTEXTO TENANT-SCOPED:\n{context}"
+            )
 
         return Agent(
             name=cls.AGENT_NAME,
             description=cls.AGENT_DESCRIPTION,
             tools=[search_datajud_api],
-            instructions=cls.INSTRUCTIONS,
+            instructions=instructions,
             db=db,
             update_memory_on_run=True,
-            knowledge=knowledge,
+            knowledge=None,
             knowledge_filters=extra,
-            search_knowledge=knowledge is not None,
+            search_knowledge=False,
         )
 
 class SecretariaAI:
-    VECTOR_DB_TABLE = "empresa"
-    VECTOR_DB_URI = "lancedb"
     MEMORY_DB_FILE = "db.sqlite3"
     MEMORY_TABLE = "secretaria_memory_table"
 
@@ -314,16 +310,16 @@ class SecretariaAI:
     Fuso horário: {get_localzone_name()}
     """
 
-    knowledge = Knowledge(
-        vector_db=LanceDb(
-            table_name=VECTOR_DB_TABLE,
-            uri=VECTOR_DB_URI,
-            embedder=OpenAIEmbedder()
-        ),
-    )
-
     @classmethod
-    def build_agent(cls, knowledge_filters: dict = {}, session_id: int = 1, *, user_id: int) -> Agent:
+    def build_agent(
+        cls,
+        knowledge_filters: dict | None = None,
+        session_id: int = 1,
+        *,
+        user_id: int,
+        organization=None,
+        knowledge_context: str = "",
+    ) -> Agent:
         @tool
         def listar_compromissos_do_usuario(data: str):
             """
@@ -360,6 +356,25 @@ class SecretariaAI:
             db_file=cls.MEMORY_DB_FILE,
             memory_table=cls.MEMORY_TABLE
         )
+        _ = knowledge_filters
+        if organization is None:
+            rag_block = (
+                "Não há Organization resolvida. Não consulte índice global. "
+                "Não invente documentos da empresa."
+            )
+        elif knowledge_context:
+            rag_block = (
+                "CONTEXTO INTERNO DA ORGANIZAÇÃO (já filtrado pelo tenant; use só isto):\n"
+                f"{knowledge_context}\n"
+                "Não use documentos de outras organizações. "
+                "Não invente conteúdo ausente deste contexto."
+            )
+        else:
+            rag_block = (
+                "Não há contexto RAG tenant-scoped disponível. "
+                "Não consulte índice global. Não invente documentos da empresa."
+            )
+        instructions = f"{cls.INSTRUCTIONS}\n\n{rag_block}"
 
         return Agent(
             name="Assistente de Secretaria Virtual",
@@ -370,12 +385,12 @@ class SecretariaAI:
                 criar_compromisso_do_usuario,
                 search_datajud_api,
             ],
-            instructions=cls.INSTRUCTIONS,
+            instructions=instructions,
             db=db,
             update_memory_on_run=True,
-            knowledge=cls.knowledge,
-            knowledge_filters=knowledge_filters,
-            search_knowledge=True,
+            knowledge=None,
+            knowledge_filters={},
+            search_knowledge=False,
             session_id=f"secretaria-{session_id}-user-{user_id}",
             add_history_to_context=True,
             num_history_runs=5,

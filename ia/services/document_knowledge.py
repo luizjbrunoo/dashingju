@@ -1,13 +1,13 @@
 """Fronteira tenant-aware de indexação e retrieval de Documentos.
 
-Isolamento pré-retrieval: namespace físico LanceDB
-`documentos_org_{organization_id}`.
+Índice operacional: PostgreSQL/pgvector (VectorChunk).
+SQL (Documentos.content) continua a fonte de verdade.
 
-A tabela legado `documentos` NÃO é consultada em retrieval tenant-specific
-(vectors sem provenance ficam invisíveis até reindex).
+Isolamento: WHERE organization_id = organization.pk na query.
+Pós-filtro SQL (_sql_hit_belongs) é defesa adicional, não a barreira primária.
 
-SQL continua a fonte de verdade: metadata do vetor é validada contra
-Documento.cliente.organization depois da busca no namespace.
+P2C-LEGACY: LanceTenantStore não é o default e não deve ser instanciado
+em staging/production.
 """
 
 from __future__ import annotations
@@ -15,6 +15,18 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable
+
+from django.core.exceptions import ImproperlyConfigured
+from django.db import connection, transaction
+
+from ia.services.embeddings import (
+    EmbeddingError,
+    cosine_distance,
+    embed_text,
+    rag_embedding_dim,
+    rag_embedding_model,
+    require_pgvector_backend,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +56,14 @@ def set_store_factory(factory: Callable[[str], Any] | None) -> None:
 
 def get_store(organization):
     name = table_name_for_organization(organization)
-    factory = _store_factory or _lance_store
-    return factory(name)
+    if _store_factory is not None:
+        return _store_factory(name)
+    backend = require_pgvector_backend()
+    if backend == "memory":
+        return InMemoryTenantStore(name)
+    if backend == "pgvector":
+        return PgVectorTenantStore(organization, table_name=name)
+    raise ImproperlyConfigured(f"RAG_VECTOR_BACKEND desconhecido: {backend}")
 
 
 def mandatory_tenant_filters(organization, extra: dict | None = None) -> dict:
@@ -54,6 +72,18 @@ def mandatory_tenant_filters(organization, extra: dict | None = None) -> dict:
     filters.pop("organization_id", None)
     filters["organization_id"] = organization.pk
     return filters
+
+
+def format_rag_context(hits: list[KnowledgeHit]) -> str:
+    if not hits:
+        return ""
+    return "\n\n".join(f"[{i}] {hit.text}" for i, hit in enumerate(hits, 1))
+
+
+def retrieve_tenant_context(organization, query: str, **kwargs) -> str:
+    if organization is None or not str(query or "").strip():
+        return ""
+    return format_rag_context(search_knowledge(organization, query, **kwargs))
 
 
 class InMemoryTenantStore:
@@ -116,67 +146,144 @@ class InMemoryTenantStore:
         return before - len(self.rows)
 
 
-def _lance_store(table_name: str):
-    return LanceTenantStore(table_name)
+class PgVectorTenantStore:
+    """Índice PostgreSQL/pgvector isolado por Organization."""
 
+    def __init__(self, organization, table_name: str | None = None):
+        if organization is None or getattr(organization, "pk", None) is None:
+            raise ValueError("MISSING_ORGANIZATION")
+        self.organization = organization
+        self.table_name = table_name or table_name_for_organization(organization)
 
-class LanceTenantStore:
-    """Namespace LanceDB por Organization. Não busca a tabela legado."""
+    def _documento_belongs(self, documento_id) -> bool:
+        from ia.services.docs_tenancy import organization_of_documento
+        from usuarios.models import Documentos
 
-    def __init__(self, table_name: str):
-        from agno.knowledge.embedder.openai import OpenAIEmbedder
-        from agno.knowledge.knowledge import Knowledge
-        from agno.vectordb.lancedb import LanceDb
-
-        self.table_name = table_name
-        self.knowledge = Knowledge(
-            vector_db=LanceDb(
-                table_name=table_name,
-                uri="lancedb",
-                embedder=OpenAIEmbedder(),
-            )
+        if documento_id is None:
+            return False
+        doc = (
+            Documentos.objects.select_related("cliente", "cliente__organization")
+            .filter(pk=documento_id)
+            .first()
         )
+        if doc is None:
+            return False
+        sql_org = organization_of_documento(doc)
+        return sql_org is not None and sql_org.pk == self.organization.pk
 
     def upsert_chunks(self, chunks: list[dict]) -> None:
-        for chunk in chunks:
-            meta = dict(chunk.get("meta") or {})
-            self.delete_documento(meta.get("documento_id"))
-            self.knowledge.insert(
-                name=meta.get("name") or f"doc-{meta.get('documento_id')}",
-                text_content=chunk.get("text") or "",
-                metadata=meta,
-            )
+        from ia.models import VectorChunk
+        from usuarios.models import Documentos
+
+        model = rag_embedding_model()
+        dim = rag_embedding_dim()
+        org_id = self.organization.pk
+        with transaction.atomic():
+            for chunk in chunks:
+                meta = dict(chunk.get("meta") or {})
+                documento_id = meta.get("documento_id")
+                if not self._documento_belongs(documento_id):
+                    logger.info(
+                        "skip model=VectorChunk doc=%s reason=ORGANIZATION_CONFLICT org=%s",
+                        documento_id,
+                        org_id,
+                    )
+                    continue
+                doc = Documentos.objects.select_related("cliente").get(pk=documento_id)
+                cliente_id = doc.cliente_id
+                if cliente_id is None:
+                    continue
+                chunk_id = chunk.get("id") or f"org{org_id}-doc{documento_id}-c0"
+                text = str(chunk.get("text") or "")
+                vector = chunk.get("embedding")
+                if vector is None:
+                    vector = embed_text(text)
+                if not vector or len(vector) != dim:
+                    raise EmbeddingError("EMBEDDING_FAILED")
+                VectorChunk.objects.update_or_create(
+                    organization_id=org_id,
+                    documento_id=documento_id,
+                    chunk_id=chunk_id,
+                    embedding_model=model,
+                    defaults={
+                        "cliente_id": cliente_id,
+                        "text": text,
+                        "embedding": [float(v) for v in vector],
+                        "embedding_dim": dim,
+                        "metadata": {"name": meta.get("name") or ""},
+                    },
+                )
 
     def search(self, query: str, *, limit: int = 5, filters: dict | None = None) -> list[KnowledgeHit]:
-        docs = self.knowledge.search(query=query, max_results=limit, filters=None)
+        from ia.models import VectorChunk
+        from pgvector.django import CosineDistance
+
+        org_id = self.organization.pk
         tenant_filters = dict(filters or {})
+        if tenant_filters.get("organization_id") not in (None, org_id):
+            return []
+        qs = VectorChunk.objects.filter(
+            organization_id=org_id,
+            embedding_model=rag_embedding_model(),
+            embedding_dim=rag_embedding_dim(),
+        )
+        cliente_id = tenant_filters.get("cliente_id")
+        if cliente_id is not None:
+            qs = qs.filter(cliente_id=cliente_id)
+        documento_id = tenant_filters.get("documento_id")
+        if documento_id is not None:
+            qs = qs.filter(documento_id=documento_id)
+        if not qs.exists():
+            return []
+        query_vec = embed_text(query)
+        if connection.vendor == "postgresql":
+            rows = list(
+                qs.annotate(distance=CosineDistance("embedding", query_vec)).order_by(
+                    "distance"
+                )[:limit]
+            )
+        else:
+            rows = sorted(
+                qs,
+                key=lambda row: cosine_distance(list(row.embedding or []), query_vec),
+            )[:limit]
         hits = []
-        for doc in docs or []:
-            meta = dict(getattr(doc, "meta_data", None) or {})
-            if tenant_filters and any(meta.get(k) != v for k, v in tenant_filters.items()):
-                continue
+        for row in rows:
             hits.append(
                 KnowledgeHit(
-                    text=getattr(doc, "content", None) or "",
-                    metadata=meta,
+                    text=row.text or "",
+                    metadata={
+                        "organization_id": row.organization_id,
+                        "documento_id": row.documento_id,
+                        "cliente_id": row.cliente_id,
+                        "name": (row.metadata or {}).get("name") or "",
+                        "chunk_id": row.chunk_id,
+                        "embedding_model": row.embedding_model,
+                    },
                     table_name=self.table_name,
                 )
             )
-        return hits[:limit]
+        return hits
 
     def delete_documento(self, documento_id) -> int:
+        from ia.models import VectorChunk
+
         if documento_id is None:
             return 0
-        try:
-            self.knowledge.remove_vectors_by_metadata({"documento_id": documento_id})
-            return 1
-        except Exception:
-            logger.info(
-                "skip model=Documentos pk=%s reason=VECTOR_DELETE_FAILED table=%s",
-                documento_id,
-                self.table_name,
-            )
-            return 0
+        deleted, _ = VectorChunk.objects.filter(
+            organization_id=self.organization.pk,
+            documento_id=documento_id,
+        ).delete()
+        return deleted
+
+
+class LanceTenantStore:
+    """P2C-LEGACY: não usar em runtime. Não é o store default."""
+
+    def __init__(self, table_name: str):
+        raise ImproperlyConfigured(
+            "LanceTenantStore foi removido do runtime. Use PgVectorTenantStore."
+        )
 
 
 def index_document(organization, documento, *, text: str | None = None) -> str:
@@ -198,20 +305,27 @@ def index_document(organization, documento, *, text: str | None = None) -> str:
     filename = ""
     if getattr(documento, "arquivo", None):
         filename = getattr(documento.arquivo, "name", "") or ""
-    store.upsert_chunks(
-        [
-            {
-                "id": f"org{organization.pk}-doc{documento.pk}-c0",
-                "text": str(body),
-                "meta": {
-                    "organization_id": organization.pk,
-                    "documento_id": documento.pk,
-                    "cliente_id": documento.cliente_id,
-                    "name": filename,
-                },
-            }
-        ]
-    )
+    try:
+        store.upsert_chunks(
+            [
+                {
+                    "id": f"org{organization.pk}-doc{documento.pk}-c0",
+                    "text": str(body),
+                    "meta": {
+                        "organization_id": organization.pk,
+                        "documento_id": documento.pk,
+                        "cliente_id": documento.cliente_id,
+                        "name": filename,
+                    },
+                }
+            ]
+        )
+    except EmbeddingError:
+        logger.info(
+            "skip model=Documentos pk=%s reason=EMBEDDING_FAILED",
+            documento.pk,
+        )
+        return "EMBEDDING_FAILED"
     return "ok"
 
 
@@ -279,6 +393,6 @@ def purge_documento_vectors(organization, documento_id: int) -> int:
 
 
 def knowledge_for_organization(organization):
-    """Knowledge Agno no namespace da Organization (não usa tabela legado)."""
+    """P2C-LEGACY: Agno Knowledge. PgVectorTenantStore não expõe knowledge."""
     store = get_store(organization)
     return getattr(store, "knowledge", None)

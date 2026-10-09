@@ -203,6 +203,11 @@ MESSAGE_TAGS = {
     constants.INFO: "border border-zinc-700 bg-zinc-900 text-zinc-300",
 }
 
+# RAG: PostgreSQL/pgvector é o índice operacional. Sem fallback para LanceDB.
+RAG_VECTOR_BACKEND = (os.environ.get("RAG_VECTOR_BACKEND") or "pgvector").strip().lower()
+RAG_EMBEDDING_MODEL = "text-embedding-3-small"
+RAG_EMBEDDING_DIM = 1536
+
 Q_CLUSTER = {
     "name": os.environ.get("Q_CLUSTER_NAME") or "pythonando",
     "workers": env_int(
