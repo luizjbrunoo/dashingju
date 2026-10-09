@@ -154,6 +154,42 @@ def resolve_integration_credentials_key(
     return IntegrationCredentialsKey(value=value, source=KEY_SOURCE_ENV)
 
 
+def resolve_google_ads_oauth_redirect_uri(*, debug: bool, raw: str | None) -> str:
+    """Redirect URI exclusiva de configuração. Sem inferência pelo request."""
+    value = (raw or "").strip()
+    if not value:
+        raise ImproperlyConfigured("GOOGLE_ADS_OAUTH_REDIRECT_URI é obrigatória.")
+    if "*" in value:
+        raise ImproperlyConfigured("GOOGLE_ADS_OAUTH_REDIRECT_URI inválida.")
+    from urllib.parse import urlparse
+
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc or not parsed.path:
+        raise ImproperlyConfigured("GOOGLE_ADS_OAUTH_REDIRECT_URI inválida.")
+    if parsed.query or parsed.fragment or parsed.username or parsed.password:
+        raise ImproperlyConfigured("GOOGLE_ADS_OAUTH_REDIRECT_URI inválida.")
+    if not debug and parsed.scheme != "https":
+        raise ImproperlyConfigured(
+            "GOOGLE_ADS_OAUTH_REDIRECT_URI exige HTTPS quando DEBUG=False."
+        )
+    return value
+
+
+def resolve_google_ads_oauth_config(
+    *,
+    debug: bool,
+    client_id: str | None,
+    client_secret: str | None,
+    redirect_uri: str | None,
+) -> tuple[str, str, str]:
+    cid = (client_id or "").strip()
+    secret = (client_secret or "").strip()
+    if not cid or not secret:
+        raise ImproperlyConfigured("OAuth Google Ads indisponível.")
+    redirect = resolve_google_ads_oauth_redirect_uri(debug=debug, raw=redirect_uri)
+    return cid, secret, redirect
+
+
 def resolve_allowed_hosts(*, debug: bool, raw: str | None) -> list[str]:
     hosts = parse_allowed_hosts(raw)
     if debug:

@@ -1,9 +1,24 @@
 from django.urls import path
 
-from . import views, views_conteudo
+from . import views, views_conteudo, views_google_ads_oauth
 
 urlpatterns = [
     path("", views.dashboard, name="marketing_dashboard"),
+    path(
+        "google-ads/connect/",
+        views_google_ads_oauth.connect,
+        name="marketing_google_ads_connect",
+    ),
+    path(
+        "google-ads/callback/",
+        views_google_ads_oauth.callback,
+        name="marketing_google_ads_callback",
+    ),
+    path(
+        "google-ads/disconnect/",
+        views_google_ads_oauth.disconnect,
+        name="marketing_google_ads_disconnect",
+    ),
     path("conteudo/", views_conteudo.dashboard, name="marketing_conteudo_dashboard"),
     path("conteudo/perfil/", views_conteudo.perfil, name="marketing_conteudo_perfil"),
     path("conteudo/biblioteca/", views_conteudo.biblioteca, name="marketing_conteudo_biblioteca"),

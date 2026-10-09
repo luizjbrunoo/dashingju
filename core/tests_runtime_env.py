@@ -19,6 +19,7 @@ from core.runtime_env import (
     parse_allowed_hosts,
     parse_csrf_trusted_origins,
     resolve_allowed_hosts,
+    resolve_google_ads_oauth_redirect_uri,
     resolve_integration_credentials_key,
     resolve_secret_key,
 )
@@ -89,6 +90,25 @@ class RuntimeEnvParserTests(SimpleTestCase):
         self.assertEqual(resolved.source, KEY_SOURCE_DEV_DERIVED)
         self.assertNotIn(resolved.value, repr(resolved))
 
+    def test_oauth_redirect_https_obrigatorio_debug_false(self):
+        with self.assertRaises(ImproperlyConfigured):
+            resolve_google_ads_oauth_redirect_uri(
+                debug=False,
+                raw="http://staging.example.com/marketing/google-ads/callback/",
+            )
+        with self.assertRaises(ImproperlyConfigured):
+            resolve_google_ads_oauth_redirect_uri(
+                debug=False,
+                raw="https://*.example.com/callback",
+            )
+        self.assertEqual(
+            resolve_google_ads_oauth_redirect_uri(
+                debug=False,
+                raw="https://staging.example.com/marketing/google-ads/callback/",
+            ),
+            "https://staging.example.com/marketing/google-ads/callback/",
+        )
+
     def test_integration_key_debug_true_env_valida(self):
         key = Fernet.generate_key().decode("ascii")
         resolved = resolve_integration_credentials_key(
@@ -127,6 +147,9 @@ class SettingsLazyCredentialsKeyTests(SimpleTestCase):
         env["DJANGO_SECRET_KEY"] = "staging-runtime-not-dev-secret"
         env["DJANGO_ALLOWED_HOSTS"] = "localhost,testserver"
         env["INTEGRATION_CREDENTIALS_KEY"] = ""
+        env["GOOGLE_ADS_CLIENT_ID"] = ""
+        env["GOOGLE_ADS_CLIENT_SECRET"] = ""
+        env["GOOGLE_ADS_OAUTH_REDIRECT_URI"] = ""
         env.pop("DATABASE_URL", None)
         return env
 
@@ -141,6 +164,8 @@ class SettingsLazyCredentialsKeyTests(SimpleTestCase):
         )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertNotIn("INTEGRATION_CREDENTIALS_KEY", proc.stderr)
+        self.assertNotIn("GOOGLE_ADS_CLIENT", proc.stderr)
+        self.assertNotIn("GOOGLE_ADS_OAUTH", proc.stderr)
 
     def test_collectstatic_nao_bloqueia_sem_chave(self):
         proc = subprocess.run(
@@ -153,3 +178,18 @@ class SettingsLazyCredentialsKeyTests(SimpleTestCase):
         )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertNotIn("INTEGRATION_CREDENTIALS_KEY", proc.stderr)
+        self.assertNotIn("GOOGLE_ADS_CLIENT", proc.stderr)
+        self.assertNotIn("GOOGLE_ADS_OAUTH", proc.stderr)
+
+    def test_migrate_plan_nao_bloqueia_sem_oauth(self):
+        proc = subprocess.run(
+            [sys.executable, "manage.py", "migrate", "--plan"],
+            env=self._prod_env_sem_cofre(),
+            cwd=str(settings.BASE_DIR),
+            capture_output=True,
+            text=True,
+            timeout=90,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertNotIn("GOOGLE_ADS_CLIENT", proc.stderr)
+        self.assertNotIn("GOOGLE_ADS_OAUTH", proc.stderr)

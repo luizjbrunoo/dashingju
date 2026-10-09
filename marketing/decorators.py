@@ -11,6 +11,7 @@ from django.shortcuts import redirect
 
 from marketing.permissions import (
     PERM_EDIT_CONTEUDO,
+    PERM_MANAGE_INTEGRACOES,
     PERM_VIEW_CONTEUDO,
     PERM_VIEW_MARKETING,
     _tem_perm,
@@ -62,4 +63,8 @@ login_e_perm_conteudo = login_e_perm_marketing(
 login_e_perm_edit_conteudo = login_e_perm_marketing(
     PERM_EDIT_CONTEUDO,
     mensagem="Sem permissão para criar ou editar conteúdo de marketing.",
+)
+login_e_perm_manage_integracoes = login_e_perm_marketing(
+    PERM_MANAGE_INTEGRACOES,
+    mensagem="Sem permissão para gerenciar integrações de marketing.",
 )

@@ -15,6 +15,7 @@ from marketing.services.resultados_campanhas import (
     ORDEN_RECEITA_MIDIA,
 )
 from marketing.services.google_ads_resultados import contexto_dashboard_resultados
+from marketing.models import OrganizationGoogleAdsConnection
 from marketing.services.periodo import PeriodoMarketing
 from financeiro.tenancy_write import organization_for_finance_write
 
@@ -123,10 +124,19 @@ def dashboard(request):
         for stage, (top_w, bottom_w) in zip(conversion_funnel, funnel_shape)
     ]
 
+    organization = organization_for_finance_write(request)
+    google_ads_connection = None
+    if organization is not None:
+        google_ads_connection = (
+            OrganizationGoogleAdsConnection.objects.filter(
+                organization=organization
+            ).first()
+        )
+
     ctx_resultados = contexto_dashboard_resultados(
         request.user,
         periodo,
-        organization=organization_for_finance_write(request),
+        organization=organization,
         modo_demo=True,
         nicho=nicho_chave,
         granularidade=(request.GET.get("granularidade") or "auto").strip(),
@@ -182,5 +192,6 @@ def dashboard(request):
                 (ORDEN_RECEITA_MIDIA, "Receita / mídia"),
             ),
             "ctx_resultados": ctx_resultados,
+            "google_ads_connection": google_ads_connection,
         },
     )

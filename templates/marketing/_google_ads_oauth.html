@@ -1,0 +1,30 @@
+{% if mkt_perms.gerenciar_integracoes %}
+<section class="mt-4 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+    <p class="text-sm text-zinc-300">
+        {% if google_ads_connection and google_ads_connection.status == 'authorized' %}
+            Google Ads autorizado para este escritório.
+        {% elif google_ads_connection and google_ads_connection.status == 'configured' %}
+            Google Ads configurado para este escritório.
+        {% else %}
+            Google Ads não conectado.
+        {% endif %}
+    </p>
+    <div class="mt-3 flex flex-wrap gap-2">
+        {% if google_ads_connection and google_ads_connection.status != 'disconnected' %}
+        <form method="post" action="{% url 'marketing_google_ads_disconnect' %}">
+            {% csrf_token %}
+            <button type="submit" class="rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-800">
+                Desconectar Google Ads
+            </button>
+        </form>
+        {% else %}
+        <form method="post" action="{% url 'marketing_google_ads_connect' %}">
+            {% csrf_token %}
+            <button type="submit" class="rounded-md border border-bally/40 bg-bally-muted/40 px-3 py-1.5 text-xs font-medium text-bally-bright hover:bg-bally-muted/60">
+                Conectar Google Ads
+            </button>
+        </form>
+        {% endif %}
+    </div>
+</section>
+{% endif %}

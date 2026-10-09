@@ -56,6 +56,8 @@ class MarketingRbacTests(TestCase):
         self.http.login(username="mkt_ads", password="senha123")
         resp = self.http.get(reverse("marketing_dashboard"))
         self.assertEqual(resp.status_code, 200)
+        self.assertNotContains(resp, "Conectar Google Ads")
+        self.assertFalse(pode_gerenciar_integracoes_marketing(user))
 
     def test_sem_view_resultados_oculta_secao_negocio(self):
         user = User.objects.create_user(username="mkt_sem_analytics", password="senha123")

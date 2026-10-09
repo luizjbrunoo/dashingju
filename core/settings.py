@@ -45,6 +45,12 @@ SECRET_KEY = resolve_secret_key(
 INTEGRATION_CREDENTIALS_KEY = (
     os.environ.get("INTEGRATION_CREDENTIALS_KEY") or ""
 ).strip()
+# OAuth Google Ads: runtime Web. Não validar no import (collectstatic/migrate).
+GOOGLE_ADS_CLIENT_ID = (os.environ.get("GOOGLE_ADS_CLIENT_ID") or "").strip()
+GOOGLE_ADS_CLIENT_SECRET = (os.environ.get("GOOGLE_ADS_CLIENT_SECRET") or "").strip()
+GOOGLE_ADS_OAUTH_REDIRECT_URI = (
+    os.environ.get("GOOGLE_ADS_OAUTH_REDIRECT_URI") or ""
+).strip()
 ALLOWED_HOSTS = resolve_allowed_hosts(
     debug=DEBUG,
     raw=os.environ.get("DJANGO_ALLOWED_HOSTS"),

@@ -1,4 +1,8 @@
-"""Context processors do app marketing."""
+"""Context processors do app marketing.
+
+mkt_perms.gerenciar_integracoes = marketing.manage_integracoes_marketing.
+Conectar/Desconectar Google Ads só com essa capability.
+"""
 
 from marketing.permissions import permissoes_marketing
 
