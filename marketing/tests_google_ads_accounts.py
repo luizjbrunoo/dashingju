@@ -28,6 +28,7 @@ from marketing.services.google_ads_accounts import (
     _discover_accounts,
 )
 from marketing.services.google_ads_client import GoogleAdsClientError
+from marketing.services.google_ads_metrics import GoogleAdsMetricsError
 from marketing.tests_rbac import _grupo_restrito
 from organizacoes.models import Membership
 from organizacoes.provider_credentials import get, has, put
@@ -378,6 +379,9 @@ class GoogleAdsAccountsTests(TestCase):
         with patch(
             "marketing.services.google_ads_accounts.list_accessible_accounts",
             return_value=[self.account_a, outra],
+        ), patch(
+            "marketing.services.google_ads_metrics.fetch_google_ads_metrics",
+            side_effect=GoogleAdsMetricsError("skipped"),
         ):
             dash = self.http_a.get(reverse("marketing_dashboard"))
             self.assertContains(dash, "Trocar conta")

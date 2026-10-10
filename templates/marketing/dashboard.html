@@ -7,12 +7,28 @@
     <section class="mb-8 border-b border-zinc-800 pb-6">
         <div>
             <h1 class="text-xl font-semibold text-zinc-100">Google Ads</h1>
+            {% if google_ads_mode == 'live' %}
+            <p class="mt-1 text-sm text-zinc-300">
+                Google Ads · {{ google_ads_connection.descriptive_name|default:"conta configurada" }}
+            </p>
+            <p class="mt-2 inline-flex rounded-full border border-emerald-800/40 bg-emerald-950/35 px-3 py-1 text-xs font-medium text-emerald-100/90">
+                Dados reais
+            </p>
+            {% elif google_ads_mode == 'live_error' %}
+            <p class="mt-1 text-sm text-zinc-300">
+                Google Ads · {{ google_ads_connection.descriptive_name|default:"conta configurada" }}
+            </p>
+            <p class="mt-2 rounded-md border border-amber-800/50 bg-amber-950/40 px-3 py-2 text-sm text-amber-100/90">
+                {{ google_ads_error|default:"Não foi possível carregar as métricas do Google Ads." }}
+            </p>
+            {% else %}
             <p class="mt-1 text-sm text-zinc-500">
                 Painel de demonstração (dados fictícios, sem ligação à API).
             </p>
             <p class="mt-2 inline-flex rounded-full border border-amber-800/40 bg-amber-950/35 px-3 py-1 text-xs font-medium text-amber-100/90">
                 Demonstração
             </p>
+            {% endif %}
             {% include 'marketing/_google_ads_oauth.html' %}
         </div>
     </section>
@@ -66,7 +82,8 @@
         </div>
     </form>
 
-    <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+    {% if google_ads_mode != 'live_error' %}
+    <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
             <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Cliques</p>
             <p class="mt-2 text-2xl font-semibold text-bally-bright">{{ totals.clicks|brnum:0 }}</p>
@@ -93,7 +110,7 @@
             <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">CTR</p>
             {% if totals.impressions %}
                 <p class="mt-2 text-2xl font-semibold text-violet-400">{{ ctr_value|floatformat:2 }}%</p>
-                <p class="mt-1 text-xs text-zinc-500">Cliques ÷ impressões (exemplo)</p>
+                <p class="mt-1 text-xs text-zinc-500">{% if google_ads_mode == 'live' %}Cliques ÷ impressões{% else %}Cliques ÷ impressões (exemplo){% endif %}</p>
                 {% with t=kpi_trends.ctr %}
                     <p class="mt-2 flex flex-wrap items-center gap-1 text-sm font-medium {% if t.trend == 'up' %}text-emerald-400{% elif t.trend == 'down' %}text-red-400{% else %}text-zinc-500{% endif %}">
                         {% if t.trend == 'up' %}<span aria-hidden="true">▲</span>{% elif t.trend == 'down' %}<span aria-hidden="true">▼</span>{% else %}<span aria-hidden="true">▬</span>{% endif %}
@@ -107,7 +124,7 @@
             {% endif %}
         </div>
         <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
-            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Custo (exemplo)</p>
+            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">{% if google_ads_mode == 'live' %}Investimento{% else %}Custo (exemplo){% endif %}</p>
             <p class="mt-2 text-2xl font-semibold text-emerald-400">{{ totals_cost_value|brnum:2 }}</p>
             {% with t=kpi_trends.cost %}
                 <p class="mt-2 flex flex-wrap items-center gap-1 text-sm font-medium {% if t.trend == 'up' %}text-emerald-400{% elif t.trend == 'down' %}text-red-400{% else %}text-zinc-500{% endif %}">
@@ -121,7 +138,7 @@
             <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Custo por clique</p>
             {% if totals.clicks %}
                 <p class="mt-2 text-2xl font-semibold text-sky-400">{{ cost_per_click|brnum:2 }}</p>
-                <p class="mt-1 text-xs text-zinc-500">Custo total ÷ cliques (exemplo)</p>
+                <p class="mt-1 text-xs text-zinc-500">{% if google_ads_mode == 'live' %}CPC médio{% else %}Custo total ÷ cliques (exemplo){% endif %}</p>
                 {% with t=kpi_trends.cpc %}
                     <p class="mt-2 flex flex-wrap items-center gap-1 text-sm font-medium {% if t.trend == 'up' %}text-emerald-400{% elif t.trend == 'down' %}text-red-400{% else %}text-zinc-500{% endif %}">
                         {% if t.trend == 'up' %}<span aria-hidden="true">▲</span>{% elif t.trend == 'down' %}<span aria-hidden="true">▼</span>{% else %}<span aria-hidden="true">▬</span>{% endif %}
@@ -134,14 +151,27 @@
                 <p class="mt-1 text-xs text-zinc-500">Sem cliques no período</p>
             {% endif %}
         </div>
+        <div class="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4">
+            <p class="text-xs font-medium uppercase tracking-wide text-zinc-500">Conversões</p>
+            {% if google_ads_mode == 'live' %}
+                <p class="mt-2 text-2xl font-semibold text-zinc-100">{{ totals.conversions|brnum:2 }}</p>
+            {% else %}
+                <p class="mt-2 text-lg font-medium text-zinc-500">—</p>
+                <p class="mt-1 text-xs text-zinc-500">Somente em dados reais</p>
+            {% endif %}
+        </div>
     </div>
+    {% endif %}
 
     {% if not ctx_resultados.ocultar_resultados_negocio %}
     {% include 'marketing/_resultados_negocio.html' %}
     {% endif %}
 
+    {% if google_ads_mode == 'demo' and campaign_plan %}
     {% include 'marketing/_planejamento_ads.html' %}
+    {% endif %}
 
+    {% if google_ads_mode == 'demo' %}
     <section class="mt-10">
         <div class="border-b border-zinc-800 pb-3">
             <h2 class="text-lg font-semibold text-zinc-200">Funil de conversão</h2>
@@ -199,18 +229,27 @@
             </div>
         </div>
     </section>
+    {% endif %}
 
+    {% if google_ads_mode != 'live_error' %}
     <section class="mt-10">
         <div class="border-b border-zinc-800 pb-3">
             <h2 class="text-lg font-semibold text-zinc-200">Histórico diário</h2>
-            <p class="mt-1 text-sm text-zinc-500">Cliques, impressões e custo simulados por dia</p>
+            <p class="mt-1 text-sm text-zinc-500">
+                {% if google_ads_mode == 'live' %}
+                    Cliques, impressões e investimento por dia
+                {% else %}
+                    Cliques, impressões e custo simulados por dia
+                {% endif %}
+            </p>
         </div>
         <div class="mt-5 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
             <div class="relative h-80 w-full">
-                <canvas id="chartAdsHistorico" aria-label="Histórico de demonstração"></canvas>
+                <canvas id="chartAdsHistorico" aria-label="{% if google_ads_mode == 'live' %}Histórico Google Ads{% else %}Histórico de demonstração{% endif %}"></canvas>
             </div>
         </div>
     </section>
+    {% endif %}
 </div>
 
 {{ chart_payload|json_script:"marketing-dashboard-charts" }}
