@@ -28,3 +28,16 @@ def normalize_google_ads_currency_code(raw) -> str:
     if not _CURRENCY_RE.fullmatch(text):
         raise ValidationError("Moeda Google Ads inválida.")
     return text
+
+
+def format_google_ads_customer_id(raw) -> str:
+    """Exibição 3-3-4. Sem secret. Inválido devolve vazio."""
+    try:
+        digits = normalize_google_ads_customer_id(raw)
+    except ValidationError:
+        return ""
+    if not digits:
+        return ""
+    if len(digits) == 10:
+        return f"{digits[:3]}-{digits[3:6]}-{digits[6:]}"
+    return digits

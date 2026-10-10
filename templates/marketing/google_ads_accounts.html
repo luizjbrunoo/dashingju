@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block 'body' %}
+<div class="app-shell py-8">
+    {% include 'financeiro/_mensagens.html' %}
+    {% include 'marketing/_subnav.html' %}
+
+    <section class="mb-6">
+        <h1 class="text-xl font-semibold text-zinc-100">Escolher conta Google Ads</h1>
+        <p class="mt-1 text-sm text-zinc-500">
+            Selecione uma conta acessível por este escritório. O painel permanece em demonstração.
+        </p>
+    </section>
+
+    {% if contas %}
+    <ul class="space-y-3">
+        {% for conta in contas %}
+        <li class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <p class="text-sm font-medium text-zinc-100">
+                        {{ conta.descriptive_name|default:"Conta Google Ads" }}
+                    </p>
+                    <p class="mt-1 text-xs text-zinc-400">{{ conta.customer_id_display }}</p>
+                    {% if conta.via_mcc %}
+                    <p class="mt-1 text-xs text-amber-200/90">Via conta gerenciadora (MCC)</p>
+                    {% endif %}
+                </div>
+                <form method="post" action="{% url 'marketing_google_ads_account_select' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="customer_id" value="{{ conta.customer_id }}">
+                    <input type="hidden" name="login_customer_id" value="{{ conta.login_customer_id }}">
+                    <button type="submit" class="rounded-md border border-bally/40 bg-bally-muted/40 px-3 py-1.5 text-xs font-medium text-bally-bright hover:bg-bally-muted/60">
+                        Usar esta conta
+                    </button>
+                </form>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-sm text-zinc-400">Nenhuma conta elegível encontrada.</p>
+    {% endif %}
+
+    <p class="mt-6">
+        <a href="{% url 'marketing_dashboard' %}" class="text-sm text-zinc-400 hover:text-zinc-200">Voltar ao painel</a>
+    </p>
+</div>
+{% endblock 'body' %}

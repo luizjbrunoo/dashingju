@@ -5,6 +5,7 @@ from django.db import models
 
 from .choices import CanalConteudo, ObjetivoConteudo, PlataformaMarketing, StatusConteudo, StatusIdeia, StatusIntegracao, TomComunicacao
 from .google_ads_connection import (
+    format_google_ads_customer_id,
     normalize_google_ads_currency_code,
     normalize_google_ads_customer_id,
 )
@@ -402,6 +403,9 @@ class OrganizationGoogleAdsConnection(models.Model):
         self.currency_code = normalize_google_ads_currency_code(self.currency_code)
         self.descriptive_name = (self.descriptive_name or "").strip()[:255]
         super().save(*args, **kwargs)
+
+    def customer_id_display(self) -> str:
+        return format_google_ads_customer_id(self.customer_id)
 
     def __str__(self) -> str:
         return f"google_ads@org-{self.organization_id}"

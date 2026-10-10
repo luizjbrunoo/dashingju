@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views, views_conteudo, views_google_ads_oauth
+from . import views, views_conteudo, views_google_ads_accounts, views_google_ads_oauth
 
 urlpatterns = [
     path("", views.dashboard, name="marketing_dashboard"),
@@ -18,6 +18,16 @@ urlpatterns = [
         "google-ads/disconnect/",
         views_google_ads_oauth.disconnect,
         name="marketing_google_ads_disconnect",
+    ),
+    path(
+        "google-ads/contas/",
+        views_google_ads_accounts.accounts,
+        name="marketing_google_ads_accounts",
+    ),
+    path(
+        "google-ads/contas/selecionar/",
+        views_google_ads_accounts.select_account,
+        name="marketing_google_ads_account_select",
     ),
     path("conteudo/", views_conteudo.dashboard, name="marketing_conteudo_dashboard"),
     path("conteudo/perfil/", views_conteudo.perfil, name="marketing_conteudo_perfil"),
