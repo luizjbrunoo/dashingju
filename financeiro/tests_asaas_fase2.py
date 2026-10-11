@@ -67,6 +67,7 @@ def _settings():
         "ASAAS_ENVIRONMENT": "SANDBOX",
         "PUBLIC_BASE_URL": PUBLIC_BASE_URL,
         "ASAAS_WEBHOOK_EMAIL": WEBHOOK_OPS_EMAIL,
+        "ASAAS_BAAS_ENABLED": True,
     }
 
 

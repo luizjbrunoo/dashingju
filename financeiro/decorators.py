@@ -7,7 +7,10 @@ from functools import wraps
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.messages import constants
+from django.http import Http404
 from django.shortcuts import redirect
+
+from core.runtime_env import asaas_baas_enabled
 
 from financeiro.permissions import (
     PERM_CANCEL_COBRANCAS,
@@ -132,6 +135,20 @@ perm_gerir_caixa = requer_perm(
     PERM_MANAGE_CAIXA,
     mensagem="Sem permissão para movimentar o caixa.",
 )
+
+
+def require_asaas_baas(view_func):
+    """404 quando BaaS está desligado. Não expõe a rota nem chama a view."""
+
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if not asaas_baas_enabled():
+            raise Http404()
+        return view_func(request, *args, **kwargs)
+
+    return wrapper
+
+
 perm_provisionar_asaas = requer_perm(
     PERM_MANAGE_CAIXA,
     mensagem="Sem permissão para ativar a conta financeira.",

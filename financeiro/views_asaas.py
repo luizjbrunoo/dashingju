@@ -7,9 +7,10 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.messages import constants
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from financeiro.decorators import perm_provisionar_asaas
+from financeiro.decorators import perm_provisionar_asaas, require_asaas_baas
 from financeiro.forms import OrganizationFinancialOnboardingForm
 from financeiro.models import OrganizationAsaasSubaccount, OrganizationFinancialOnboarding
 from financeiro.services.asaas_client import urllib_transport
@@ -76,6 +77,16 @@ def _onboarding_checklist(*, missing, person_type: str) -> list[dict]:
     ]
 
 
+@require_asaas_baas
+def asaas_onboarding_legacy(request):
+    url = reverse("financeiro_conta_onboarding")
+    qs = request.GET.urlencode()
+    if qs:
+        url = f"{url}?{qs}"
+    return redirect(url)
+
+
+@require_asaas_baas
 @perm_provisionar_asaas
 @login_required
 def asaas_onboarding(request):
@@ -125,6 +136,7 @@ def asaas_onboarding(request):
     )
 
 
+@require_asaas_baas
 @perm_provisionar_asaas
 @login_required
 @require_POST
@@ -205,6 +217,7 @@ def asaas_provision(request):
     return redirect("financeiro_conta_onboarding")
 
 
+@require_asaas_baas
 @perm_provisionar_asaas
 @login_required
 @require_POST

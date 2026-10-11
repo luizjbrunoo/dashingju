@@ -25,6 +25,19 @@ def env_bool(raw: str | None, *, default: bool, name: str) -> bool:
     raise ImproperlyConfigured(f"{name} inválido. Use true/false.")
 
 
+def resolve_asaas_baas_enabled(raw: str | None) -> bool:
+    """Feature flag BaaS. Ausente, vazio ou inválido => False. Só true explícito liga."""
+    value = str(raw or "").strip().lower()
+    return value in _TRUE
+
+
+def asaas_baas_enabled() -> bool:
+    """Lê ASAAS_BAAS_ENABLED de settings. Ausente => False."""
+    from django.conf import settings
+
+    return bool(getattr(settings, "ASAAS_BAAS_ENABLED", False))
+
+
 def env_int(raw: str | None, *, default: int, name: str) -> int:
     if raw is None or not str(raw).strip():
         return default

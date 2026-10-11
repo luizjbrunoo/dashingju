@@ -14,6 +14,7 @@ from django.db import IntegrityError, OperationalError, transaction
 from core.runtime_env import (
     PROCESS_WORKER,
     AsaasParentKeyError,
+    asaas_baas_enabled,
     build_asaas_webhook_ingress_url,
     get_asaas_parent_api_key,
     resolve_asaas_environment,
@@ -334,6 +335,8 @@ def provision_organization_subaccount(
     user,
     transport=None,
 ) -> ProvisionResult:
+    if not asaas_baas_enabled():
+        raise AsaasProvisionError("baas_disabled")
     org = _require_organization(organization)
     _require_finance_write(user=user)
     parent_key = _require_web_parent_key()
@@ -515,6 +518,8 @@ def lookup_existing_subaccount(
     transport=None,
 ) -> dict | None:
     """GET /v3/accounts só com filtros oficiais. Não gera apiKey. Não faz POST."""
+    if not asaas_baas_enabled():
+        raise AsaasProvisionError("baas_disabled")
     org = _require_organization(organization)
     _require_finance_write(user=user)
     parent_key = _require_web_parent_key()

@@ -40,11 +40,13 @@
         >
         {% endif %}
         {% if fin_perms.gerir_caixa %}
+        {% if asaas_baas_enabled %}
         <a
             href="{% url 'financeiro_conta_onboarding' %}"
             class="rounded-md px-3 py-1.5 font-medium text-zinc-300 hover:bg-zinc-800 hover:text-bally-bright"
             >Conta Financeira</a
         >
+        {% endif %}
         <a
             href="{% url 'financeiro_movimento_novo' %}"
             class="rounded-md border border-bally/40 bg-bally-muted/40 px-3 py-1.5 font-semibold text-bally-bright hover:bg-bally-muted/60"

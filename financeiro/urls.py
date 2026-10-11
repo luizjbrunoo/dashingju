@@ -1,5 +1,4 @@
 from django.urls import path
-from django.views.generic import RedirectView
 
 from . import views
 from . import views_asaas
@@ -90,11 +89,7 @@ urlpatterns = [
     ),
     path(
         "asaas/onboarding/",
-        RedirectView.as_view(
-            pattern_name="financeiro_conta_onboarding",
-            permanent=False,
-            query_string=True,
-        ),
+        views_asaas.asaas_onboarding_legacy,
         name="financeiro_asaas_onboarding",
     ),
     path(

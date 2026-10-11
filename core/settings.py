@@ -21,6 +21,7 @@ from .runtime_env import (
     env_int,
     parse_csrf_trusted_origins,
     resolve_allowed_hosts,
+    resolve_asaas_baas_enabled,
     resolve_secret_key,
 )
 from .storage import resolve_default_storage
@@ -63,6 +64,9 @@ PUBLIC_BASE_URL = (os.environ.get("PUBLIC_BASE_URL") or "").strip()
 # E-mail operacional do webhook Asaas. Não é o e-mail do usuário final.
 # Validado só no provisionamento Web (não no import). Não definir no Worker.
 ASAAS_WEBHOOK_EMAIL = (os.environ.get("ASAAS_WEBHOOK_EMAIL") or "").strip()
+# Conta Financeira / subconta Asaas. Ausente, vazio ou inválido => desligado.
+# Não validar além do parser fail-closed (collectstatic/migrate/check).
+ASAAS_BAAS_ENABLED = resolve_asaas_baas_enabled(os.environ.get("ASAAS_BAAS_ENABLED"))
 ALLOWED_HOSTS = resolve_allowed_hosts(
     debug=DEBUG,
     raw=os.environ.get("DJANGO_ALLOWED_HOSTS"),

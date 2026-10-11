@@ -18,10 +18,12 @@ from core.runtime_env import (
     AsaasParentKeyError,
     asaas_base_url,
     env_bool,
+    asaas_baas_enabled,
     get_asaas_parent_api_key,
     parse_allowed_hosts,
     parse_csrf_trusted_origins,
     resolve_allowed_hosts,
+    resolve_asaas_baas_enabled,
     resolve_asaas_environment,
     build_asaas_webhook_ingress_url,
     resolve_asaas_webhook_email,
@@ -169,6 +171,25 @@ class RuntimeEnvParserTests(SimpleTestCase):
         )
         self.assertNotIn("token", url)
         self.assertNotIn("secret", url)
+
+    def test_asaas_baas_flag_fail_closed(self):
+        self.assertFalse(resolve_asaas_baas_enabled(None))
+        self.assertFalse(resolve_asaas_baas_enabled(""))
+        self.assertFalse(resolve_asaas_baas_enabled("   "))
+        self.assertFalse(resolve_asaas_baas_enabled("false"))
+        self.assertFalse(resolve_asaas_baas_enabled("0"))
+        self.assertFalse(resolve_asaas_baas_enabled("off"))
+        self.assertFalse(resolve_asaas_baas_enabled("talvez"))
+        self.assertTrue(resolve_asaas_baas_enabled("true"))
+        self.assertTrue(resolve_asaas_baas_enabled("TRUE"))
+        self.assertTrue(resolve_asaas_baas_enabled(" TRUE "))
+        self.assertTrue(resolve_asaas_baas_enabled("1"))
+        self.assertTrue(resolve_asaas_baas_enabled("yes"))
+        self.assertTrue(resolve_asaas_baas_enabled("on"))
+        with override_settings(ASAAS_BAAS_ENABLED=False):
+            self.assertFalse(asaas_baas_enabled())
+        with override_settings(ASAAS_BAAS_ENABLED=True):
+            self.assertTrue(asaas_baas_enabled())
 
     def test_asaas_urls_somente_sandbox_e_production(self):
         self.assertEqual(
