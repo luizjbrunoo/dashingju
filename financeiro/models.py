@@ -490,3 +490,65 @@ class CobrancaHistorico(models.Model):
 
 def novo_grupo_parcelamento() -> uuid.UUID:
     return uuid.uuid4()
+
+
+class OrganizationAsaasSubaccount(models.Model):
+    """Estado Organization-owned da subconta Asaas. Sem secrets."""
+
+    class Environment(models.TextChoices):
+        SANDBOX = "SANDBOX", "Sandbox"
+        PRODUCTION = "PRODUCTION", "Production"
+
+    class Status(models.TextChoices):
+        PROVISIONING = "provisioning", "Em provisionamento"
+        CONFIGURED = "configured", "Configurada"
+        ERROR = "error", "Erro"
+        RECOVERY_REQUIRED = "recovery_required", "Recuperação necessária"
+
+    organization = models.OneToOneField(
+        "organizacoes.Organization",
+        on_delete=models.CASCADE,
+        related_name="asaas_subaccount",
+    )
+    environment = models.CharField(max_length=16, choices=Environment.choices)
+    status = models.CharField(
+        max_length=32,
+        choices=Status.choices,
+        default=Status.PROVISIONING,
+    )
+    account_id = models.CharField(max_length=64, null=True, blank=True)
+    wallet_id = models.CharField(max_length=64, null=True, blank=True)
+    last_error_code = models.CharField(max_length=64, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Subconta Asaas"
+        verbose_name_plural = "Subcontas Asaas"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["environment", "account_id"],
+                condition=models.Q(account_id__isnull=False),
+                name="uniq_fin_asaas_account_env",
+            ),
+            models.UniqueConstraint(
+                fields=["environment", "wallet_id"],
+                condition=models.Q(wallet_id__isnull=False),
+                name="uniq_fin_asaas_wallet_env",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.account_id = (self.account_id or "").strip() or None
+        self.wallet_id = (self.wallet_id or "").strip() or None
+        self.last_error_code = (self.last_error_code or "").strip()[:64]
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return f"asaas@{self.environment}@org-{self.organization_id}"
+
+    def __repr__(self) -> str:
+        return (
+            f"<OrganizationAsaasSubaccount: {self.status}"
+            f"@{self.environment}@org-{self.organization_id}>"
+        )

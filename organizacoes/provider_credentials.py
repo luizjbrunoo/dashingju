@@ -14,8 +14,8 @@ PROVIDER_ASAAS = OrganizationProviderCredential.Provider.ASAAS
 
 GOOGLE_ADS_FIELDS = frozenset({"refresh_token"})
 GOOGLE_ADS_SECRET_FIELDS = frozenset({"refresh_token"})
-ASAAS_FIELDS = frozenset({"api_key", "wallet_id", "environment"})
-ASAAS_ENVIRONMENTS = frozenset({"sandbox", "production"})
+ASAAS_FIELDS = frozenset({"api_key", "webhook_token"})
+ASAAS_SECRET_FIELDS = ASAAS_FIELDS
 
 _ALLOWED = {
     PROVIDER_GOOGLE_ADS: GOOGLE_ADS_FIELDS,
@@ -75,10 +75,11 @@ def _normalize_secrets(provider: str, secrets) -> dict[str, str]:
         if cleaned.keys() != GOOGLE_ADS_FIELDS or "refresh_token" not in cleaned:
             raise InvalidPayload("Payload inválido.")
     elif provider == PROVIDER_ASAAS:
-        if "api_key" not in cleaned:
+        if not (cleaned.keys() & ASAAS_FIELDS):
             raise InvalidPayload("Payload inválido.")
-        env = cleaned.get("environment")
-        if env is not None and env not in ASAAS_ENVIRONMENTS:
+        api_key = cleaned.get("api_key")
+        webhook_token = cleaned.get("webhook_token")
+        if api_key and webhook_token and api_key == webhook_token:
             raise InvalidPayload("Payload inválido.")
     return cleaned
 
@@ -149,7 +150,9 @@ def get(*, organization, provider: str) -> dict[str, str] | None:
     )
     if row is None:
         return None
-    return _decrypt(row.ciphertext)
+    payload = _decrypt(row.ciphertext)
+    allowed = _ALLOWED[prov]
+    return {key: value for key, value in payload.items() if key in allowed}
 
 
 def delete(*, organization, provider: str) -> None:

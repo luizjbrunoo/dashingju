@@ -15,10 +15,14 @@ from core.runtime_env import (
     DEV_SECRET_KEY,
     KEY_SOURCE_DEV_DERIVED,
     KEY_SOURCE_ENV,
+    AsaasParentKeyError,
+    asaas_base_url,
     env_bool,
+    get_asaas_parent_api_key,
     parse_allowed_hosts,
     parse_csrf_trusted_origins,
     resolve_allowed_hosts,
+    resolve_asaas_environment,
     resolve_google_ads_oauth_redirect_uri,
     resolve_integration_credentials_key,
     resolve_secret_key,
@@ -109,6 +113,28 @@ class RuntimeEnvParserTests(SimpleTestCase):
             "https://staging.example.com/marketing/google-ads/callback/",
         )
 
+    def test_asaas_urls_somente_sandbox_e_production(self):
+        self.assertEqual(
+            asaas_base_url("SANDBOX"), "https://api-sandbox.asaas.com/v3"
+        )
+        self.assertEqual(
+            asaas_base_url("production"), "https://api.asaas.com/v3"
+        )
+        with self.assertRaises(ImproperlyConfigured):
+            resolve_asaas_environment("")
+        with self.assertRaises(ImproperlyConfigured):
+            asaas_base_url("https://api-sandbox.asaas.com/v3")
+
+    def test_chave_pai_web_ok_worker_fail_closed(self):
+        self.assertEqual(
+            get_asaas_parent_api_key(process="web", raw="parent-key-test"),
+            "parent-key-test",
+        )
+        with self.assertRaises(AsaasParentKeyError) as ctx:
+            get_asaas_parent_api_key(process="worker", raw="parent-key-test")
+        self.assertEqual(ctx.exception.reason, "worker")
+        self.assertNotIn("parent-key-test", str(ctx.exception))
+
     def test_integration_key_debug_true_env_valida(self):
         key = Fernet.generate_key().decode("ascii")
         resolved = resolve_integration_credentials_key(
@@ -150,6 +176,9 @@ class SettingsLazyCredentialsKeyTests(SimpleTestCase):
         env["GOOGLE_ADS_CLIENT_ID"] = ""
         env["GOOGLE_ADS_CLIENT_SECRET"] = ""
         env["GOOGLE_ADS_OAUTH_REDIRECT_URI"] = ""
+        env["DJANGO_PROCESS"] = "worker"
+        env["ASAAS_ENVIRONMENT"] = "SANDBOX"
+        env.pop("ASAAS_PARENT_API_KEY", None)
         env.pop("DATABASE_URL", None)
         return env
 
@@ -166,6 +195,8 @@ class SettingsLazyCredentialsKeyTests(SimpleTestCase):
         self.assertNotIn("INTEGRATION_CREDENTIALS_KEY", proc.stderr)
         self.assertNotIn("GOOGLE_ADS_CLIENT", proc.stderr)
         self.assertNotIn("GOOGLE_ADS_OAUTH", proc.stderr)
+        self.assertNotIn("ASAAS_PARENT_API_KEY", proc.stderr)
+        self.assertNotIn("ASAAS_PARENT", proc.stderr)
 
     def test_collectstatic_nao_bloqueia_sem_chave(self):
         proc = subprocess.run(

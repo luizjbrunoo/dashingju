@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import os
 from dataclasses import dataclass
 
 from django.core.exceptions import ImproperlyConfigured
@@ -199,3 +200,64 @@ def resolve_allowed_hosts(*, debug: bool, raw: str | None) -> list[str]:
             "DJANGO_ALLOWED_HOSTS é obrigatório quando DEBUG=False."
         )
     return hosts
+
+
+PROCESS_WEB = "web"
+PROCESS_WORKER = "worker"
+_PROCESS_ROLES = frozenset({PROCESS_WEB, PROCESS_WORKER})
+
+ASAAS_ENV_SANDBOX = "SANDBOX"
+ASAAS_ENV_PRODUCTION = "PRODUCTION"
+ASAAS_BASE_URLS = {
+    ASAAS_ENV_SANDBOX: "https://api-sandbox.asaas.com/v3",
+    ASAAS_ENV_PRODUCTION: "https://api.asaas.com/v3",
+}
+
+
+class AsaasParentKeyError(Exception):
+    """Chave-pai indisponível. Mensagem sem secret."""
+
+    def __init__(self, reason: str):
+        self.reason = reason
+        super().__init__(reason)
+
+
+def resolve_django_process(raw: str | None) -> str:
+    value = (raw or "").strip().lower()
+    if not value:
+        return ""
+    if value not in _PROCESS_ROLES:
+        raise ImproperlyConfigured("DJANGO_PROCESS inválido.")
+    return value
+
+
+def resolve_asaas_environment(raw: str | None) -> str:
+    value = (raw or "").strip().upper()
+    if value not in ASAAS_BASE_URLS:
+        raise ImproperlyConfigured("ASAAS_ENVIRONMENT inválido.")
+    return value
+
+
+def asaas_base_url(environment: str | None) -> str:
+    env = resolve_asaas_environment(environment)
+    return ASAAS_BASE_URLS[env]
+
+
+def get_asaas_parent_api_key(*, process: str | None = None, raw: str | None = None) -> str:
+    """Somente processo Web. Nunca logar o valor."""
+    from django.conf import settings
+
+    if process is None:
+        process = getattr(settings, "DJANGO_PROCESS", "") or ""
+    try:
+        role = resolve_django_process(process)
+    except ImproperlyConfigured as exc:
+        raise AsaasParentKeyError("invalid_process") from exc
+    if role != PROCESS_WEB:
+        raise AsaasParentKeyError("worker" if role == PROCESS_WORKER else "not_web")
+    if raw is None:
+        raw = os.environ.get("ASAAS_PARENT_API_KEY")
+    key = str(raw or "").strip()
+    if not key:
+        raise AsaasParentKeyError("missing")
+    return key

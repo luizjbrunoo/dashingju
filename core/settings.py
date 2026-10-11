@@ -51,6 +51,12 @@ GOOGLE_ADS_CLIENT_SECRET = (os.environ.get("GOOGLE_ADS_CLIENT_SECRET") or "").st
 GOOGLE_ADS_OAUTH_REDIRECT_URI = (
     os.environ.get("GOOGLE_ADS_OAUTH_REDIRECT_URI") or ""
 ).strip()
+# Processo: web | worker. Vazio = não identificado (chave-pai falha fechado).
+# Não validar no import (collectstatic/migrate/check).
+DJANGO_PROCESS = (os.environ.get("DJANGO_PROCESS") or "").strip().lower()
+# SANDBOX | PRODUCTION. URL resolvida só no service. Sem URL arbitrária.
+# Chave-pai NÃO é atributo de settings (não serializar / não template).
+ASAAS_ENVIRONMENT = (os.environ.get("ASAAS_ENVIRONMENT") or "").strip().upper()
 ALLOWED_HOSTS = resolve_allowed_hosts(
     debug=DEBUG,
     raw=os.environ.get("DJANGO_ALLOWED_HOSTS"),

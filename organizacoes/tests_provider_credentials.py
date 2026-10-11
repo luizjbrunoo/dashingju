@@ -85,7 +85,6 @@ class ProviderCredentialServiceTests(TestCase):
         }
         self.asaas_a = {
             "api_key": "asaas_a_live_secret",
-            "environment": "sandbox",
         }
 
     def test_api_somente_organization_keyword(self):
@@ -252,6 +251,45 @@ class ProviderCredentialServiceTests(TestCase):
             ).count(),
             0,
         )
+
+    def test_payload_asaas_aceita_api_key_e_webhook_token(self):
+        put(
+            organization=self.org_a,
+            provider="asaas",
+            secrets={
+                "api_key": "asaas_a_live_secret",
+                "webhook_token": "whk-org-a-secret",
+            },
+        )
+        payload = get(organization=self.org_a, provider="asaas")
+        self.assertEqual(payload["api_key"], "asaas_a_live_secret")
+        self.assertEqual(payload["webhook_token"], "whk-org-a-secret")
+        self.assertNotEqual(payload["api_key"], payload["webhook_token"])
+        self.assertNotIn("wallet_id", payload)
+        self.assertNotIn("environment", payload)
+
+    def test_payload_asaas_rejeita_wallet_id_e_environment(self):
+        with self.assertRaises(InvalidPayload):
+            put(
+                organization=self.org_a,
+                provider="asaas",
+                secrets={"api_key": "asaas_a_live_secret", "wallet_id": "wal_x"},
+            )
+        with self.assertRaises(InvalidPayload):
+            put(
+                organization=self.org_a,
+                provider="asaas",
+                secrets={"api_key": "asaas_a_live_secret", "environment": "sandbox"},
+            )
+        with self.assertRaises(InvalidPayload):
+            put(
+                organization=self.org_a,
+                provider="asaas",
+                secrets={
+                    "api_key": "mesmo-secret",
+                    "webhook_token": "mesmo-secret",
+                },
+            )
 
     def test_payload_asaas_rejeita_refresh_token(self):
         with self.assertRaises(InvalidPayload):
