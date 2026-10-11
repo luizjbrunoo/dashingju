@@ -294,18 +294,22 @@ def _discover_accounts(client) -> list[GoogleAdsAccount]:
             continue
         if snapshot.status in _SKIP_STATUSES:
             continue
-        found[(snapshot.customer_id, "")] = snapshot
         if snapshot.manager:
+            # MCC nunca é opção final de métricas; só serve para descobrir folhas.
             managers.append(snapshot.customer_id)
+            continue
+        found[(snapshot.customer_id, "")] = snapshot
     for manager_id in managers:
         for child in _mcc_clients(client, manager_id):
             if child.status in _SKIP_STATUSES:
+                continue
+            if child.manager:
                 continue
             if (child.customer_id, "") in found:
                 continue
             found[(child.customer_id, child.login_customer_id)] = child
     return sorted(
-        found.values(),
+        (item for item in found.values() if not item.manager),
         key=lambda item: (item.descriptive_name.lower(), item.customer_id),
     )
 
@@ -358,7 +362,7 @@ def select_google_ads_account(
     match = _match_account(
         accounts, customer_id=wanted_cid, login_customer_id=wanted_login
     )
-    if match is None:
+    if match is None or match.manager:
         logger.warning(
             "google_ads_accounts_failed reason=not_accessible customer_id=%s",
             wanted_cid,

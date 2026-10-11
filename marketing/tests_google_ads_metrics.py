@@ -238,6 +238,22 @@ class GoogleAdsMetricsTests(TestCase):
         self.assertEqual(mocked.call_args.kwargs["login_customer_id"], "5555555555")
         self.assertEqual(self.calls[0]["customer_id"], "1231231234")
 
+    def test_folha_abaixo_do_mcc_staging_usa_login_raiz(self):
+        self._configured(
+            self.org_a, customer_id="1231231234", login="3998742827"
+        )
+        with patch(
+            "marketing.services.google_ads_metrics.google_ads_client_for_organization",
+            return_value=self._client(),
+        ) as mocked:
+            fetch_google_ads_metrics(organization=self.org_a, days=7)
+        self.assertEqual(mocked.call_args.kwargs["login_customer_id"], "3998742827")
+        self.assertEqual(mocked.call_args.kwargs["organization"].pk, self.org_a.pk)
+        self.assertTrue(self.calls)
+        for call in self.calls:
+            self.assertEqual(call["customer_id"], "1231231234")
+            self.assertNotIn("3998742827", call["query"])
+
     def test_acesso_direto_sem_login_customer_id(self):
         self._configured(self.org_a, customer_id="1112223333", login="")
         with patch(

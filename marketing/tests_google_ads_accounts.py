@@ -265,6 +265,59 @@ class GoogleAdsAccountsTests(TestCase):
         self.assertEqual(conn.login_customer_id, "5555555555")
         self.assertEqual(conn.descriptive_name, "Cliente MCC A")
 
+    def test_post_nao_seleciona_manager_como_conta_final(self):
+        self._authorize(self.org_a)
+        leaf = _account(
+            "1231231234",
+            login_customer_id="3998742827",
+            name="Cliente Folha Dashing",
+        )
+        with patch(
+            "marketing.services.google_ads_accounts.list_accessible_accounts",
+            return_value=[leaf],
+        ):
+            resp = self.http_a.post(
+                reverse("marketing_google_ads_account_select"),
+                {
+                    "customer_id": "3998742827",
+                    "login_customer_id": "",
+                },
+            )
+        self.assertEqual(resp.status_code, 302)
+        conn = OrganizationGoogleAdsConnection.objects.get(organization=self.org_a)
+        self.assertEqual(conn.status, OrganizationGoogleAdsConnection.Status.AUTHORIZED)
+        self.assertEqual(conn.customer_id, "")
+        follow = self.http_a.get(resp.url)
+        self.assertContains(follow, MSG_SELECT_INVALID)
+
+    def test_configured_mcc_invalido_trocar_conta_sem_auto_fix(self):
+        conn = self._authorize(self.org_a)
+        conn.status = OrganizationGoogleAdsConnection.Status.CONFIGURED
+        conn.customer_id = "3998742827"
+        conn.descriptive_name = "Dashing"
+        conn.save()
+        with patch(
+            "marketing.services.google_ads_accounts.list_accessible_accounts",
+            return_value=[],
+        ), patch(
+            "marketing.services.google_ads_metrics.fetch_google_ads_metrics",
+            side_effect=GoogleAdsMetricsError("skipped"),
+        ):
+            dash = self.http_a.get(reverse("marketing_dashboard"))
+            self.assertContains(dash, "Trocar conta")
+            resp = self.http_a.get(reverse("marketing_google_ads_accounts"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(
+            resp,
+            "Nenhuma conta de anúncios cliente está disponível",
+        )
+        self.assertNotContains(resp, "Usar esta conta")
+        conn.refresh_from_db()
+        self.assertEqual(conn.status, OrganizationGoogleAdsConnection.Status.CONFIGURED)
+        self.assertEqual(conn.customer_id, "3998742827")
+        self.assertEqual(conn.descriptive_name, "Dashing")
+        self.assertTrue(has(organization=self.org_a, provider="google_ads"))
+
     def test_post_adulterado_sem_write(self):
         self._authorize(self.org_a)
         with patch(
@@ -618,16 +671,15 @@ class GoogleAdsDiscoveryAdapterTests(TestCase):
             },
         )
         result = _discover_accounts(client)
-        by_cid = {item.customer_id: item for item in result if item.via_mcc}
+        by_cid = {item.customer_id: item for item in result}
         self.assertIn(leaf_id, by_cid)
         leaf = by_cid[leaf_id]
         self.assertEqual(leaf.customer_id, leaf_id)
         self.assertEqual(leaf.login_customer_id, manager_id)
         self.assertEqual(leaf.descriptive_name, "Cliente Folha")
         self.assertTrue(leaf.via_mcc)
-        self.assertFalse(
-            any(item.customer_id == manager_id and item.via_mcc for item in result)
-        )
+        self.assertFalse(any(item.customer_id == manager_id for item in result))
+        self.assertFalse(any(item.manager for item in result))
         self.assertFalse(
             any(
                 item.customer_id
@@ -639,3 +691,66 @@ class GoogleAdsDiscoveryAdapterTests(TestCase):
         self.assertNotIn("Mutate", " ".join(client.services_requested))
         self.assertIn("CustomerService", client.services_requested)
         self.assertIn("GoogleAdsService", client.services_requested)
+
+    def test_staging_mcc_dashing_nunca_e_opcao_final(self):
+        manager_id = "3998742827"
+        leaf_id = "1231231234"
+        client = _FakeGoogleAdsClient(
+            resource_names=[f"customers/{manager_id}"],
+            customers={
+                manager_id: _customer_row(
+                    manager_id, name="Dashing", manager=True
+                )
+            },
+            clients_by_manager={
+                manager_id: [
+                    _client_row(leaf_id, name="Cliente Folha Dashing"),
+                ]
+            },
+        )
+        result = _discover_accounts(client)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].customer_id, leaf_id)
+        self.assertEqual(result[0].login_customer_id, manager_id)
+        self.assertEqual(result[0].descriptive_name, "Cliente Folha Dashing")
+        self.assertTrue(result[0].via_mcc)
+        self.assertFalse(result[0].manager)
+        self.assertNotIn(manager_id, [item.customer_id for item in result])
+
+    def test_mcc_sem_folha_lista_vazia_manager_nao_selecionavel(self):
+        manager_id = "3998742827"
+        client = _FakeGoogleAdsClient(
+            resource_names=[f"customers/{manager_id}"],
+            customers={
+                manager_id: _customer_row(
+                    manager_id, name="Dashing", manager=True
+                )
+            },
+            clients_by_manager={manager_id: []},
+        )
+        result = _discover_accounts(client)
+        self.assertEqual(result, [])
+        self.assertFalse(any(item.customer_id == manager_id for item in result))
+
+    def test_sub_mcc_folha_usa_login_do_manager_raiz(self):
+        root_id = "3998742827"
+        sub_id = "5555555555"
+        leaf_id = "1231231234"
+        client = _FakeGoogleAdsClient(
+            resource_names=[f"customers/{root_id}"],
+            customers={
+                root_id: _customer_row(root_id, name="Dashing", manager=True)
+            },
+            clients_by_manager={
+                root_id: [
+                    _client_row(sub_id, name="Sub MCC", manager=True, level=1),
+                    _client_row(leaf_id, name="Folha via sub", level=2),
+                ]
+            },
+        )
+        result = _discover_accounts(client)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].customer_id, leaf_id)
+        self.assertEqual(result[0].login_customer_id, root_id)
+        self.assertNotIn(root_id, [item.customer_id for item in result])
+        self.assertNotIn(sub_id, [item.customer_id for item in result])
