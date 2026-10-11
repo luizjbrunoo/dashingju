@@ -276,6 +276,23 @@ def build_asaas_webhook_ingress_url(*, public_id, base_url: str, debug: bool = F
     return f"{base}/financeiro/webhooks/asaas/{uid}/"
 
 
+def resolve_asaas_webhook_email(raw: str | None) -> str:
+    """E-mail operacional do webhook. Não é o e-mail do usuário final. Sem secret."""
+    value = (raw or "").strip()
+    if not value:
+        raise ImproperlyConfigured("ASAAS_WEBHOOK_EMAIL é obrigatório.")
+    if " " in value or value.count("@") != 1:
+        raise ImproperlyConfigured("ASAAS_WEBHOOK_EMAIL inválido.")
+    local, _, domain = value.partition("@")
+    if not local or not domain or "." not in domain:
+        raise ImproperlyConfigured("ASAAS_WEBHOOK_EMAIL inválido.")
+    if any(ch in value for ch in "<>\"'"):
+        raise ImproperlyConfigured("ASAAS_WEBHOOK_EMAIL inválido.")
+    if len(value) > 254:
+        raise ImproperlyConfigured("ASAAS_WEBHOOK_EMAIL inválido.")
+    return value
+
+
 def resolve_asaas_webhook_url(raw: str | None) -> str:
     """URL HTTPS final do webhook ADV. Fail-closed. Sem secret."""
     value = (raw or "").strip()

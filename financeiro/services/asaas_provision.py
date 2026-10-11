@@ -409,6 +409,13 @@ def provision_organization_subaccount(
         raise AsaasProvisionError("timeout") from None
     except AsaasHttpError as exc:
         status = int(exc.status or 0)
+        code = sanitize_error_code(exc.error_code or "") or exc.reason
+        logger.info(
+            "asaas.provision http_error status=%s code=%s step=create_account org_id=%s",
+            status,
+            code,
+            org.pk,
+        )
         if status in CONCLUSIVE_CLIENT_STATUSES:
             _finalize_provision(
                 organization=org,

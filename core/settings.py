@@ -60,6 +60,9 @@ ASAAS_ENVIRONMENT = (os.environ.get("ASAAS_ENVIRONMENT") or "").strip().upper()
 # URL pública canônica da aplicação. Webhook Asaas = <base>/financeiro/webhooks/asaas/<uuid>/
 # Validada só no provisionamento (não no import). Staging/prod: HTTPS.
 PUBLIC_BASE_URL = (os.environ.get("PUBLIC_BASE_URL") or "").strip()
+# E-mail operacional do webhook Asaas. Não é o e-mail do usuário final.
+# Validado só no provisionamento Web (não no import). Não definir no Worker.
+ASAAS_WEBHOOK_EMAIL = (os.environ.get("ASAAS_WEBHOOK_EMAIL") or "").strip()
 ALLOWED_HOSTS = resolve_allowed_hosts(
     debug=DEBUG,
     raw=os.environ.get("DJANGO_ALLOWED_HOSTS"),

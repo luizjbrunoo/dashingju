@@ -684,6 +684,7 @@ class OrganizationFinancialOnboardingForm(forms.ModelForm):
             "tax_regime": "Obrigatório para pessoa jurídica.",
             "mobile_phone": "Celular com DDD.",
             "postal_code": "CEP válido (8 dígitos).",
+            "site": "Opcional. Aceita https://www.exemplo.com.br ou www.exemplo.com.br.",
         }
 
     def __init__(self, *args, **kwargs):
@@ -711,6 +712,16 @@ class OrganizationFinancialOnboardingForm(forms.ModelForm):
         if len(digits) != 8:
             raise ValidationError("Informe um CEP com 8 dígitos.")
         return digits
+
+    def clean_site(self):
+        from financeiro.services.asaas_onboarding import normalize_optional_site
+
+        try:
+            return normalize_optional_site(self.cleaned_data.get("site"))
+        except ValueError:
+            raise ValidationError(
+                "Informe um site válido, como https://www.exemplo.com.br."
+            )
 
     def clean(self):
         cleaned = super().clean()

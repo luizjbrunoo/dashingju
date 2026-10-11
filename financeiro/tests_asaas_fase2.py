@@ -31,9 +31,13 @@ from financeiro.services.asaas_client import (
     AsaasTimeoutError,
 )
 from financeiro.services.asaas_onboarding import (
+    WEBHOOK_CONFIG_NAME,
+    WEBHOOK_EVENTS,
+    WEBHOOK_REQUIRED_KEYS,
     AsaasOnboardingError,
     build_create_account_payload,
     missing_onboarding_fields,
+    normalize_optional_site,
     pending_fields_message,
 )
 from financeiro.services.asaas_provision import (
@@ -49,6 +53,7 @@ from organizacoes.provider_credentials import get as vault_get
 
 PUBLIC_BASE_URL = "https://app.example.com"
 WEBHOOK_URL = "https://app.example.com/financeiro/webhooks/asaas/00000000-0000-4000-8000-000000000001/"
+WEBHOOK_OPS_EMAIL = "ops@advgrowth90.example"
 PARENT_KEY = "parent-key-nao-logar"
 API_KEY_A = "$aact_hmlg_org_a_secret"
 API_KEY_B = "$aact_hmlg_org_b_secret"
@@ -60,6 +65,7 @@ def _settings():
         "DJANGO_PROCESS": "web",
         "ASAAS_ENVIRONMENT": "SANDBOX",
         "PUBLIC_BASE_URL": PUBLIC_BASE_URL,
+        "ASAAS_WEBHOOK_EMAIL": WEBHOOK_OPS_EMAIL,
     }
 
 
@@ -366,10 +372,18 @@ class AsaasProvisionFlowTests(AsaasFase2Helpers):
         expected_url = (
             f"{PUBLIC_BASE_URL}/financeiro/webhooks/asaas/{row.webhook_public_id}/"
         )
+        self.assertTrue(WEBHOOK_REQUIRED_KEYS.issubset(hook.keys()))
+        self.assertEqual(hook["name"], WEBHOOK_CONFIG_NAME)
         self.assertEqual(hook["url"], expected_url)
+        self.assertTrue(hook["url"].startswith("https://"))
+        self.assertEqual(hook["email"], WEBHOOK_OPS_EMAIL)
+        self.assertNotEqual(hook["email"], body["email"])
+        self.assertEqual(hook["sendType"], "SEQUENTIALLY")
+        self.assertIs(hook["interrupted"], False)
+        self.assertIs(hook["enabled"], True)
+        self.assertEqual(hook["apiVersion"], 3)
         self.assertNotIn(f"/{self.org_a.pk}/", expected_url)
         self.assertIn(str(row.webhook_public_id), expected_url)
-        self.assertEqual(hook["apiVersion"], 3)
         self.assertGreaterEqual(len(hook["authToken"]), 32)
         self.assertNotIn(" ", hook["authToken"])
         vault = vault_get(organization=self.org_a, provider="asaas")
@@ -381,6 +395,9 @@ class AsaasProvisionFlowTests(AsaasFase2Helpers):
         self.assertNotIn("PAYMENT_RECEIVED", hook["events"])
         self.assertIn("ACCOUNT_STATUS_GENERAL_APPROVAL_APPROVED", hook["events"])
         self.assertIn("ACCOUNT_STATUS_COMMERCIAL_INFO_EXPIRED", hook["events"])
+        self.assertEqual(len(hook["events"]), len(WEBHOOK_EVENTS))
+        self.assertEqual(set(hook["events"]), set(WEBHOOK_EVENTS))
+        self.assertFalse(any("PAYMENT_" in item for item in hook["events"]))
 
     def test_resposta_valida_persiste_api_key_no_vault(self):
         self._onboarding(self.org_a)
@@ -420,6 +437,45 @@ class AsaasProvisionFlowTests(AsaasFase2Helpers):
         self.assertNotIn("{", row.last_error_code)
         vault = vault_get(organization=self.org_a, provider="asaas") or {}
         self.assertNotIn("api_key", vault)
+
+    def test_invalid_object_loga_metadados_sem_corpo_nem_secret(self):
+        self._onboarding(self.org_a)
+        transport = RecordingTransport(
+            error=AsaasHttpError(
+                reason="http_400",
+                status=400,
+                error_code="invalid_object",
+            )
+        )
+        records = []
+
+        class Handler(logging.Handler):
+            def emit(self, record):
+                records.append(record.getMessage())
+
+        logger = logging.getLogger("financeiro.services.asaas_provision")
+        handler = Handler()
+        logger.addHandler(handler)
+        try:
+            with self.assertRaises(AsaasProvisionError):
+                provision_organization_subaccount(
+                    organization=self.org_a, user=self.user_ok, transport=transport
+                )
+        finally:
+            logger.removeHandler(handler)
+        blob = "\n".join(records)
+        self.assertIn("status=400", blob)
+        self.assertIn("code=INVALID_OBJECT", blob)
+        self.assertIn("step=create_account", blob)
+        self.assertNotIn("description", blob)
+        self.assertNotIn("{", blob)
+        vault = vault_get(organization=self.org_a, provider="asaas") or {}
+        for secret in [API_KEY_A, PARENT_KEY, vault.get("webhook_token", "")]:
+            if secret:
+                self.assertNotIn(secret, blob)
+        row = OrganizationAsaasSubaccount.objects.get(organization=self.org_a)
+        self.assertEqual(row.last_error_code, "INVALID_OBJECT")
+        self.assertNotIn("www.advgrowth90", row.last_error_code)
 
     def test_timeout_marca_recovery_e_nao_repete_post(self):
         self._onboarding(self.org_a)
@@ -610,6 +666,11 @@ class AsaasOnboardingPayloadTests(AsaasFase2Helpers):
         self.assertNotIn("phone", payload)
         self.assertNotIn("site", payload)
         self.assertNotIn("birthDate", payload)
+        hook = payload["webhooks"][0]
+        self.assertTrue(WEBHOOK_REQUIRED_KEYS.issubset(hook.keys()))
+        self.assertEqual(hook["email"], WEBHOOK_OPS_EMAIL)
+        self.assertNotEqual(hook["email"], payload["email"])
+        self.assertNotIn("authToken", repr(AsaasOnboardingError("invalid_site")))
 
     def test_pf_exige_nascimento_e_nao_company_type(self):
         self._onboarding(
@@ -806,6 +867,107 @@ class AsaasOnboardingPayloadTests(AsaasFase2Helpers):
         self.assertIn("company_type", form.errors)
         self.assertIn("tax_regime", form.errors)
         self.assertNotIn("birth_date", form.errors)
+
+    def test_site_sem_esquema_e_normalizado_https(self):
+        self.assertEqual(
+            normalize_optional_site("www.advgrowth90.com.br"),
+            "https://www.advgrowth90.com.br",
+        )
+        self.assertEqual(
+            normalize_optional_site("exemplo.com.br"),
+            "https://exemplo.com.br",
+        )
+        self.assertEqual(
+            normalize_optional_site("https://www.advgrowth90.com.br"),
+            "https://www.advgrowth90.com.br",
+        )
+        self.assertEqual(
+            normalize_optional_site("http://exemplo.test"),
+            "http://exemplo.test",
+        )
+        self.assertEqual(normalize_optional_site(""), "")
+        with self.assertRaises(ValueError):
+            normalize_optional_site("javascript:alert(1)")
+        self._onboarding(self.org_a, site="www.advgrowth90.com.br")
+        payload = build_create_account_payload(
+            organization=self.org_a,
+            webhook_token="t" * 40,
+            webhook_url=WEBHOOK_URL,
+        )
+        self.assertEqual(payload["site"], "https://www.advgrowth90.com.br")
+        hook = payload["webhooks"][0]
+        self.assertTrue(WEBHOOK_REQUIRED_KEYS.issubset(hook.keys()))
+        self.assertEqual(hook["sendType"], "SEQUENTIALLY")
+        self.assertIs(hook["interrupted"], False)
+        self.assertIs(hook["enabled"], True)
+        self.assertEqual(hook["apiVersion"], 3)
+        self.assertTrue(hook["url"].startswith("https://"))
+        self.assertTrue(all(item.startswith("ACCOUNT_STATUS_") for item in hook["events"]))
+        self.assertFalse(any(item.startswith("PAYMENT_") for item in hook["events"]))
+
+    def test_site_https_vai_ao_payload_e_vazio_nao_e_enviado(self):
+        self._onboarding(self.org_a, site="https://www.advgrowth90.com.br")
+        payload = build_create_account_payload(
+            organization=self.org_a,
+            webhook_token="t" * 40,
+            webhook_url=WEBHOOK_URL,
+        )
+        self.assertEqual(payload["site"], "https://www.advgrowth90.com.br")
+        OrganizationFinancialOnboarding.objects.filter(organization=self.org_a).update(site="")
+        payload_empty = build_create_account_payload(
+            organization=self.org_a,
+            webhook_token="t" * 40,
+            webhook_url=WEBHOOK_URL,
+        )
+        self.assertNotIn("site", payload_empty)
+
+    def test_site_invalido_impede_http(self):
+        self._onboarding(self.org_a, site="javascript:alert(1)")
+        transport = RecordingTransport()
+        with self.assertRaises(AsaasProvisionError) as ctx:
+            provision_organization_subaccount(
+                organization=self.org_a, user=self.user_ok, transport=transport
+            )
+        self.assertEqual(ctx.exception.reason, "invalid_site")
+        self.assertEqual(transport.calls, [])
+        self.assertFalse(
+            OrganizationAsaasSubaccount.objects.filter(organization=self.org_a).exists()
+        )
+
+    def test_form_normaliza_site_sem_esquema(self):
+        form = OrganizationFinancialOnboardingForm(
+            {
+                "legal_name": "Escritorio A LTDA",
+                "email": "org-a@example.com",
+                "cpf_cnpj": "66625514000140",
+                "person_type": OrganizationFinancialOnboarding.PersonType.JURIDICA,
+                "company_type": OrganizationFinancialOnboarding.CompanyType.LIMITED,
+                "tax_regime": OrganizationFinancialOnboarding.TaxRegime.NATIONAL_SIMPLE,
+                "mobile_phone": "11988451155",
+                "income_value": "25000,00",
+                "address": "Av. Rolf Wiest",
+                "address_number": "277",
+                "province": "Bom Retiro",
+                "postal_code": "89223005",
+                "site": "www.advgrowth90.com.br",
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["site"], "https://www.advgrowth90.com.br")
+
+    def test_webhook_email_ausente_impede_http(self):
+        self._onboarding(self.org_a)
+        transport = RecordingTransport()
+        with override_settings(ASAAS_WEBHOOK_EMAIL=""):
+            with self.assertRaises(AsaasProvisionError) as ctx:
+                provision_organization_subaccount(
+                    organization=self.org_a, user=self.user_ok, transport=transport
+                )
+        self.assertEqual(ctx.exception.reason, "missing_webhook_email")
+        self.assertEqual(transport.calls, [])
+        self.assertFalse(
+            OrganizationAsaasSubaccount.objects.filter(organization=self.org_a).exists()
+        )
 
     def test_mensagem_pendente_respeita_tipo_de_pessoa(self):
         pf = pending_fields_message(["data de nascimento"])

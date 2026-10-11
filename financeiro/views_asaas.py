@@ -154,6 +154,18 @@ def asaas_provision(request):
         if exc.reason == "missing_onboarding_fields":
             needed = pending_fields_message(list(exc.missing_fields))
             messages.add_message(request, constants.ERROR, needed)
+        elif exc.reason == "missing_webhook_email":
+            messages.add_message(
+                request,
+                constants.ERROR,
+                "Configuração operacional da conta financeira incompleta.",
+            )
+        elif exc.reason == "invalid_site":
+            messages.add_message(
+                request,
+                constants.ERROR,
+                "Informe um site válido, como https://www.exemplo.com.br.",
+            )
         elif exc.reason == "already_provisioning":
             messages.add_message(
                 request,

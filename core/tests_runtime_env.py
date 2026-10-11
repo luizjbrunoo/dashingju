@@ -24,6 +24,7 @@ from core.runtime_env import (
     resolve_allowed_hosts,
     resolve_asaas_environment,
     build_asaas_webhook_ingress_url,
+    resolve_asaas_webhook_email,
     resolve_asaas_webhook_url,
     resolve_public_base_url,
     resolve_google_ads_oauth_redirect_uri,
@@ -115,6 +116,19 @@ class RuntimeEnvParserTests(SimpleTestCase):
             ),
             "https://staging.example.com/marketing/google-ads/callback/",
         )
+
+    def test_asaas_webhook_email_fail_closed(self):
+        with self.assertRaises(ImproperlyConfigured):
+            resolve_asaas_webhook_email("")
+        with self.assertRaises(ImproperlyConfigured):
+            resolve_asaas_webhook_email("sem-arroba")
+        with self.assertRaises(ImproperlyConfigured):
+            resolve_asaas_webhook_email("ops@advgrowth90.example extra")
+        self.assertEqual(
+            resolve_asaas_webhook_email(" ops@advgrowth90.example "),
+            "ops@advgrowth90.example",
+        )
+        self.assertNotIn("ops@", str(ImproperlyConfigured("ASAAS_WEBHOOK_EMAIL inválido.")))
 
     def test_asaas_webhook_url_exige_https_com_path(self):
         with self.assertRaises(ImproperlyConfigured):

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from urllib.parse import urlparse, urlunparse
 
+from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
-from core.runtime_env import resolve_asaas_webhook_url
+from core.runtime_env import resolve_asaas_webhook_email, resolve_asaas_webhook_url
 from financeiro.models import OrganizationFinancialOnboarding
 from organizacoes.models import Organization
 
@@ -37,6 +39,21 @@ COMMON_FIELD_KEYS = (
     "address_number",
     "province",
     "postal_code",
+)
+
+WEBHOOK_CONFIG_NAME = "ADV Growth 90 - Account Status"
+WEBHOOK_REQUIRED_KEYS = frozenset(
+    {
+        "name",
+        "url",
+        "email",
+        "interrupted",
+        "enabled",
+        "authToken",
+        "events",
+        "sendType",
+        "apiVersion",
+    }
 )
 
 # Eventos oficiais de situação cadastral (docs Asaas). Sem pagamentos nesta fase.
@@ -80,6 +97,33 @@ def _digits(value) -> str:
 
 def _text(value) -> str:
     return str(value or "").strip()
+
+
+def normalize_optional_site(raw) -> str:
+    """Normaliza site opcional. Vazio permanece vazio. Sem esquema → https://."""
+    value = str(raw or "").strip()
+    if not value:
+        return ""
+    if any(ch.isspace() for ch in value):
+        raise ValueError("invalid_site")
+    lowered = value.lower()
+    if lowered.startswith(("javascript:", "data:", "file:", "vbscript:", "about:")):
+        raise ValueError("invalid_site")
+    candidate = value
+    parsed = urlparse(candidate)
+    if not parsed.scheme:
+        if "://" in value or value.startswith("//"):
+            raise ValueError("invalid_site")
+        candidate = f"https://{value.lstrip('/')}"
+        parsed = urlparse(candidate)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("invalid_site")
+    if not parsed.netloc or parsed.username or parsed.password:
+        raise ValueError("invalid_site")
+    host = parsed.hostname or ""
+    if "." not in host or host.startswith(".") or host.endswith("."):
+        raise ValueError("invalid_site")
+    return urlunparse((parsed.scheme, parsed.netloc, parsed.path or "", "", parsed.query, ""))
 
 
 def _income_number(value) -> int | float:
@@ -181,6 +225,16 @@ def build_create_account_payload(
         url = resolve_asaas_webhook_url(webhook_url)
     except ImproperlyConfigured as exc:
         raise AsaasOnboardingError("missing_webhook_url") from exc
+    try:
+        webhook_email = resolve_asaas_webhook_email(
+            getattr(settings, "ASAAS_WEBHOOK_EMAIL", "") or ""
+        )
+    except ImproperlyConfigured as exc:
+        raise AsaasOnboardingError("missing_webhook_email") from exc
+    try:
+        site = normalize_optional_site(org_onboarding.site)
+    except ValueError as exc:
+        raise AsaasOnboardingError("invalid_site") from exc
     cpf_cnpj = _digits(org_onboarding.cpf_cnpj)
     payload: dict = {
         "name": _text(org_onboarding.legal_name),
@@ -194,9 +248,9 @@ def build_create_account_payload(
         "postalCode": _digits(org_onboarding.postal_code),
         "webhooks": [
             {
-                "name": "ADV Growth 90",
+                "name": WEBHOOK_CONFIG_NAME,
                 "url": url,
-                "email": _text(org_onboarding.email),
+                "email": webhook_email,
                 "sendType": "SEQUENTIALLY",
                 "interrupted": False,
                 "enabled": True,
@@ -210,8 +264,8 @@ def build_create_account_payload(
         payload["phone"] = _text(org_onboarding.phone)
     if _text(org_onboarding.complement):
         payload["complement"] = _text(org_onboarding.complement)
-    if _text(org_onboarding.site):
-        payload["site"] = _text(org_onboarding.site)
+    if site:
+        payload["site"] = site
     if org_onboarding.person_type == OrganizationFinancialOnboarding.PersonType.FISICA:
         payload["birthDate"] = org_onboarding.birth_date.isoformat()
     elif org_onboarding.person_type == OrganizationFinancialOnboarding.PersonType.JURIDICA:
