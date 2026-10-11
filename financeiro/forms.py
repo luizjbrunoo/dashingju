@@ -685,6 +685,7 @@ class OrganizationFinancialOnboardingForm(forms.ModelForm):
             "mobile_phone": "Celular com DDD.",
             "postal_code": "CEP válido (8 dígitos).",
             "site": "Opcional. Aceita https://www.exemplo.com.br ou www.exemplo.com.br.",
+            "province": "Bairro do logradouro. Não informe estado ou UF (ex.: Bahia, BA).",
         }
 
     def __init__(self, *args, **kwargs):
@@ -712,6 +713,16 @@ class OrganizationFinancialOnboardingForm(forms.ModelForm):
         if len(digits) != 8:
             raise ValidationError("Informe um CEP com 8 dígitos.")
         return digits
+
+    def clean_province(self):
+        from financeiro.services.asaas_onboarding import neighborhood_for_payload
+
+        try:
+            return neighborhood_for_payload(self.cleaned_data.get("province"))
+        except ValueError:
+            raise ValidationError(
+                "Informe o bairro do endereço. Não use estado ou UF."
+            )
 
     def clean_site(self):
         from financeiro.services.asaas_onboarding import normalize_optional_site

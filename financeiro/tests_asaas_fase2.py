@@ -37,6 +37,7 @@ from financeiro.services.asaas_onboarding import (
     AsaasOnboardingError,
     build_create_account_payload,
     missing_onboarding_fields,
+    neighborhood_for_payload,
     normalize_optional_site,
     pending_fields_message,
 )
@@ -364,7 +365,13 @@ class AsaasProvisionFlowTests(AsaasFase2Helpers):
         self.assertEqual(body["address"], "Av. Rolf Wiest")
         self.assertEqual(body["addressNumber"], "277")
         self.assertEqual(body["province"], "Bom Retiro")
+        self.assertNotEqual(body["province"], "Bahia")
+        self.assertNotEqual(body["province"], "BA")
+        self.assertNotIn("state", body)
+        self.assertNotIn("uf", body)
         self.assertEqual(body["postalCode"], "89223005")
+        self.assertEqual(len(body["postalCode"]), 8)
+        self.assertTrue(body["postalCode"].isdigit())
         self.assertNotIn("birthDate", body)
         self.assertNotIn("externalReference", body)
         hook = body["webhooks"][0]
@@ -671,6 +678,83 @@ class AsaasOnboardingPayloadTests(AsaasFase2Helpers):
         self.assertEqual(hook["email"], WEBHOOK_OPS_EMAIL)
         self.assertNotEqual(hook["email"], payload["email"])
         self.assertNotIn("authToken", repr(AsaasOnboardingError("invalid_site")))
+
+    def test_province_usa_bairro_e_nao_estado(self):
+        self._onboarding(self.org_a, province="Caminho das Árvores")
+        payload = build_create_account_payload(
+            organization=self.org_a,
+            webhook_token="t" * 40,
+            webhook_url=WEBHOOK_URL,
+        )
+        self.assertEqual(payload["province"], "Caminho das Árvores")
+        self.assertEqual(payload["address"], "Av. Rolf Wiest")
+        self.assertEqual(payload["addressNumber"], "277")
+        self.assertEqual(payload["postalCode"], "89223005")
+        self.assertEqual(len(payload["postalCode"]), 8)
+        self.assertEqual(payload["companyType"], "LIMITED")
+        self.assertEqual(payload["taxRegime"], "NATIONAL_SIMPLE")
+        self.assertNotIn("state", payload)
+        self.assertNotIn("uf", payload)
+        self.assertNotEqual(payload["province"], "Bahia")
+        self.assertNotEqual(payload["province"], "BA")
+        self.assertEqual(
+            neighborhood_for_payload("Caminho das Árvores"),
+            "Caminho das Árvores",
+        )
+
+    def test_estado_ou_uf_nunca_vao_em_province(self):
+        self._onboarding(self.org_a, province="Bahia")
+        missing = missing_onboarding_fields(
+            OrganizationFinancialOnboarding.objects.get(organization=self.org_a)
+        )
+        self.assertIn("bairro", missing)
+        with self.assertRaises(AsaasOnboardingError) as ctx:
+            build_create_account_payload(
+                organization=self.org_a,
+                webhook_token="t" * 40,
+                webhook_url=WEBHOOK_URL,
+            )
+        self.assertEqual(ctx.exception.reason, "missing_onboarding_fields")
+        self.assertIn("bairro", ctx.exception.missing_fields)
+        transport = RecordingTransport()
+        with self.assertRaises(AsaasProvisionError) as pctx:
+            provision_organization_subaccount(
+                organization=self.org_a, user=self.user_ok, transport=transport
+            )
+        self.assertEqual(pctx.exception.reason, "missing_onboarding_fields")
+        self.assertEqual(transport.calls, [])
+        OrganizationFinancialOnboarding.objects.filter(organization=self.org_a).update(
+            province="BA"
+        )
+        with self.assertRaises(AsaasOnboardingError):
+            build_create_account_payload(
+                organization=self.org_a,
+                webhook_token="t" * 40,
+                webhook_url=WEBHOOK_URL,
+            )
+
+    def test_form_rejeita_estado_como_bairro(self):
+        data = {
+            "legal_name": "Escritorio A LTDA",
+            "email": "org-a@example.com",
+            "cpf_cnpj": "66625514000140",
+            "person_type": OrganizationFinancialOnboarding.PersonType.JURIDICA,
+            "company_type": OrganizationFinancialOnboarding.CompanyType.LIMITED,
+            "tax_regime": OrganizationFinancialOnboarding.TaxRegime.NATIONAL_SIMPLE,
+            "mobile_phone": "11988451155",
+            "income_value": "25000,00",
+            "address": "AL SALVADOR",
+            "address_number": "1057",
+            "province": "Bahia",
+            "postal_code": "41820790",
+        }
+        form = OrganizationFinancialOnboardingForm(data)
+        self.assertFalse(form.is_valid())
+        self.assertIn("province", form.errors)
+        data["province"] = "Caminho das Árvores"
+        ok = OrganizationFinancialOnboardingForm(data)
+        self.assertTrue(ok.is_valid(), ok.errors)
+        self.assertEqual(ok.cleaned_data["province"], "Caminho das Árvores")
 
     def test_pf_exige_nascimento_e_nao_company_type(self):
         self._onboarding(

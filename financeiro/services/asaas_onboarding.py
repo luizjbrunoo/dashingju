@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import unicodedata
 from decimal import Decimal
 from urllib.parse import urlparse, urlunparse
 
@@ -99,6 +100,104 @@ def _text(value) -> str:
     return str(value or "").strip()
 
 
+_BR_UF = frozenset(
+    {
+        "ac",
+        "al",
+        "ap",
+        "am",
+        "ba",
+        "ce",
+        "df",
+        "es",
+        "go",
+        "ma",
+        "mt",
+        "ms",
+        "mg",
+        "pa",
+        "pb",
+        "pr",
+        "pe",
+        "pi",
+        "rj",
+        "rn",
+        "rs",
+        "ro",
+        "rr",
+        "sc",
+        "sp",
+        "se",
+        "to",
+    }
+)
+_BR_STATES = frozenset(
+    {
+        "acre",
+        "alagoas",
+        "amapa",
+        "amazonas",
+        "bahia",
+        "ceara",
+        "distrito federal",
+        "espirito santo",
+        "goias",
+        "maranhao",
+        "mato grosso",
+        "mato grosso do sul",
+        "minas gerais",
+        "para",
+        "paraiba",
+        "parana",
+        "pernambuco",
+        "piaui",
+        "rio de janeiro",
+        "rio grande do norte",
+        "rio grande do sul",
+        "rondonia",
+        "roraima",
+        "santa catarina",
+        "sao paulo",
+        "sergipe",
+        "tocantins",
+    }
+)
+_BR_STATES_COMPACT = frozenset(name.replace(" ", "") for name in _BR_STATES)
+
+
+def _fold_place(value) -> str:
+    text = unicodedata.normalize("NFKD", str(value or ""))
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return " ".join(text.lower().split())
+
+
+def is_brazilian_state_or_uf(value) -> bool:
+    """True se o texto for UF ou nome de estado, não um bairro."""
+    folded = _fold_place(value)
+    if not folded:
+        return False
+    for prefix in ("estado da ", "estado do ", "estado de ", "estado "):
+        if folded.startswith(prefix):
+            folded = folded[len(prefix) :].strip()
+            break
+    compact = folded.replace(" ", "")
+    if folded in _BR_UF or compact in _BR_UF:
+        return True
+    if folded in _BR_STATES or compact in _BR_STATES_COMPACT:
+        return True
+    return False
+
+
+def neighborhood_for_payload(raw) -> str:
+    """Bairro local (OrganizationFinancialOnboarding.province) para o campo Asaas province."""
+    value = _text(raw)
+    if not value:
+        raise ValueError("missing_neighborhood")
+    if is_brazilian_state_or_uf(value):
+        raise ValueError("state_as_neighborhood")
+    return value
+
+
 def normalize_optional_site(raw) -> str:
     """Normaliza site opcional. Vazio permanece vazio. Sem esquema → https://."""
     value = str(raw or "").strip()
@@ -189,7 +288,9 @@ def missing_onboarding_fields(
         missing.append(FIELD_LABELS["address"])
     if not _text(onboarding.address_number):
         missing.append(FIELD_LABELS["address_number"])
-    if not _text(onboarding.province):
+    try:
+        neighborhood_for_payload(onboarding.province)
+    except ValueError:
         missing.append(FIELD_LABELS["province"])
     if len(_digits(onboarding.postal_code)) != 8:
         missing.append(FIELD_LABELS["postal_code"])
@@ -244,7 +345,7 @@ def build_create_account_payload(
         "incomeValue": _income_number(org_onboarding.income_value),
         "address": _text(org_onboarding.address),
         "addressNumber": _text(org_onboarding.address_number),
-        "province": _text(org_onboarding.province),
+        "province": neighborhood_for_payload(org_onboarding.province),
         "postalCode": _digits(org_onboarding.postal_code),
         "webhooks": [
             {
