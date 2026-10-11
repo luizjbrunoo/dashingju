@@ -1,0 +1,10 @@
+<div class="min-w-0 {{ wrapper_class|default:'' }}">
+    <label class="mb-1.5 block text-sm font-medium text-zinc-300" for="{{ field.id_for_label }}">{{ field.label }}</label>
+    {{ field }}
+    {% if field.help_text %}
+        <p class="mt-1 text-xs leading-5 text-zinc-500">{{ field.help_text }}</p>
+    {% endif %}
+    {% if field.errors %}
+        <p class="mt-1 text-sm text-red-400" role="alert">{{ field.errors.0 }}</p>
+    {% endif %}
+</div>

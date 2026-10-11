@@ -26,6 +26,19 @@ FIELD_LABELS = {
     "person_type": "tipo de pessoa",
 }
 
+COMMON_FIELD_KEYS = (
+    "legal_name",
+    "email",
+    "cpf_cnpj",
+    "person_type",
+    "mobile_phone",
+    "income_value",
+    "address",
+    "address_number",
+    "province",
+    "postal_code",
+)
+
 # Eventos oficiais de situação cadastral (docs Asaas). Sem pagamentos nesta fase.
 WEBHOOK_EVENTS = (
     "ACCOUNT_STATUS_BANK_ACCOUNT_INFO_APPROVED",
@@ -92,11 +105,18 @@ def get_onboarding(*, organization) -> OrganizationFinancialOnboarding | None:
     )
 
 
+def pending_fields_message(missing: list[str]) -> str:
+    base = "Preencha os dados obrigatórios para ativar sua conta financeira."
+    if not missing:
+        return base
+    return f"{base} Faltam: {', '.join(missing)}."
+
+
 def missing_onboarding_fields(
     onboarding: OrganizationFinancialOnboarding | None,
 ) -> list[str]:
     if onboarding is None:
-        return list(FIELD_LABELS.values())
+        return [FIELD_LABELS[key] for key in COMMON_FIELD_KEYS]
     missing: list[str] = []
     if not _text(onboarding.legal_name):
         missing.append(FIELD_LABELS["legal_name"])
@@ -194,7 +214,7 @@ def build_create_account_payload(
         payload["site"] = _text(org_onboarding.site)
     if org_onboarding.person_type == OrganizationFinancialOnboarding.PersonType.FISICA:
         payload["birthDate"] = org_onboarding.birth_date.isoformat()
-    else:
+    elif org_onboarding.person_type == OrganizationFinancialOnboarding.PersonType.JURIDICA:
         payload["companyType"] = org_onboarding.company_type
         payload["taxRegime"] = org_onboarding.tax_regime
     return payload

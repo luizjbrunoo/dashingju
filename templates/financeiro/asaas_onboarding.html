@@ -1,75 +1,191 @@
 {% extends 'base.html' %}
 {% block 'body' %}
-<div class="app-shell py-8">
-    <div class="max-w-xl">
+<div class="app-shell space-y-8 py-8">
     {% include 'financeiro/_mensagens.html' %}
     {% include 'financeiro/_subnav.html' %}
 
-    <h1 class="text-xl font-semibold text-zinc-100">Onboarding financeiro Asaas</h1>
-    <p class="mt-2 text-sm text-zinc-400">
-        Cadastro da organização para subconta sandbox. Não altera o cadastro de usuários.
-        A criação da subconta só ocorre com acionamento explícito.
-    </p>
-
-    {% if subaccount %}
-    <div class="mt-4 rounded-md border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-300">
-        Status da subconta: <span class="font-medium text-zinc-100">{{ subaccount.get_status_display }}</span>
-        {% if subaccount.last_error_code %}
-        <span class="text-zinc-500"> ({{ subaccount.last_error_code }})</span>
-        {% endif %}
-    </div>
-    {% endif %}
-
-    {% if missing_fields %}
-    <div class="mt-4 rounded-md border border-amber-800/80 bg-amber-950/40 px-3 py-2 text-sm text-amber-200">
-        Preencha antes de criar a subconta: {{ missing_fields|join:", " }}.
-    </div>
-    {% endif %}
-
-    <form method="post" class="mt-8 space-y-5">
-        {% csrf_token %}
-        {% if form.non_field_errors %}
-            <div class="rounded-md border border-red-800/80 bg-red-950/90 px-3 py-2 text-sm text-red-300">
-                {{ form.non_field_errors }}
-            </div>
-        {% endif %}
-        {% for field in form %}
-            <div>
-                <label class="mb-1 block text-sm font-medium text-zinc-400" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% if field.help_text %}
-                    <p class="mt-1 text-xs text-zinc-500">{{ field.help_text }}</p>
-                {% endif %}
-                {% if field.errors %}
-                    <p class="mt-1 text-sm text-red-400">{{ field.errors.0 }}</p>
-                {% endif %}
-            </div>
-        {% endfor %}
-        <div class="flex gap-3 pt-4">
-            <button type="submit" class="rounded-md bg-bally px-4 py-2 text-sm font-semibold text-white hover:bg-bally-bright">Salvar dados</button>
+    <header class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div class="min-w-0 max-w-3xl">
+            <h1 class="text-2xl font-semibold tracking-tight text-zinc-100">Ativar conta financeira</h1>
+            <p class="mt-2 text-sm leading-6 text-zinc-400">
+                Cadastre os dados da organização para ativar os recursos financeiros. Esta configuração é independente do cadastro dos usuários.
+            </p>
         </div>
-    </form>
+        {% if is_sandbox %}
+        <div class="shrink-0 rounded-lg border border-zinc-800 bg-zinc-900/70 px-3 py-2 sm:max-w-xs">
+            <p class="text-xs font-semibold uppercase tracking-wide text-zinc-300">Ambiente de testes</p>
+            <p class="mt-1 text-xs leading-5 text-zinc-500">Nenhuma movimentação financeira real será realizada.</p>
+        </div>
+        {% endif %}
+    </header>
 
-    {% if fin_perms.gerir_caixa %}
-    <form method="post" action="{% url 'financeiro_asaas_provisionar' %}" class="mt-8">
-        {% csrf_token %}
-        <button
-            type="submit"
-            class="rounded-md border border-bally/40 bg-bally-muted/40 px-4 py-2 text-sm font-semibold text-bally-bright hover:bg-bally-muted/60"
-            {% if not can_provision %}disabled{% endif %}
-        >
-            Criar subconta Asaas (sandbox)
-        </button>
-    </form>
-    {% if subaccount and subaccount.status == 'recovery_required' %}
-    <form method="post" action="{% url 'financeiro_asaas_recuperar' %}" class="mt-3">
-        {% csrf_token %}
-        <button type="submit" class="rounded-md border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:bg-zinc-800">
-            Consultar subconta na conta-pai
-        </button>
-    </form>
-    {% endif %}
-    {% endif %}
+    <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)] lg:gap-8">
+        <div class="min-w-0 space-y-5">
+            {% if missing_fields %}
+            <div class="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-3" role="status">
+                <p class="text-sm font-medium text-zinc-200">Complete os dados obrigatórios para ativar sua conta financeira.</p>
+                <ul class="mt-2 list-disc space-y-1 ps-5 text-sm text-zinc-400">
+                    {% for field_label in missing_fields %}
+                    <li>{{ field_label }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            {% if fin_perms.gerir_caixa %}
+            <form id="form-ativar-conta" method="post" action="{% url 'financeiro_asaas_provisionar' %}" class="hidden">
+                {% csrf_token %}
+            </form>
+            {% if subaccount and subaccount.status == 'recovery_required' %}
+            <form id="form-consultar-situacao" method="post" action="{% url 'financeiro_asaas_recuperar' %}" class="hidden">
+                {% csrf_token %}
+            </form>
+            {% endif %}
+            {% endif %}
+
+            <form
+                method="post"
+                id="onboarding-form"
+                class="rounded-xl border border-zinc-800 bg-zinc-900/40 [&_input]:w-full [&_select]:w-full [&_input]:focus-visible:outline-none [&_select]:focus-visible:outline-none [&_input]:focus-visible:ring-2 [&_select]:focus-visible:ring-2 [&_input]:focus-visible:ring-bally-bright [&_select]:focus-visible:ring-bally-bright"
+            >
+                {% csrf_token %}
+                {% if form.non_field_errors %}
+                    <div class="border-b border-red-900/70 bg-red-950/80 px-5 py-3 text-sm text-red-300" role="alert">
+                        {{ form.non_field_errors }}
+                    </div>
+                {% endif %}
+
+                <section class="space-y-4 border-b border-zinc-800 px-5 py-6">
+                    <div>
+                        <h2 class="text-sm font-semibold text-zinc-100">Dados da organização</h2>
+                        <p class="mt-1 text-xs text-zinc-500">Identificação da organização nesta conta financeira.</p>
+                    </div>
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {% include 'financeiro/_onboarding_field.html' with field=form.legal_name wrapper_class='' only %}
+                        {% include 'financeiro/_onboarding_field.html' with field=form.email wrapper_class='' only %}
+                    </div>
+                </section>
+
+                <section class="space-y-4 border-b border-zinc-800 px-5 py-6">
+                    <div>
+                        <h2 class="text-sm font-semibold text-zinc-100">Informações fiscais</h2>
+                        <p class="mt-1 text-xs text-zinc-500">Os campos extras mudam conforme o tipo de pessoa.</p>
+                    </div>
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {% include 'financeiro/_onboarding_field.html' with field=form.cpf_cnpj wrapper_class='' only %}
+                        {% include 'financeiro/_onboarding_field.html' with field=form.person_type wrapper_class='' only %}
+                    </div>
+                    <div data-person-only="FISICA"{% if form.person_type.value != 'FISICA' %} hidden{% endif %} class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {% include 'financeiro/_onboarding_field.html' with field=form.birth_date wrapper_class='' only %}
+                    </div>
+                    <div data-person-only="JURIDICA"{% if form.person_type.value != 'JURIDICA' %} hidden{% endif %} class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {% include 'financeiro/_onboarding_field.html' with field=form.company_type wrapper_class='' only %}
+                        {% include 'financeiro/_onboarding_field.html' with field=form.tax_regime wrapper_class='' only %}
+                    </div>
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {% include 'financeiro/_onboarding_field.html' with field=form.income_value wrapper_class='' only %}
+                    </div>
+                </section>
+
+                <section class="space-y-4 border-b border-zinc-800 px-5 py-6">
+                    <div>
+                        <h2 class="text-sm font-semibold text-zinc-100">Contato</h2>
+                    </div>
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {% include 'financeiro/_onboarding_field.html' with field=form.mobile_phone wrapper_class='' only %}
+                        {% include 'financeiro/_onboarding_field.html' with field=form.phone wrapper_class='' only %}
+                        {% include 'financeiro/_onboarding_field.html' with field=form.site wrapper_class='sm:col-span-2' only %}
+                    </div>
+                </section>
+
+                <section class="space-y-4 px-5 py-6">
+                    <div>
+                        <h2 class="text-sm font-semibold text-zinc-100">Endereço</h2>
+                    </div>
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {% include 'financeiro/_onboarding_field.html' with field=form.postal_code wrapper_class='' only %}
+                        {% include 'financeiro/_onboarding_field.html' with field=form.address_number wrapper_class='' only %}
+                        {% include 'financeiro/_onboarding_field.html' with field=form.address wrapper_class='sm:col-span-2' only %}
+                        {% include 'financeiro/_onboarding_field.html' with field=form.province wrapper_class='' only %}
+                        {% include 'financeiro/_onboarding_field.html' with field=form.complement wrapper_class='' only %}
+                    </div>
+                </section>
+
+                <div class="sticky bottom-0 z-10 flex flex-col gap-3 rounded-b-xl border-t border-zinc-800 bg-zinc-900/95 px-5 py-4 backdrop-blur max-lg:static sm:flex-row sm:flex-wrap sm:items-center">
+                    <button
+                        type="submit"
+                        class="{% if can_provision %}rounded-md border border-zinc-700 bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-zinc-200 hover:bg-zinc-800{% else %}rounded-md bg-bally px-4 py-2.5 text-sm font-semibold text-white hover:bg-bally-bright{% endif %} min-h-11 w-full sm:w-auto"
+                    >
+                        Salvar cadastro
+                    </button>
+                    {% if fin_perms.gerir_caixa %}
+                    <button
+                        type="submit"
+                        form="form-ativar-conta"
+                        class="{% if can_provision %}rounded-md bg-bally px-4 py-2.5 text-sm font-semibold text-white hover:bg-bally-bright{% else %}rounded-md border border-bally/40 bg-bally-muted/40 px-4 py-2.5 text-sm font-semibold text-bally-bright{% endif %} min-h-11 w-full sm:w-auto disabled:cursor-not-allowed disabled:opacity-50"
+                        {% if not can_provision %}disabled{% endif %}
+                    >
+                        Ativar conta financeira
+                    </button>
+                    {% if subaccount and subaccount.status == 'recovery_required' %}
+                    <button
+                        type="submit"
+                        form="form-consultar-situacao"
+                        class="min-h-11 w-full rounded-md border border-zinc-700 px-4 py-2.5 text-sm font-medium text-zinc-300 hover:bg-zinc-800 sm:w-auto"
+                    >
+                        Consultar situação
+                    </button>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+
+        <aside class="min-w-0 space-y-4 lg:sticky lg:top-6">
+            <section class="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5" aria-labelledby="ativacao-titulo">
+                <h2 id="ativacao-titulo" class="text-sm font-semibold text-zinc-100">Ativação da conta financeira</h2>
+                <p class="mt-3 text-xs font-medium uppercase tracking-wide text-zinc-500">Status</p>
+                <p class="mt-1 text-base font-semibold text-zinc-100">{{ activation_status }}</p>
+                <ul class="mt-5 space-y-2.5" aria-label="Checklist do cadastro">
+                    {% for item in onboarding_checklist %}
+                    <li class="flex items-start gap-2.5 text-sm">
+                        <span class="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full {% if item.done %}bg-bally text-white{% else %}border border-zinc-600 text-zinc-600{% endif %}" aria-hidden="true">
+                            {% if item.done %}
+                            <svg class="h-2.5 w-2.5" viewBox="0 0 12 12" fill="none"><path d="M2.5 6.2 4.8 8.5 9.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            {% endif %}
+                        </span>
+                        <span class="{% if item.done %}text-zinc-300{% else %}text-zinc-500{% endif %}">
+                            <span class="sr-only">{% if item.done %}Concluído:{% else %}Pendente:{% endif %} </span>
+                            {{ item.label }}
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </section>
+            <section class="rounded-xl border border-zinc-800 bg-zinc-900/30 p-5">
+                <p class="text-sm leading-6 text-zinc-400">
+                    Seus usuários continuam com o mesmo cadastro do ADV Growth 90. Esta etapa pertence à organização.
+                </p>
+            </section>
+        </aside>
     </div>
 </div>
+<script>
+(function () {
+    var select = document.getElementById("id_person_type");
+    if (!select) return;
+    function togglePersonFields() {
+        var type = select.value;
+        document.querySelectorAll("[data-person-only]").forEach(function (el) {
+            var show = el.getAttribute("data-person-only") === type;
+            el.hidden = !show;
+            el.querySelectorAll("input, select, textarea").forEach(function (input) {
+                input.disabled = !show;
+            });
+        });
+    }
+    select.addEventListener("change", togglePersonFields);
+    togglePersonFields();
+})();
+</script>
 {% endblock 'body' %}

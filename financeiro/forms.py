@@ -721,6 +721,8 @@ class OrganizationFinancialOnboardingForm(forms.ModelForm):
                 self.add_error("cpf_cnpj", "Pessoa física exige CPF com 11 dígitos.")
             if not cleaned.get("birth_date"):
                 self.add_error("birth_date", "Informe a data de nascimento.")
+            cleaned["company_type"] = ""
+            cleaned["tax_regime"] = ""
         if person_type == OrganizationFinancialOnboarding.PersonType.JURIDICA:
             if len(cpf_cnpj) != 14:
                 self.add_error("cpf_cnpj", "Pessoa jurídica exige CNPJ com 14 dígitos.")
@@ -728,4 +730,16 @@ class OrganizationFinancialOnboardingForm(forms.ModelForm):
                 self.add_error("company_type", "Informe o tipo de empresa.")
             if not cleaned.get("tax_regime"):
                 self.add_error("tax_regime", "Informe o regime tributário.")
+            cleaned["birth_date"] = None
         return cleaned
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if instance.person_type == OrganizationFinancialOnboarding.PersonType.FISICA:
+            instance.company_type = ""
+            instance.tax_regime = ""
+        elif instance.person_type == OrganizationFinancialOnboarding.PersonType.JURIDICA:
+            instance.birth_date = None
+        if commit:
+            instance.save()
+        return instance

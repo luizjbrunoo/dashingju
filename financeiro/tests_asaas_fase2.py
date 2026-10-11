@@ -16,6 +16,7 @@ from django.db import close_old_connections, connection
 from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 
+from financeiro.forms import OrganizationFinancialOnboardingForm
 from financeiro.models import OrganizationAsaasSubaccount, OrganizationFinancialOnboarding
 from financeiro.permissions import pode_provisionar_subconta_asaas
 from financeiro.services import asaas_client as client_mod
@@ -33,6 +34,7 @@ from financeiro.services.asaas_onboarding import (
     AsaasOnboardingError,
     build_create_account_payload,
     missing_onboarding_fields,
+    pending_fields_message,
 )
 from financeiro.services.asaas_provision import (
     AsaasProvisionError,
@@ -636,18 +638,308 @@ class AsaasOnboardingPayloadTests(AsaasFase2Helpers):
             )
         self.assertEqual(ctx.exception.reason, "missing_onboarding_fields")
         self.assertTrue(ctx.exception.missing_fields)
+        self.assertNotIn("data de nascimento", ctx.exception.missing_fields)
+        self.assertNotIn("tipo de empresa", ctx.exception.missing_fields)
+        self.assertNotIn("regime tributário", ctx.exception.missing_fields)
+
+    def test_pj_nao_exige_birth_date_e_payload_nao_contem(self):
+        row = self._onboarding(self.org_a, birth_date=date(1988, 4, 12))
+        missing = missing_onboarding_fields(row)
+        self.assertEqual(missing, [])
+        self.assertNotIn("data de nascimento", missing)
+        payload = build_create_account_payload(
+            organization=self.org_a,
+            webhook_token="t" * 40,
+            webhook_url=WEBHOOK_URL,
+        )
+        self.assertNotIn("birthDate", payload)
+        self.assertEqual(payload["companyType"], "LIMITED")
+        self.assertEqual(payload["taxRegime"], "NATIONAL_SIMPLE")
+
+    def test_pj_exige_company_type_e_tax_regime(self):
+        row = self._onboarding(self.org_a, company_type="", tax_regime="")
+        missing = missing_onboarding_fields(row)
+        self.assertIn("tipo de empresa", missing)
+        self.assertIn("regime tributário", missing)
+        self.assertNotIn("data de nascimento", missing)
+        with self.assertRaises(AsaasOnboardingError) as ctx:
+            build_create_account_payload(
+                organization=self.org_a,
+                webhook_token="t" * 40,
+                webhook_url=WEBHOOK_URL,
+            )
+        self.assertEqual(ctx.exception.reason, "missing_onboarding_fields")
+
+    def test_pf_exige_birth_date_e_payload_nao_contem_empresa(self):
+        row = self._onboarding(
+            self.org_a,
+            cpf_cnpj="39053344705",
+            person_type=OrganizationFinancialOnboarding.PersonType.FISICA,
+            birth_date=None,
+            company_type=OrganizationFinancialOnboarding.CompanyType.LIMITED,
+            tax_regime=OrganizationFinancialOnboarding.TaxRegime.NATIONAL_SIMPLE,
+        )
+        missing = missing_onboarding_fields(row)
+        self.assertIn("data de nascimento", missing)
+        self.assertNotIn("tipo de empresa", missing)
+        self.assertNotIn("regime tributário", missing)
+        msg = pending_fields_message(missing)
+        self.assertIn("data de nascimento", msg)
+        self.assertNotIn("tipo de empresa", msg)
+        self.assertNotIn("regime tributário", msg)
+
+    def test_pf_nao_exige_company_type_nem_tax_regime(self):
+        row = self._onboarding(
+            self.org_a,
+            cpf_cnpj="39053344705",
+            person_type=OrganizationFinancialOnboarding.PersonType.FISICA,
+            birth_date=date(1988, 4, 12),
+            company_type=OrganizationFinancialOnboarding.CompanyType.LIMITED,
+            tax_regime=OrganizationFinancialOnboarding.TaxRegime.NATIONAL_SIMPLE,
+        )
+        self.assertEqual(missing_onboarding_fields(row), [])
+        payload = build_create_account_payload(
+            organization=self.org_a,
+            webhook_token="t" * 40,
+            webhook_url=WEBHOOK_URL,
+        )
+        self.assertEqual(payload["birthDate"], "1988-04-12")
+        self.assertNotIn("companyType", payload)
+        self.assertNotIn("taxRegime", payload)
+
+    def test_form_pj_nao_exige_nascimento_e_limpa_birth_date(self):
+        form = OrganizationFinancialOnboardingForm(
+            {
+                "legal_name": "Escritorio A LTDA",
+                "email": "org-a@example.com",
+                "cpf_cnpj": "66625514000140",
+                "person_type": OrganizationFinancialOnboarding.PersonType.JURIDICA,
+                "birth_date": "1988-04-12",
+                "company_type": OrganizationFinancialOnboarding.CompanyType.LIMITED,
+                "tax_regime": OrganizationFinancialOnboarding.TaxRegime.NATIONAL_SIMPLE,
+                "mobile_phone": "11988451155",
+                "income_value": "25000,00",
+                "address": "Av. Rolf Wiest",
+                "address_number": "277",
+                "province": "Bom Retiro",
+                "postal_code": "89223005",
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertIsNone(form.cleaned_data["birth_date"])
+        saved = form.save(commit=False)
+        saved.organization = self.org_a
+        saved.save()
+        saved.refresh_from_db()
+        self.assertIsNone(saved.birth_date)
+        self.assertEqual(saved.company_type, "LIMITED")
+
+    def test_form_pf_exige_nascimento_e_limpa_campos_de_empresa(self):
+        invalid = OrganizationFinancialOnboardingForm(
+            {
+                "legal_name": "Maria Silva",
+                "email": "maria@example.com",
+                "cpf_cnpj": "39053344705",
+                "person_type": OrganizationFinancialOnboarding.PersonType.FISICA,
+                "company_type": OrganizationFinancialOnboarding.CompanyType.LIMITED,
+                "tax_regime": OrganizationFinancialOnboarding.TaxRegime.NATIONAL_SIMPLE,
+                "mobile_phone": "11988451155",
+                "income_value": "8000,00",
+                "address": "Rua A",
+                "address_number": "10",
+                "province": "Centro",
+                "postal_code": "01310100",
+            }
+        )
+        self.assertFalse(invalid.is_valid())
+        self.assertIn("birth_date", invalid.errors)
+        self.assertNotIn("company_type", invalid.errors)
+        self.assertNotIn("tax_regime", invalid.errors)
+
+        form = OrganizationFinancialOnboardingForm(
+            {
+                "legal_name": "Maria Silva",
+                "email": "maria@example.com",
+                "cpf_cnpj": "39053344705",
+                "person_type": OrganizationFinancialOnboarding.PersonType.FISICA,
+                "birth_date": "1988-04-12",
+                "company_type": OrganizationFinancialOnboarding.CompanyType.LIMITED,
+                "tax_regime": OrganizationFinancialOnboarding.TaxRegime.NATIONAL_SIMPLE,
+                "mobile_phone": "11988451155",
+                "income_value": "8000,00",
+                "address": "Rua A",
+                "address_number": "10",
+                "province": "Centro",
+                "postal_code": "01310100",
+            }
+        )
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["company_type"], "")
+        self.assertEqual(form.cleaned_data["tax_regime"], "")
+        saved = form.save(commit=False)
+        saved.organization = self.org_a
+        saved.save()
+        saved.refresh_from_db()
+        self.assertEqual(saved.birth_date, date(1988, 4, 12))
+        self.assertEqual(saved.company_type, "")
+        self.assertEqual(saved.tax_regime, "")
+
+    def test_form_pj_exige_company_type_e_tax_regime(self):
+        form = OrganizationFinancialOnboardingForm(
+            {
+                "legal_name": "Escritorio A LTDA",
+                "email": "org-a@example.com",
+                "cpf_cnpj": "66625514000140",
+                "person_type": OrganizationFinancialOnboarding.PersonType.JURIDICA,
+                "birth_date": "",
+                "company_type": "",
+                "tax_regime": "",
+                "mobile_phone": "11988451155",
+                "income_value": "25000,00",
+                "address": "Av. Rolf Wiest",
+                "address_number": "277",
+                "province": "Bom Retiro",
+                "postal_code": "89223005",
+            }
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn("company_type", form.errors)
+        self.assertIn("tax_regime", form.errors)
+        self.assertNotIn("birth_date", form.errors)
+
+    def test_mensagem_pendente_respeita_tipo_de_pessoa(self):
+        pf = pending_fields_message(["data de nascimento"])
+        self.assertIn("Preencha os dados obrigatórios para ativar sua conta financeira.", pf)
+        self.assertIn("data de nascimento", pf)
+        self.assertNotIn("tipo de empresa", pf)
+        self.assertNotIn("regime tributário", pf)
+        pj = pending_fields_message(["tipo de empresa", "regime tributário"])
+        self.assertIn("tipo de empresa", pj)
+        self.assertIn("regime tributário", pj)
+        self.assertNotIn("data de nascimento", pj)
 
 
 @override_settings(**_settings())
 class AsaasViewRbacTests(AsaasFase2Helpers):
     def test_view_sem_permissao_bloqueada(self):
         self.client.force_login(self.user_no)
-        resp = self.client.get(reverse("financeiro_asaas_onboarding"))
+        resp = self.client.get(reverse("financeiro_conta_onboarding"))
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(resp.url, reverse("home"))
         resp = self.client.post(reverse("financeiro_asaas_provisionar"))
         self.assertEqual(resp.status_code, 302)
         self.assertEqual(resp.url, reverse("home"))
+
+    def test_rota_neutra_funciona_e_white_label(self):
+        grant_all_finance_permissions(self.user_ok)
+        self.client.force_login(self.user_ok)
+        resp = self.client.get(reverse("financeiro_conta_onboarding"))
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        self.assertIn("Ativar conta financeira", html)
+        self.assertIn("Conta Financeira", html)
+        self.assertIn("Salvar cadastro", html)
+        self.assertIn("data-person-only=\"FISICA\"", html)
+        self.assertIn("data-person-only=\"JURIDICA\"", html)
+        self.assertIn("Ambiente de testes", html)
+        self.assertNotIn("Asaas", html)
+        self.assertNotIn("Onboarding financeiro Asaas", html)
+        self.assertNotIn("Provisionar Asaas", html)
+        self.assertNotIn("Criar subconta Asaas", html)
+        self.assertNotIn("Conectar Asaas", html)
+        self.assertNotIn("tipo de empresa, regime tributário", html)
+        self.assertNotIn("data de nascimento, tipo de empresa", html)
+        self.assertNotIn("max-w-xl", html)
+        self.assertIn("Dados da organização", html)
+        self.assertIn("Informações fiscais", html)
+        self.assertIn("Contato", html)
+        self.assertIn("Endereço", html)
+        self.assertIn("Ativação da conta financeira", html)
+        self.assertIn("Cadastro não concluído", html)
+        self.assertIn("Complete os dados obrigatórios para ativar sua conta financeira.", html)
+        self.assertEqual(resp.context["activation_status"], "Cadastro não concluído")
+        self.assertIn("lg:grid-cols-[minmax(0,2fr)_minmax(17rem,1fr)]", html)
+
+    def test_rota_antiga_redireciona(self):
+        grant_all_finance_permissions(self.user_ok)
+        self.client.force_login(self.user_ok)
+        resp = self.client.get(reverse("financeiro_asaas_onboarding"))
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.url, reverse("financeiro_conta_onboarding"))
+
+    def test_onboarding_isola_por_organization(self):
+        self._onboarding(self.org_a, legal_name="Escritorio Tenant A")
+        self._onboarding(self.org_b, legal_name="Escritorio Tenant B")
+        grant_all_finance_permissions(self.user_ok)
+        self.client.force_login(self.user_ok)
+        resp = self.client.get(reverse("financeiro_conta_onboarding"))
+        self.assertEqual(resp.status_code, 200)
+        html = resp.content.decode()
+        self.assertIn("Escritorio Tenant A", html)
+        self.assertNotIn("Escritorio Tenant B", html)
+
+    def test_pj_nao_lista_nascimento_como_pendente_na_ui(self):
+        self._onboarding(self.org_a, company_type="", tax_regime="")
+        grant_all_finance_permissions(self.user_ok)
+        self.client.force_login(self.user_ok)
+        resp = self.client.get(reverse("financeiro_conta_onboarding"))
+        self.assertEqual(resp.status_code, 200)
+        missing = list(resp.context["missing_fields"])
+        self.assertIn("tipo de empresa", missing)
+        self.assertIn("regime tributário", missing)
+        self.assertNotIn("data de nascimento", missing)
+        self.assertIn("tipo de empresa", resp.context["pending_fields_message"])
+        self.assertNotIn("data de nascimento", resp.context["pending_fields_message"])
+
+    def test_pf_nao_lista_empresa_como_pendente_na_ui(self):
+        self._onboarding(
+            self.org_a,
+            cpf_cnpj="39053344705",
+            person_type=OrganizationFinancialOnboarding.PersonType.FISICA,
+            birth_date=None,
+            company_type="",
+            tax_regime="",
+        )
+        grant_all_finance_permissions(self.user_ok)
+        self.client.force_login(self.user_ok)
+        resp = self.client.get(reverse("financeiro_conta_onboarding"))
+        self.assertEqual(resp.status_code, 200)
+        missing = list(resp.context["missing_fields"])
+        self.assertIn("data de nascimento", missing)
+        self.assertNotIn("tipo de empresa", missing)
+        self.assertNotIn("regime tributário", missing)
+        self.assertIn("data de nascimento", resp.context["pending_fields_message"])
+        self.assertNotIn("tipo de empresa", resp.context["pending_fields_message"])
+        self.assertNotIn("regime tributário", resp.context["pending_fields_message"])
+
+    def test_layout_status_pronto_para_ativacao(self):
+        self._onboarding(self.org_a)
+        grant_all_finance_permissions(self.user_ok)
+        self.client.force_login(self.user_ok)
+        resp = self.client.get(reverse("financeiro_conta_onboarding"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["activation_status"], "Pronto para ativação")
+        self.assertTrue(all(item["done"] for item in resp.context["onboarding_checklist"]))
+        html = resp.content.decode()
+        self.assertIn("Salvar cadastro", html)
+        self.assertIn("Ativar conta financeira", html)
+        self.assertNotIn("Asaas", html)
+        self.assertNotIn("Consultar situação", html)
+
+    def test_layout_status_requer_atencao_mostra_consultar(self):
+        self._onboarding(self.org_a)
+        OrganizationAsaasSubaccount.objects.create(
+            organization=self.org_a,
+            environment="SANDBOX",
+            status=OrganizationAsaasSubaccount.Status.RECOVERY_REQUIRED,
+        )
+        grant_all_finance_permissions(self.user_ok)
+        self.client.force_login(self.user_ok)
+        resp = self.client.get(reverse("financeiro_conta_onboarding"))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["activation_status"], "Requer atenção")
+        self.assertIn("Consultar situação", resp.content.decode())
+        self.assertNotIn("Asaas", resp.content.decode())
 
     def test_view_provisiona_com_transport_mockado(self):
         self._onboarding(self.org_a)

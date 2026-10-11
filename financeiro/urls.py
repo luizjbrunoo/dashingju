@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 
 from . import views
 from . import views_asaas
@@ -83,8 +84,17 @@ urlpatterns = [
     path("lancamentos/<int:pk>/excluir/", views.movimento_excluir, name="financeiro_movimento_excluir"),
     path("relatorio.pdf", views.relatorio_pdf, name="financeiro_relatorio_pdf"),
     path(
-        "asaas/onboarding/",
+        "conta/onboarding/",
         views_asaas.asaas_onboarding,
+        name="financeiro_conta_onboarding",
+    ),
+    path(
+        "asaas/onboarding/",
+        RedirectView.as_view(
+            pattern_name="financeiro_conta_onboarding",
+            permanent=False,
+            query_string=True,
+        ),
         name="financeiro_asaas_onboarding",
     ),
     path(
