@@ -23,6 +23,9 @@ from core.runtime_env import (
     parse_csrf_trusted_origins,
     resolve_allowed_hosts,
     resolve_asaas_environment,
+    build_asaas_webhook_ingress_url,
+    resolve_asaas_webhook_url,
+    resolve_public_base_url,
     resolve_google_ads_oauth_redirect_uri,
     resolve_integration_credentials_key,
     resolve_secret_key,
@@ -112,6 +115,46 @@ class RuntimeEnvParserTests(SimpleTestCase):
             ),
             "https://staging.example.com/marketing/google-ads/callback/",
         )
+
+    def test_asaas_webhook_url_exige_https_com_path(self):
+        with self.assertRaises(ImproperlyConfigured):
+            resolve_asaas_webhook_url("")
+        with self.assertRaises(ImproperlyConfigured):
+            resolve_asaas_webhook_url("http://app.example.com/financeiro/asaas/webhook/")
+        with self.assertRaises(ImproperlyConfigured):
+            resolve_asaas_webhook_url("https://app.example.com")
+        with self.assertRaises(ImproperlyConfigured):
+            resolve_asaas_webhook_url("https://*.example.com/webhook/")
+        self.assertEqual(
+            resolve_asaas_webhook_url(
+                "https://app.example.com/financeiro/webhooks/asaas/11111111-1111-4111-8111-111111111111/"
+            ),
+            "https://app.example.com/financeiro/webhooks/asaas/11111111-1111-4111-8111-111111111111/",
+        )
+
+    def test_public_base_url_https_em_producao_e_constroi_webhook(self):
+        with self.assertRaises(ImproperlyConfigured):
+            resolve_public_base_url("")
+        with self.assertRaises(ImproperlyConfigured):
+            resolve_public_base_url("http://app.example.com", debug=False)
+        with self.assertRaises(ImproperlyConfigured):
+            resolve_public_base_url("https://app.example.com/path")
+        self.assertEqual(
+            resolve_public_base_url("https://app.example.com/", debug=False),
+            "https://app.example.com",
+        )
+        uid = "11111111-1111-4111-8111-111111111111"
+        url = build_asaas_webhook_ingress_url(
+            public_id=uid,
+            base_url="https://app.example.com",
+            debug=False,
+        )
+        self.assertEqual(
+            url,
+            f"https://app.example.com/financeiro/webhooks/asaas/{uid}/",
+        )
+        self.assertNotIn("token", url)
+        self.assertNotIn("secret", url)
 
     def test_asaas_urls_somente_sandbox_e_production(self):
         self.assertEqual(

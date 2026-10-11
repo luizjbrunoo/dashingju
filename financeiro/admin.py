@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import (
+    AsaasWebhookEvent,
     Banco,
     Categoria,
     Cobranca,
@@ -8,6 +9,8 @@ from .models import (
     CobrancaRecebimento,
     Contrato,
     Movimento,
+    OrganizationAsaasSubaccount,
+    OrganizationFinancialOnboarding,
 )
 
 
@@ -67,3 +70,55 @@ class CobrancaHistoricoAdmin(admin.ModelAdmin):
     list_display = ("cobranca", "acao", "autor", "criado_em")
     list_filter = ("acao", "usuario")
     date_hierarchy = "criado_em"
+
+
+@admin.register(OrganizationFinancialOnboarding)
+class OrganizationFinancialOnboardingAdmin(admin.ModelAdmin):
+    list_display = ("organization", "legal_name", "person_type", "updated_at")
+    search_fields = ("legal_name", "email")
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(OrganizationAsaasSubaccount)
+class OrganizationAsaasSubaccountAdmin(admin.ModelAdmin):
+    list_display = (
+        "organization",
+        "environment",
+        "status",
+        "account_id",
+        "wallet_id",
+        "webhook_public_id",
+        "updated_at",
+    )
+    list_filter = ("environment", "status")
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+        "account_id",
+        "wallet_id",
+        "webhook_public_id",
+    )
+
+
+@admin.register(AsaasWebhookEvent)
+class AsaasWebhookEventAdmin(admin.ModelAdmin):
+    list_display = (
+        "organization",
+        "event_type",
+        "event_id",
+        "account_id",
+        "inconsistent_reason",
+        "created_at",
+    )
+    list_filter = ("event_type",)
+    readonly_fields = (
+        "organization",
+        "event_id",
+        "event_type",
+        "account_id",
+        "payload",
+        "inconsistent_reason",
+        "processed_at",
+        "created_at",
+    )
+    search_fields = ("event_id", "event_type")

@@ -238,11 +238,14 @@ class AsaasClientFoundationTests(SimpleTestCase):
             httpx_req.assert_not_called()
             req.assert_not_called()
         src = inspect.getsource(client_mod)
-        self.assertNotIn("urlopen", src)
         self.assertNotIn("requests.", src)
         self.assertNotIn("httpx.", src)
-        self.assertNotIn("/accounts", src)
         self.assertNotIn("/payments", src)
+        with patch("urllib.request.urlopen") as urlopen:
+            with self.assertRaises(AsaasClientError) as create_ctx:
+                client.create_account({"name": "x"})
+            self.assertEqual(create_ctx.exception.reason, "http_disabled")
+            urlopen.assert_not_called()
 
     def test_chave_pai_web_autorizado(self):
         with override_settings(DJANGO_PROCESS="web"):

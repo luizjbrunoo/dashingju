@@ -130,6 +130,11 @@ def pode_gerir_caixa(user) -> bool:
     return _tem_perm(user, PERM_MANAGE_CAIXA)
 
 
+def pode_provisionar_subconta_asaas(user) -> bool:
+    """Provisionar subconta Asaas exige escrita financeira (caixa)."""
+    return pode_gerir_caixa(user)
+
+
 def tem_capability_financeira(user) -> bool:
     return (
         pode_ver_caixa(user)

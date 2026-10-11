@@ -11,7 +11,14 @@ from .choices import (
     StatusCobranca,
 )
 from .services.cobranca_parcelamento import MAX_PARCELAS, calcular_valores_parcelas
-from .models import Banco, Categoria, Cobranca, Contrato, Movimento
+from .models import (
+    Banco,
+    Categoria,
+    Cobranca,
+    Contrato,
+    Movimento,
+    OrganizationFinancialOnboarding,
+)
 
 User = get_user_model()
 
@@ -616,4 +623,109 @@ class GerarCobrancasContratoForm(forms.Form):
                 except ValidationError as exc:
                     msg = exc.messages[0] if getattr(exc, "messages", None) else str(exc)
                     self.add_error(None, msg)
+        return cleaned
+
+
+class OrganizationFinancialOnboardingForm(forms.ModelForm):
+    income_value = forms.CharField(
+        label="Renda/faturamento mensal",
+        help_text="Obrigatório. Use vírgula para centavos (ex.: 25.000,00).",
+        widget=forms.TextInput(
+            attrs={
+                "class": _INPUT_CLASS,
+                "inputmode": "decimal",
+                "placeholder": "0,00",
+                "autocomplete": "off",
+            }
+        ),
+    )
+
+    class Meta:
+        model = OrganizationFinancialOnboarding
+        fields = [
+            "legal_name",
+            "email",
+            "cpf_cnpj",
+            "person_type",
+            "birth_date",
+            "company_type",
+            "tax_regime",
+            "phone",
+            "mobile_phone",
+            "income_value",
+            "address",
+            "address_number",
+            "complement",
+            "province",
+            "postal_code",
+            "site",
+        ]
+        widgets = {
+            "legal_name": forms.TextInput(attrs={"class": _INPUT_CLASS}),
+            "email": forms.EmailInput(attrs={"class": _INPUT_CLASS}),
+            "cpf_cnpj": forms.TextInput(attrs={"class": _INPUT_CLASS}),
+            "person_type": forms.Select(attrs={"class": _SELECT_CLASS}),
+            "birth_date": forms.DateInput(attrs={"class": _INPUT_CLASS, "type": "date"}),
+            "company_type": forms.Select(attrs={"class": _SELECT_CLASS}),
+            "tax_regime": forms.Select(attrs={"class": _SELECT_CLASS}),
+            "phone": forms.TextInput(attrs={"class": _INPUT_CLASS}),
+            "mobile_phone": forms.TextInput(attrs={"class": _INPUT_CLASS}),
+            "address": forms.TextInput(attrs={"class": _INPUT_CLASS}),
+            "address_number": forms.TextInput(attrs={"class": _INPUT_CLASS}),
+            "complement": forms.TextInput(attrs={"class": _INPUT_CLASS}),
+            "province": forms.TextInput(attrs={"class": _INPUT_CLASS}),
+            "postal_code": forms.TextInput(attrs={"class": _INPUT_CLASS}),
+            "site": forms.TextInput(attrs={"class": _INPUT_CLASS}),
+        }
+        help_texts = {
+            "cpf_cnpj": "CPF (11 dígitos) ou CNPJ (14 dígitos). Não invente dados.",
+            "birth_date": "Obrigatório para pessoa física.",
+            "company_type": "Obrigatório para pessoa jurídica.",
+            "tax_regime": "Obrigatório para pessoa jurídica.",
+            "mobile_phone": "Celular com DDD.",
+            "postal_code": "CEP válido (8 dígitos).",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["company_type"].required = False
+        self.fields["tax_regime"].required = False
+        self.fields["birth_date"].required = False
+        if self.instance.pk and self.instance.income_value is not None:
+            self.initial["income_value"] = str(self.instance.income_value).replace(".", ",")
+
+    def clean_income_value(self):
+        value = parse_decimal_br(self.cleaned_data.get("income_value"))
+        if value <= 0:
+            raise ValidationError("Informe a renda/faturamento mensal maior que zero.")
+        return value
+
+    def clean_cpf_cnpj(self):
+        digits = "".join(ch for ch in str(self.cleaned_data.get("cpf_cnpj") or "") if ch.isdigit())
+        if len(digits) not in {11, 14}:
+            raise ValidationError("Informe um CPF (11 dígitos) ou CNPJ (14 dígitos).")
+        return digits
+
+    def clean_postal_code(self):
+        digits = "".join(ch for ch in str(self.cleaned_data.get("postal_code") or "") if ch.isdigit())
+        if len(digits) != 8:
+            raise ValidationError("Informe um CEP com 8 dígitos.")
+        return digits
+
+    def clean(self):
+        cleaned = super().clean()
+        person_type = cleaned.get("person_type")
+        cpf_cnpj = cleaned.get("cpf_cnpj") or ""
+        if person_type == OrganizationFinancialOnboarding.PersonType.FISICA:
+            if len(cpf_cnpj) != 11:
+                self.add_error("cpf_cnpj", "Pessoa física exige CPF com 11 dígitos.")
+            if not cleaned.get("birth_date"):
+                self.add_error("birth_date", "Informe a data de nascimento.")
+        if person_type == OrganizationFinancialOnboarding.PersonType.JURIDICA:
+            if len(cpf_cnpj) != 14:
+                self.add_error("cpf_cnpj", "Pessoa jurídica exige CNPJ com 14 dígitos.")
+            if not cleaned.get("company_type"):
+                self.add_error("company_type", "Informe o tipo de empresa.")
+            if not cleaned.get("tax_regime"):
+                self.add_error("tax_regime", "Informe o regime tributário.")
         return cleaned

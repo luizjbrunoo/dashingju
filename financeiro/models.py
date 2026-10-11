@@ -518,6 +518,7 @@ class OrganizationAsaasSubaccount(models.Model):
     )
     account_id = models.CharField(max_length=64, null=True, blank=True)
     wallet_id = models.CharField(max_length=64, null=True, blank=True)
+    webhook_public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     last_error_code = models.CharField(max_length=64, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -552,3 +553,142 @@ class OrganizationAsaasSubaccount(models.Model):
             f"<OrganizationAsaasSubaccount: {self.status}"
             f"@{self.environment}@org-{self.organization_id}>"
         )
+
+
+class AsaasWebhookEvent(models.Model):
+    """Ingress Organization-owned de webhook Asaas. Sem secrets."""
+
+    organization = models.ForeignKey(
+        "organizacoes.Organization",
+        on_delete=models.CASCADE,
+        related_name="asaas_webhook_events",
+    )
+    event_id = models.CharField(max_length=128)
+    event_type = models.CharField(max_length=80)
+    account_id = models.CharField(max_length=64, null=True, blank=True)
+    payload = models.JSONField(default=dict, blank=True)
+    inconsistent_reason = models.CharField(max_length=64, blank=True, default="")
+    processed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Evento webhook Asaas"
+        verbose_name_plural = "Eventos webhook Asaas"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "event_id"],
+                name="uniq_fin_asaas_webhook_event_org",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "created_at"],
+                name="fin_asaas_wh_evt_org_cr",
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.event_id = (self.event_id or "").strip()[:128]
+        self.event_type = (self.event_type or "").strip()[:80]
+        self.account_id = (self.account_id or "").strip() or None
+        self.inconsistent_reason = (self.inconsistent_reason or "").strip()[:64]
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return f"asaas-event@{self.event_type}@org-{self.organization_id}"
+
+    def __repr__(self) -> str:
+        return (
+            f"<AsaasWebhookEvent: {self.event_type}"
+            f"@org-{self.organization_id}>"
+        )
+
+    @property
+    def processable(self) -> bool:
+        return not self.inconsistent_reason
+
+
+class OrganizationFinancialOnboarding(models.Model):
+    """Dados KYC da Organization para subconta Asaas. Sem secrets."""
+
+    class PersonType(models.TextChoices):
+        FISICA = "FISICA", "Pessoa física"
+        JURIDICA = "JURIDICA", "Pessoa jurídica"
+
+    class CompanyType(models.TextChoices):
+        MEI = "MEI", "MEI"
+        LIMITED = "LIMITED", "Limitada"
+        INDIVIDUAL = "INDIVIDUAL", "Empresário individual"
+        ASSOCIATION = "ASSOCIATION", "Associação"
+
+    class TaxRegime(models.TextChoices):
+        MEI = "MEI", "MEI"
+        NATIONAL_SIMPLE = "NATIONAL_SIMPLE", "Simples Nacional"
+        NORMAL_REGIME = "NORMAL_REGIME", "Regime normal"
+        UNKNOWN = "UNKNOWN", "Desconhecido"
+
+    organization = models.OneToOneField(
+        "organizacoes.Organization",
+        on_delete=models.CASCADE,
+        related_name="financial_onboarding",
+    )
+    legal_name = models.CharField("Nome", max_length=200)
+    email = models.EmailField("E-mail")
+    cpf_cnpj = models.CharField("CPF/CNPJ", max_length=14)
+    person_type = models.CharField(
+        "Tipo de pessoa",
+        max_length=16,
+        choices=PersonType.choices,
+    )
+    birth_date = models.DateField("Data de nascimento", null=True, blank=True)
+    company_type = models.CharField(
+        "Tipo de empresa",
+        max_length=16,
+        choices=CompanyType.choices,
+        blank=True,
+        default="",
+    )
+    tax_regime = models.CharField(
+        "Regime tributário",
+        max_length=32,
+        choices=TaxRegime.choices,
+        blank=True,
+        default="",
+    )
+    phone = models.CharField("Telefone", max_length=20, blank=True, default="")
+    mobile_phone = models.CharField("Celular", max_length=20)
+    income_value = models.DecimalField(
+        "Renda/faturamento mensal",
+        max_digits=14,
+        decimal_places=2,
+    )
+    address = models.CharField("Endereço", max_length=200)
+    address_number = models.CharField("Número", max_length=20)
+    complement = models.CharField("Complemento", max_length=80, blank=True, default="")
+    province = models.CharField("Bairro", max_length=80)
+    postal_code = models.CharField("CEP", max_length=8)
+    site = models.CharField("Site", max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Onboarding financeiro"
+        verbose_name_plural = "Onboardings financeiros"
+
+    def save(self, *args, **kwargs):
+        self.cpf_cnpj = _digits_only(self.cpf_cnpj)[:14]
+        self.postal_code = _digits_only(self.postal_code)[:8]
+        self.phone = (self.phone or "").strip()
+        self.mobile_phone = (self.mobile_phone or "").strip()
+        self.site = (self.site or "").strip()
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return f"onboarding@org-{self.organization_id}"
+
+    def __repr__(self) -> str:
+        return f"<OrganizationFinancialOnboarding: org-{self.organization_id}>"
+
+
+def _digits_only(value) -> str:
+    return "".join(ch for ch in str(value or "") if ch.isdigit())

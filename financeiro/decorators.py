@@ -132,4 +132,8 @@ perm_gerir_caixa = requer_perm(
     PERM_MANAGE_CAIXA,
     mensagem="Sem permissão para movimentar o caixa.",
 )
+perm_provisionar_asaas = requer_perm(
+    PERM_MANAGE_CAIXA,
+    mensagem="Sem permissão para provisionar a subconta Asaas.",
+)
 perm_qualquer_financeiro = requer_capability_financeira()

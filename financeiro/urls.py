@@ -1,6 +1,8 @@
 from django.urls import path
 
 from . import views
+from . import views_asaas
+from . import views_asaas_webhooks
 from . import views_cobrancas
 from . import views_contratos
 
@@ -80,4 +82,24 @@ urlpatterns = [
     path("lancamentos/<int:pk>/editar/", views.movimento_editar, name="financeiro_movimento_editar"),
     path("lancamentos/<int:pk>/excluir/", views.movimento_excluir, name="financeiro_movimento_excluir"),
     path("relatorio.pdf", views.relatorio_pdf, name="financeiro_relatorio_pdf"),
+    path(
+        "asaas/onboarding/",
+        views_asaas.asaas_onboarding,
+        name="financeiro_asaas_onboarding",
+    ),
+    path(
+        "asaas/provisionar/",
+        views_asaas.asaas_provision,
+        name="financeiro_asaas_provisionar",
+    ),
+    path(
+        "asaas/recuperar/",
+        views_asaas.asaas_recovery_lookup,
+        name="financeiro_asaas_recuperar",
+    ),
+    path(
+        "webhooks/asaas/<uuid:webhook_public_id>/",
+        views_asaas_webhooks.asaas_webhook_ingress,
+        name="financeiro_asaas_webhook",
+    ),
 ]

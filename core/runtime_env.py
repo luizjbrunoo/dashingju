@@ -243,6 +243,56 @@ def asaas_base_url(environment: str | None) -> str:
     return ASAAS_BASE_URLS[env]
 
 
+def resolve_public_base_url(raw: str | None, *, debug: bool = False) -> str:
+    """Base canônica da aplicação. Staging/prod exige HTTPS. Sem secret."""
+    value = (raw or "").strip().rstrip("/")
+    if not value:
+        raise ImproperlyConfigured("PUBLIC_BASE_URL é obrigatória.")
+    if "*" in value:
+        raise ImproperlyConfigured("PUBLIC_BASE_URL inválida.")
+    from urllib.parse import urlparse
+
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ImproperlyConfigured("PUBLIC_BASE_URL inválida.")
+    if parsed.path not in {"", "/"} or parsed.query or parsed.fragment:
+        raise ImproperlyConfigured("PUBLIC_BASE_URL inválida.")
+    if parsed.username or parsed.password:
+        raise ImproperlyConfigured("PUBLIC_BASE_URL inválida.")
+    if not debug and parsed.scheme != "https":
+        raise ImproperlyConfigured("PUBLIC_BASE_URL exige HTTPS quando DEBUG=False.")
+    return value
+
+
+def build_asaas_webhook_ingress_url(*, public_id, base_url: str, debug: bool = False) -> str:
+    """Monta URL pública do webhook. UUID na path; nenhum segredo."""
+    import uuid as uuid_mod
+
+    try:
+        uid = uuid_mod.UUID(str(public_id))
+    except (TypeError, ValueError) as exc:
+        raise ImproperlyConfigured("webhook_public_id inválido.") from exc
+    base = resolve_public_base_url(base_url, debug=debug)
+    return f"{base}/financeiro/webhooks/asaas/{uid}/"
+
+
+def resolve_asaas_webhook_url(raw: str | None) -> str:
+    """URL HTTPS final do webhook ADV. Fail-closed. Sem secret."""
+    value = (raw or "").strip()
+    if not value:
+        raise ImproperlyConfigured("URL de webhook Asaas é obrigatória.")
+    if "*" in value:
+        raise ImproperlyConfigured("URL de webhook Asaas inválida.")
+    from urllib.parse import urlparse
+
+    parsed = urlparse(value)
+    if parsed.scheme != "https" or not parsed.netloc or not parsed.path:
+        raise ImproperlyConfigured("URL de webhook Asaas inválida.")
+    if parsed.query or parsed.fragment or parsed.username or parsed.password:
+        raise ImproperlyConfigured("URL de webhook Asaas inválida.")
+    return value
+
+
 def get_asaas_parent_api_key(*, process: str | None = None, raw: str | None = None) -> str:
     """Somente processo Web. Nunca logar o valor."""
     from django.conf import settings

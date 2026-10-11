@@ -57,6 +57,9 @@ DJANGO_PROCESS = (os.environ.get("DJANGO_PROCESS") or "").strip().lower()
 # SANDBOX | PRODUCTION. URL resolvida só no service. Sem URL arbitrária.
 # Chave-pai NÃO é atributo de settings (não serializar / não template).
 ASAAS_ENVIRONMENT = (os.environ.get("ASAAS_ENVIRONMENT") or "").strip().upper()
+# URL pública canônica da aplicação. Webhook Asaas = <base>/financeiro/webhooks/asaas/<uuid>/
+# Validada só no provisionamento (não no import). Staging/prod: HTTPS.
+PUBLIC_BASE_URL = (os.environ.get("PUBLIC_BASE_URL") or "").strip()
 ALLOWED_HOSTS = resolve_allowed_hosts(
     debug=DEBUG,
     raw=os.environ.get("DJANGO_ALLOWED_HOSTS"),
