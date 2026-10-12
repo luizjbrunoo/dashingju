@@ -67,6 +67,11 @@ ASAAS_WEBHOOK_EMAIL = (os.environ.get("ASAAS_WEBHOOK_EMAIL") or "").strip()
 # Conta Financeira / subconta Asaas. Ausente, vazio ou inválido => desligado.
 # Não validar além do parser fail-closed (collectstatic/migrate/check).
 ASAAS_BAAS_ENABLED = resolve_asaas_baas_enabled(os.environ.get("ASAAS_BAAS_ENABLED"))
+# WhatsApp Cloud API (Meta). Raw opcional. Validação fail-closed no webhook (não no import).
+WHATSAPP_WEBHOOK_VERIFY_TOKEN = (
+    os.environ.get("WHATSAPP_WEBHOOK_VERIFY_TOKEN") or ""
+).strip()
+META_WHATSAPP_APP_SECRET = (os.environ.get("META_WHATSAPP_APP_SECRET") or "").strip()
 ALLOWED_HOSTS = resolve_allowed_hosts(
     debug=DEBUG,
     raw=os.environ.get("DJANGO_ALLOWED_HOSTS"),
@@ -92,6 +97,7 @@ INSTALLED_APPS = [
     "financeiro",
     "marketing",
     "comercial",
+    "integrations",
     "django_q",
     "martor",
 ]

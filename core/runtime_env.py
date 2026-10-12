@@ -341,3 +341,21 @@ def get_asaas_parent_api_key(*, process: str | None = None, raw: str | None = No
     if not key:
         raise AsaasParentKeyError("missing")
     return key
+
+
+def get_whatsapp_webhook_verify_token(*, raw: str | None = None) -> str:
+    """Token de verificação GET da Meta. Vazio = fail-closed. Nunca logar."""
+    from django.conf import settings
+
+    if raw is None:
+        raw = getattr(settings, "WHATSAPP_WEBHOOK_VERIFY_TOKEN", "")
+    return str(raw or "").strip()
+
+
+def get_meta_whatsapp_app_secret(*, raw: str | None = None) -> str:
+    """App Secret para X-Hub-Signature-256. Vazio = fail-closed. Nunca logar."""
+    from django.conf import settings
+
+    if raw is None:
+        raw = getattr(settings, "META_WHATSAPP_APP_SECRET", "")
+    return str(raw or "").strip()
